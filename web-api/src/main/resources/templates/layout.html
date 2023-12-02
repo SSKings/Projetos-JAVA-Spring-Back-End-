@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+		xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+	<head>
+		<title>Vera's Delivery</title>
+		<!--	Bootstrap	-->
+		<link rel="stylesheet" th:href="@{/bootstrap5/css/bootstrap.min.css}" 
+			href="static/bootstrap5/css/bootstrap.min.css">
+		<link rel="stylesheet" th:href="@{/bootstrap5/css/bootstrap-theme.min.css}" 
+			href="static/bootstrap5/css/bootstrap-theme.min.css">
+		<script	src="static/bootstrap5/js/bootstrap.min.js"></script>
+		
+
+	</head>
+	<body>
+		<div class="container">
+			<nav class="navbar	navbar-default	navbar-static-top">
+				<div class="navbar-header">
+					<a class="navbar-brand" th:href="@{/}">
+						<img src=""/>Vera's Delivery
+					</a>
+				</div>
+				<ul	class="nav	navbar-nav">
+					<li><a class="brand" href="https://www.linkedin.com/in/sskings/">Linkedin</a></li>
+					<li><a class="brand" href="https://www.github.com/sskings">GitHub</a></li>
+				</ul>
+			</nav>
+			<h1	layout:fragment="header">cabeçalho	falso</h1>
+			<div layout:fragment="content">content	falso</div>
+		</div>						 
+	</body>
+</html>
+	
+	
+	
+	
+	

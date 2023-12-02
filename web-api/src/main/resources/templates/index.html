@@ -1,0 +1,21 @@
+<!DOCTYPE	html>
+<html	xmlns:th="http://www.thymeleaf.org"
+	xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+	layout:decorate="layout">
+	<head>
+		<meta	http-equiv="Content-Type"
+		content="text/html;charset=UTF-8"	/>
+	</head>
+	<body>
+		<h1	layout:fragment="header">
+		Vera's Delivery	
+		<small>Painel de controle</small></h1>
+		<div layout:fragment="content" class="container">
+		<div class="jumbotron">
+		<a th:href="@{/clientes/}" class="btn btn-lg	btn-info">Clientes</a>
+		<a	th:href="@{#}" class="btn	btn-lg btn-info">Itens</a>
+			</div>
+		</div>
+	</body>
+</html>
+	
