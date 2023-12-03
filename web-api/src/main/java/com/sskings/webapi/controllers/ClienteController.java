@@ -48,7 +48,7 @@ public class ClienteController {
 			return new ModelAndView(CLIENTE_URI + "form","formErrors",result.getAllErrors()); 
 		}
 		cliente = this.clienteRepository.save(cliente);
-		redirect.addFlashAttribute("globalMessage","Cliente gravado com sucesso");
+		redirect.addFlashAttribute("globalMessage","Cliente gravado com sucesso.");
 		return new ModelAndView("redirect:/" + CLIENTE_URI + "{cliente.id}","cliente.id",cliente.getId());
 	}
 
@@ -58,7 +58,7 @@ public class ClienteController {
 		Iterable<Cliente> clientes = this.clienteRepository.findAll();
 		
 		ModelAndView mv = new ModelAndView(CLIENTE_URI + "list","clientes",clientes);
-		mv.addObject("globalMessage","Cliente removido com sucesso");
+		mv.addObject("globalMessage","Cliente removido com sucesso.");
 	
 		return mv;
 	}
