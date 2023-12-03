@@ -12,6 +12,9 @@ xmlns:th="https://www.thymeleaf.org">
 		<div th:if="${param.logout}">
 			You have been logged out.
 		</div>
+		<div th:if="${registrationSuccess != null}" th:text="${registrationSuccess}">
+			
+		</div>
 		<form th:action="@{/login}" method="post">
 			<div>
 				<label>User Name: <input type="text" name="username"/></label>
