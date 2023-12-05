@@ -37,7 +37,6 @@ public class Pedido {
 	@DateTimeFormat(pattern = "dd-MM-yyyy")
 	private Date data;
 
-	@Min(1)
 	private BigDecimal valorTotal;
 	
 	public Pedido() {}
