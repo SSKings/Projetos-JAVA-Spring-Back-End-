@@ -1,6 +1,7 @@
 package com.sskings.webapi.carga;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,10 +51,10 @@ public class RepositoryTest implements ApplicationRunner {
     	listaPedidoVera1.add(dog2);
     	listaPedidoVera1.add(dog3);
     	
-    	Pedido pedidoDoSergio = new Pedido(ID_PEDIDO1,sergio,listaPedidoSergio1,dog1.getPreco());
+    	Pedido pedidoDoSergio = new Pedido(ID_PEDIDO1,sergio,listaPedidoSergio1,dog1.getPreco(), LocalDate.now());
     	sergio.novoPedido(pedidoDoSergio);
     	
-    	Pedido pedidoDaVera = new Pedido(ID_PEDIDO2,vera,listaPedidoVera1, dog2.getPreco().add(dog3.getPreco()));
+    	Pedido pedidoDaVera = new Pedido(ID_PEDIDO2,vera,listaPedidoVera1, dog2.getPreco().add(dog3.getPreco()), LocalDate.now());
     	vera.novoPedido(pedidoDaVera);
     	
     	System.out.println(">>> Pedido 1 - Sérgio Santana : "+ pedidoDoSergio);
@@ -66,7 +67,7 @@ public class RepositoryTest implements ApplicationRunner {
 		List<Item> listaPedidoFernando2 = new ArrayList<Item>();
 		listaPedidoFernando2.add(dog2);
 		
-    	Pedido pedido2DoSergio  = new Pedido(ID_PEDIDO3,sergio,listaPedidoFernando2,dog2.getPreco());
+    	Pedido pedido2DoSergio  = new Pedido(ID_PEDIDO3,sergio,listaPedidoFernando2,dog2.getPreco(), LocalDate.now());
     	sergio.novoPedido(pedido2DoSergio);
     	
     	clienteRepository.saveAndFlush(sergio);

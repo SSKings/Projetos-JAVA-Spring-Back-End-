@@ -7,13 +7,15 @@
 		content="text/html;charset=UTF-8"	/>
 	</head>
 	<body>
-		<h1	layout:fragment="header">
-		Vera's Delivery	
-		<small>Painel de controle</small></h1>
+		<h1	layout:fragment="header">Vera's Delivery</h1>
+		<h2>Painel de controle</h2>
 		<div layout:fragment="content" class="container">
-		<div class="jumbotron">
-		<a th:href="@{/clientes/}" class="btn btn-lg	btn-info">Clientes</a>
-		<a	th:href="@{/itens/}" class="btn	btn-lg btn-info">Itens</a>
+			<div class="card col-3 m-3 p-3">
+				<div class="card-body row">
+					<a th:href="@{/clientes/}" class="btn btn-lg btn-info m-2">Clientes</a>
+					<a th:href="@{/itens/}" class="btn	btn-lg btn-info m-2">Itens</a>
+					<a th:href="@{/pedidos/}" class="btn btn-lg btn-info m-2">Produtos</a>
+				</div>
 			</div>
 		</div>
 	</body>

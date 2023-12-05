@@ -1,7 +1,7 @@
 package com.sskings.webapi.models;
 
 import java.math.BigDecimal;
-import java.util.Date;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 
@@ -16,7 +16,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.Min;
 
 
 @Entity
@@ -35,19 +34,18 @@ public class Pedido {
 	private List<Item> itens;
 
 	@DateTimeFormat(pattern = "dd-MM-yyyy")
-	private Date data;
+	private LocalDate data;
 
-	@Min(1)
 	private BigDecimal valorTotal;
 	
 	public Pedido() {}
 	
-	public Pedido(Long id,Cliente cliente,List<Item> itens,BigDecimal valorTotal) {
+	public Pedido(Long id,Cliente cliente,List<Item> itens,BigDecimal valorTotal, LocalDate data) {
 		super();
 		this.id = id;
 		this.cliente = cliente;
 		this.itens = itens;
-		this.data = new Date();
+		this.data = data;
 		this.valorTotal = valorTotal;
 	}
 
@@ -75,11 +73,11 @@ public class Pedido {
 		this.itens = itens;
 	}
 
-	public Date getData() {
+	public LocalDate getData() {
 		return data;
 	}
 
-	public void setData(Date data) {
+	public void setData(LocalDate data) {
 		this.data = data;
 	}
 
