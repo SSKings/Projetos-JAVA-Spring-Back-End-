@@ -21,6 +21,9 @@ import com.sskings.webapi.models.Pedido;
 import com.sskings.webapi.repositories.ClienteRepository;
 import com.sskings.webapi.repositories.ItemRepository;
 import com.sskings.webapi.repositories.PedidoRepository;
+import com.sskings.webapi.services.ClienteService;
+import com.sskings.webapi.services.ItemService;
+import com.sskings.webapi.services.PedidoService;
 
 import jakarta.validation.Valid;
 
@@ -28,20 +31,21 @@ import jakarta.validation.Valid;
 @RequestMapping("/pedidos")
 public class PedidoController {
 
-	private final PedidoRepository pedidoRepository;
-	private final ItemRepository itemRepository;
-	private final ClienteRepository clienteRepository;
+	private final PedidoService pedidoService;
+	private final ItemService itemService;
+	private final ClienteService clienteService;
 	private final String PEDIDO_URI = "pedidos/";
 
-	public PedidoController(PedidoRepository pedidoRepository,ItemRepository itemRepository,ClienteRepository clienteRepository) {
-		this.pedidoRepository = pedidoRepository;
-		this.itemRepository = itemRepository;
-		this.clienteRepository = clienteRepository;
+	public PedidoController(PedidoService pedidoService,ItemService itemService,
+			ClienteService clienteService) {
+		this.pedidoService = pedidoService;
+		this.itemService = itemService;
+		this.clienteService = clienteService;
 	}
 
 	@GetMapping("/")
 	public ModelAndView list() {
-		Iterable<Pedido> pedidos = this.pedidoRepository.findAll();
+		Iterable<Pedido> pedidos = this.pedidoService.findAll();
 		return new ModelAndView(PEDIDO_URI + "list","pedidos",pedidos);
 	}
 
@@ -54,8 +58,8 @@ public class PedidoController {
 	public ModelAndView createForm(@ModelAttribute Pedido pedido) {
 
 		Map<String,Object> model = new HashMap<String,Object>();
-		model.put("todosItens",itemRepository.findAll());
-		model.put("todosClientes",clienteRepository.findAll());
+		model.put("todosItens",itemService.findAll());
+		model.put("todosClientes",clienteService.findAll());
 		return new ModelAndView(PEDIDO_URI + "form",model);
 		 
 	}
@@ -65,10 +69,10 @@ public class PedidoController {
 		if (result.hasErrors()) { return new ModelAndView(PEDIDO_URI + "form","formErrors",result.getAllErrors()); }
 
 		if (pedido.getId() != null) {
-			Optional<Pedido> pedidoParaAlterarOpt = pedidoRepository.findById(pedido.getId());
+			Optional<Pedido> pedidoParaAlterarOpt = pedidoService.findById(pedido.getId());
 			Pedido pedidoParaAlterar = pedidoParaAlterarOpt.get();
 			
-			Optional<Cliente> clienteOpt = clienteRepository.findById(pedidoParaAlterar.getCliente().getId());
+			Optional<Cliente> clienteOpt = clienteService.findById(pedidoParaAlterar.getCliente().getId());
 			Cliente c = clienteOpt.get();
 			
 			pedidoParaAlterar.setItens(pedido.getItens());
@@ -80,18 +84,18 @@ public class PedidoController {
 			pedidoParaAlterar.setValorTotal(valorTotal);			
 			c.getPedidos().remove(pedidoParaAlterar);
 			c.getPedidos().add(pedidoParaAlterar);
-			this.clienteRepository.save(c);
+			this.clienteService.save(c);
 		} else {
-			Optional<Cliente> clienteOpt = clienteRepository.findById(pedido.getCliente().getId());
+			Optional<Cliente> clienteOpt = clienteService.findById(pedido.getCliente().getId());
 			Cliente c = clienteOpt.get();
 			BigDecimal valorTotal = BigDecimal.ZERO;
 			for (Item i : pedido.getItens()) {
 				valorTotal = valorTotal.add(i.getPreco());
 			}
 			pedido.setValorTotal(valorTotal);
-			pedido = this.pedidoRepository.save(pedido);
+			pedido = this.pedidoService.save(pedido);
 			c.getPedidos().add(pedido);
-			this.clienteRepository.save(c);
+			this.clienteService.save(c);
 		}
 		redirect.addFlashAttribute("globalMessage","Pedido gravado com sucesso");
 		return new ModelAndView("redirect:/" + PEDIDO_URI + "{pedido.id}","pedido.id",pedido.getId());
@@ -100,17 +104,17 @@ public class PedidoController {
 	@GetMapping("remover/{id}")
 	public ModelAndView remover(@PathVariable("id") Long id,RedirectAttributes redirect) {
 
-		Optional<Pedido> pedidoParaRemoverOpt = pedidoRepository.findById(id);
+		Optional<Pedido> pedidoParaRemoverOpt = pedidoService.findById(id);
 		Pedido pedidoParaRemover = pedidoParaRemoverOpt.get();
 
-		Optional<Cliente> clienteOpt = clienteRepository.findById(pedidoParaRemover.getCliente().getId());
+		Optional<Cliente> clienteOpt = clienteService.findById(pedidoParaRemover.getCliente().getId());
 		Cliente c = clienteOpt.get();
 		c.getPedidos().remove(pedidoParaRemover);
 
-		this.clienteRepository.save(c);
-		this.pedidoRepository.deleteById(id);
+		this.clienteService.save(c);
+		this.pedidoService.deleteById(id);
 
-		Iterable<Pedido> pedidos = this.pedidoRepository.findAll();
+		Iterable<Pedido> pedidos = this.pedidoService.findAll();
 
 		return new ModelAndView(PEDIDO_URI + "list","pedidos",pedidos)
 				.addObject("globalMessage","Pedido removido com sucesso");
@@ -122,8 +126,8 @@ public class PedidoController {
 	public ModelAndView alterarForm(@PathVariable("id") Pedido pedido) {
 
 		Map<String,Object> model = new HashMap<String,Object>();
-		model.put("todosItens",itemRepository.findAll());
-		model.put("todosClientes",clienteRepository.findAll());
+		model.put("todosItens",itemService.findAll());
+		model.put("todosClientes",clienteService.findAll());
 		model.put("pedido",pedido);
 
 		return new ModelAndView(PEDIDO_URI + "form",model);

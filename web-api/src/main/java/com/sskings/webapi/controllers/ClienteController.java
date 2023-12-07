@@ -11,7 +11,7 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.sskings.webapi.models.Cliente;
-import com.sskings.webapi.repositories.ClienteRepository;
+import com.sskings.webapi.services.ClienteService;
 
 import jakarta.validation.Valid;
 
@@ -19,16 +19,16 @@ import jakarta.validation.Valid;
 @RequestMapping("/clientes")
 public class ClienteController {
 	
-	private final ClienteRepository clienteRepository;
+	private final ClienteService clienteService;
 	private final String CLIENTE_URI = "clientes/";
 
-	public ClienteController(ClienteRepository clienteRepository) {
-		this.clienteRepository = clienteRepository;
+	public ClienteController(ClienteService clienteRepository) {
+		this.clienteService = clienteRepository;
 	}
 
 	@GetMapping("/")
 	public ModelAndView list() {
-		Iterable<Cliente> clientes = this.clienteRepository.findAll();
+		Iterable<Cliente> clientes = this.clienteService.findAll();
 		return new ModelAndView(CLIENTE_URI + "list","clientes",clientes);
 	}
 
@@ -47,20 +47,17 @@ public class ClienteController {
 		if (result.hasErrors()) { 
 			return new ModelAndView(CLIENTE_URI + "form","formErrors",result.getAllErrors()); 
 		}
-		cliente = this.clienteRepository.save(cliente);
+		cliente = this.clienteService.save(cliente);
 		redirect.addFlashAttribute("globalMessage","Cliente gravado com sucesso.");
 		return new ModelAndView("redirect:/" + CLIENTE_URI + "{cliente.id}","cliente.id",cliente.getId());
 	}
 
 	@GetMapping(value = "remover/{id}")
 	public ModelAndView remover(@PathVariable("id") Long id,RedirectAttributes redirect) {
-		this.clienteRepository.deleteById(id);
-		Iterable<Cliente> clientes = this.clienteRepository.findAll();
-		
-		ModelAndView mv = new ModelAndView(CLIENTE_URI + "list","clientes",clientes);
-		mv.addObject("globalMessage","Cliente removido com sucesso.");
-	
-		return mv;
+		this.clienteService.deleteById(id);
+		Iterable<Cliente> clientes = this.clienteService.findAll();		
+		return new ModelAndView(CLIENTE_URI + "list","clientes",clientes)
+				.addObject("globalMessage","Cliente removido com sucesso.");
 	}
 
 	@GetMapping(value = "alterar/{id}")

@@ -12,6 +12,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.sskings.webapi.models.Item;
 import com.sskings.webapi.repositories.ItemRepository;
+import com.sskings.webapi.services.ItemService;
 
 import jakarta.validation.Valid;
 
@@ -19,16 +20,16 @@ import jakarta.validation.Valid;
 @RequestMapping("/itens")
 public class ItemController {
 	
-	private final ItemRepository itemRepository;
+	private final ItemService itemService;
 	private final String ITEM_URI = "itens/";
 
-	private ItemController(ItemRepository itemRepository) {
-		this.itemRepository = itemRepository;
+	private ItemController(ItemService itemService) {
+		this.itemService = itemService;
 	}
 	
 	@GetMapping("/")
 	public ModelAndView list() {
-		Iterable<Item> itens = this.itemRepository.findAll();
+		Iterable<Item> itens = this.itemService.findAll();
 		return new ModelAndView(ITEM_URI + "list", "itens", itens);
 		
 	}
@@ -48,7 +49,7 @@ public class ItemController {
 		if(result.hasErrors()) {
 			return new ModelAndView(ITEM_URI + "form","formErrors",result.getAllErrors());
 		}
-		itemRepository.save(item);
+		itemService.save(item);
 		redirect.addFlashAttribute("globalMessage","Item gravado com sucesso.");
 		return new ModelAndView("redirect:/" + ITEM_URI + "{item.id}", "item.id", item.getId());
 	}
@@ -60,8 +61,8 @@ public class ItemController {
 	
 	@GetMapping("remover/{id}")
 	public ModelAndView remover(@PathVariable("id") Long id, RedirectAttributes redirect) {
-		this.itemRepository.deleteById(id);
-		Iterable<Item> itens = this.itemRepository.findAll();
+		this.itemService.deleteById(id);
+		Iterable<Item> itens = this.itemService.findAll();
 		return new ModelAndView(ITEM_URI + "list", "itens", itens)
 				.addObject("globalMessage", "Item removido com sucesso.");
 	}
