@@ -38,4 +38,12 @@ public class LancamentoModel {
     @JoinColumn(name = "fonte_id", nullable = false)
     private FonteLancamentoModel fonte;
 
+    @ManyToOne
+    @JoinColumn(name = "cartao_credito_id")
+    private CartaoModel cartao;
+
+    @ManyToOne
+    @JoinColumn(name = "conta_id")
+    private ContaModel conta;
+
 }
