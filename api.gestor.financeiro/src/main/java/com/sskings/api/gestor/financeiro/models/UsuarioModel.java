@@ -25,7 +25,7 @@ public class UsuarioModel {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "data_cadastro")
+    @Column(name = "data_cadastro", nullable = false)
     private LocalDate dataCadastro;
 
     @OneToMany(mappedBy = "usuario")
