@@ -38,4 +38,7 @@ public class UsuarioService {
         return usuarioRepository.existsByEmail(email);
     }
 
+    public List<UsuarioModel> findByNomeIgnoreCaseContaining(String nome){
+        return usuarioRepository.findByNomeIgnoreCaseContaining(nome);
+    }
 }
