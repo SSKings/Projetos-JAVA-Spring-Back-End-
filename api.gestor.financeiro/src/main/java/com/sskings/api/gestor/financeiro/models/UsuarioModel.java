@@ -1,5 +1,6 @@
 package com.sskings.api.gestor.financeiro.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -28,9 +29,11 @@ public class UsuarioModel {
     @Column(name = "data_cadastro", nullable = false)
     private LocalDate dataCadastro;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "usuario")
     private Set<CartaoModel> cartoes;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "usuario")
     private Set<ContaModel> contas;
 
