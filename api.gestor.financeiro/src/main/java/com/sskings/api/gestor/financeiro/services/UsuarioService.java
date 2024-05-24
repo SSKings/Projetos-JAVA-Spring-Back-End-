@@ -30,6 +30,11 @@ public class UsuarioService {
     }
 
     @Transactional
+    public UsuarioModel update(UsuarioModel usuario){
+        return usuarioRepository.save(usuario);
+    }
+
+    @Transactional
     public void delete(UsuarioModel usuario){
         usuarioRepository.delete(usuario);
     }
