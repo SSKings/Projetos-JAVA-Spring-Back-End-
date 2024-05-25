@@ -30,11 +30,11 @@ public class UsuarioModel {
     private LocalDate dataCadastro;
 
     @JsonIgnore
-    @OneToMany(mappedBy = "usuario")
+    @OneToMany(mappedBy = "usuario", fetch = FetchType.LAZY)
     private Set<CartaoModel> cartoes;
 
     @JsonIgnore
-    @OneToMany(mappedBy = "usuario")
+    @OneToMany(mappedBy = "usuario", fetch = FetchType.LAZY)
     private Set<ContaModel> contas;
 
 }
