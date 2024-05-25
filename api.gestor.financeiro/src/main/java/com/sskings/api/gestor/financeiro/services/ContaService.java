@@ -1,6 +1,7 @@
 package com.sskings.api.gestor.financeiro.services;
 
 import com.sskings.api.gestor.financeiro.dto.ContaRequestDto;
+import com.sskings.api.gestor.financeiro.dto.ContaResponseDto;
 import com.sskings.api.gestor.financeiro.models.ContaModel;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.repositories.ContaRepository;
@@ -19,17 +20,20 @@ public class ContaService {
     public final UsuarioService usuarioService;
 
     @Transactional
-    public ContaModel save(ContaRequestDto contaRequestDto){
+    public ContaResponseDto save(ContaRequestDto contaRequestDto){
         UsuarioModel usuario = usuarioService.findById(contaRequestDto.usuario_id())
                 .orElseThrow(() -> new RuntimeException("Código de usuário inválido."));
-        ContaModel contaModel = new ContaModel(contaRequestDto);
+        ContaModel contaModel    = new ContaModel(contaRequestDto);
         contaModel.setUsuario(usuario);
-        return contaRepository.save(contaModel);
+        contaRepository.save(contaModel);
+        return new ContaResponseDto(contaModel);
     }
 
     public Optional<ContaModel> findById(UUID id){
         return contaRepository.findById(id);
     }
+
+
     @Transactional
     public void delete(ContaModel conta){
         contaRepository.delete(conta);
