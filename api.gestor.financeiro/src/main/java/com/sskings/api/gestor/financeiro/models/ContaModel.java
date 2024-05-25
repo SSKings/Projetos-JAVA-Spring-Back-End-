@@ -1,5 +1,6 @@
 package com.sskings.api.gestor.financeiro.models;
 
+import com.sskings.api.gestor.financeiro.dto.ContaRequestDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -30,4 +31,10 @@ public class ContaModel {
 
     @Column(nullable = false, precision = 20, scale = 2)
     private BigDecimal saldo;
+
+    public ContaModel(ContaRequestDto contaRequestDto){
+        this.numero = contaRequestDto.numero();
+        this.banco = contaRequestDto.banco();
+        this.saldo = contaRequestDto.saldo();
+    }
 }
