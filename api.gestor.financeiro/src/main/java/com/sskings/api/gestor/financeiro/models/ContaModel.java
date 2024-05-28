@@ -19,7 +19,7 @@ public class ContaModel {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private long numero;
 
     @Column(nullable = false)
