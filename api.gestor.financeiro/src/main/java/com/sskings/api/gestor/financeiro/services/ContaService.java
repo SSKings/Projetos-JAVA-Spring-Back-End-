@@ -35,13 +35,12 @@ public class ContaService {
     }
 
     @Transactional
-    public ContaResponseDto update(ContaRequestDto contaRequestDto){
-        UsuarioModel usuario = usuarioService.findById(contaRequestDto.usuario_id())
+    public ContaResponseDto update(ContaModel contaModel){
+        UsuarioModel usuario = usuarioService.findById(contaModel.getUsuario().getId())
                 .orElseThrow(() -> new RuntimeException("Usuário inválido."));
-        ContaModel conta = new ContaModel(contaRequestDto);
-        conta.setUsuario(usuario);
-        contaRepository.save(conta);
-        ContaResponseDto dto = new ContaResponseDto(conta);
+        contaModel.setUsuario(usuario);
+        contaRepository.save(contaModel);
+        ContaResponseDto dto = new ContaResponseDto(contaModel);
         return dto;
     }
 

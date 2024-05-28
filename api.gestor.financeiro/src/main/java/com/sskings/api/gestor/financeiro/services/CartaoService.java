@@ -10,6 +10,9 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class CartaoService {
@@ -22,6 +25,20 @@ public class CartaoService {
         UsuarioModel usuario = usuarioRepository.findById(cartaoRequestDto.usuario_id())
                 .orElseThrow(() -> new RuntimeException("Código de usuário inválido"));
         CartaoModel cartaoModel = new CartaoModel(cartaoRequestDto);
+        cartaoModel.setUsuario(usuario);
+        cartaoRepository.save(cartaoModel);
+        return new CartaoResponseDto(cartaoModel);
+    }
+
+
+    public Optional<CartaoModel> findById(UUID id){
+        return cartaoRepository.findById(id);
+    }
+
+    @Transactional
+    public CartaoResponseDto update(CartaoModel cartaoModel){
+        UsuarioModel usuario = usuarioRepository.findById(cartaoModel.getUsuario().getId())
+                .orElseThrow(() -> new RuntimeException("Código de usuário inválido."));
         cartaoModel.setUsuario(usuario);
         cartaoRepository.save(cartaoModel);
         return new CartaoResponseDto(cartaoModel);

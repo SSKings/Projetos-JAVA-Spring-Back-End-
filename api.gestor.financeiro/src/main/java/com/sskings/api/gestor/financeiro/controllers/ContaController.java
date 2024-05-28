@@ -6,6 +6,7 @@ import com.sskings.api.gestor.financeiro.models.ContaModel;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.services.ContaService;
 import com.sskings.api.gestor.financeiro.services.UsuarioService;
+import org.springframework.beans.BeanUtils;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,11 +44,10 @@ public class ContaController {
     @PutMapping("/{id}")
     public ResponseEntity<Object> update(@PathVariable(value = "id") UUID id,
                                                    @RequestBody ContaRequestDto contaRequestDto){
-        contaService.findById(id).orElseThrow(
-                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conta não encontrada.")
-        );
-
-        ContaResponseDto response = contaService.update(contaRequestDto);
+        ContaModel contaModel = contaService.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conta não encontrada."));
+        BeanUtils.copyProperties(contaRequestDto, contaModel);
+        ContaResponseDto response = contaService.update(contaModel);
         return ResponseEntity.status(HttpStatus.OK).body(response);
 
 
