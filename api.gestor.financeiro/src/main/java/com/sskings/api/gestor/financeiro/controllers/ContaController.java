@@ -40,6 +40,18 @@ public class ContaController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<ContaResponseDto> update(@PathVariable(value = "id") UUID id,
+                                                   @RequestBody ContaRequestDto contaRequestDto){
+        ContaModel conta = new ContaModel(contaRequestDto);
+        conta.setId(id);
+        contaService.update(conta);
+        ContaResponseDto response = new ContaResponseDto(conta);
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+
+
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> delete(@PathVariable(value = "id") UUID id){
         Optional<ContaModel> contaOptional = contaService.findById(id);

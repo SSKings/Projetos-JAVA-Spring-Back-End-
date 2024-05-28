@@ -7,6 +7,7 @@ import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.repositories.ContaRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -33,6 +34,12 @@ public class ContaService {
         return contaRepository.findById(id);
     }
 
+    @Transactional
+    public ContaResponseDto update(ContaModel conta){
+        ContaResponseDto dto = new ContaResponseDto(conta);
+        contaRepository.save(conta);
+        return dto;
+    }
 
     @Transactional
     public void delete(ContaModel conta){
