@@ -17,8 +17,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ContaService {
 
-    public final ContaRepository contaRepository;
-    public final UsuarioService usuarioService;
+    private final ContaRepository contaRepository;
+    private final UsuarioService usuarioService;
 
     @Transactional
     public ContaResponseDto save(ContaRequestDto contaRequestDto){
@@ -35,9 +35,13 @@ public class ContaService {
     }
 
     @Transactional
-    public ContaResponseDto update(ContaModel conta){
-        ContaResponseDto dto = new ContaResponseDto(conta);
+    public ContaResponseDto update(ContaRequestDto contaRequestDto){
+        UsuarioModel usuario = usuarioService.findById(contaRequestDto.usuario_id())
+                .orElseThrow(() -> new RuntimeException("Usuário inválido."));
+        ContaModel conta = new ContaModel(contaRequestDto);
+        conta.setUsuario(usuario);
         contaRepository.save(conta);
+        ContaResponseDto dto = new ContaResponseDto(conta);
         return dto;
     }
 
