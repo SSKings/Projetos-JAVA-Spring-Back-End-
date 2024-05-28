@@ -10,6 +10,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
@@ -28,7 +29,6 @@ public class ContaController {
 
     @PostMapping
     public ResponseEntity<ContaResponseDto> save(@RequestBody ContaRequestDto contaRequestDto){
-        ContaModel contaModel = new ContaModel(contaRequestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(contaService.save(contaRequestDto));
     }
 
@@ -41,12 +41,13 @@ public class ContaController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ContaResponseDto> update(@PathVariable(value = "id") UUID id,
+    public ResponseEntity<Object> update(@PathVariable(value = "id") UUID id,
                                                    @RequestBody ContaRequestDto contaRequestDto){
-        ContaModel conta = new ContaModel(contaRequestDto);
-        conta.setId(id);
-        contaService.update(conta);
-        ContaResponseDto response = new ContaResponseDto(conta);
+        contaService.findById(id).orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conta não encontrada.")
+        );
+
+        ContaResponseDto response = contaService.update(contaRequestDto);
         return ResponseEntity.status(HttpStatus.OK).body(response);
 
 
