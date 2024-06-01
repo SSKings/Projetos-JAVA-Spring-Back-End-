@@ -1,7 +1,7 @@
 package com.sskings.api.gestor.financeiro.controllers;
 
-import com.sskings.api.gestor.financeiro.dto.CartaoRequestDto;
-import com.sskings.api.gestor.financeiro.dto.CartaoResponseDto;
+import com.sskings.api.gestor.financeiro.dto.cartao.CartaoRequestDto;
+import com.sskings.api.gestor.financeiro.dto.cartao.CartaoResponseDto;
 import com.sskings.api.gestor.financeiro.models.CartaoModel;
 import com.sskings.api.gestor.financeiro.services.CartaoService;
 import org.springframework.beans.BeanUtils;
@@ -41,5 +41,13 @@ public class CartaoController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cartão não encontrado."));
         BeanUtils.copyProperties(cartaoRequestDto, cartaoModel);
         return ResponseEntity.status(HttpStatus.OK).body(cartaoService.update(cartaoModel));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Object> delete(@PathVariable(value = "id") UUID id){
+        CartaoModel cartaoModel = cartaoService.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cartão não encontrado."));
+        cartaoService.delete(cartaoModel);
+        return ResponseEntity.status(HttpStatus.OK).body("Cartão deletado.");
     }
 }

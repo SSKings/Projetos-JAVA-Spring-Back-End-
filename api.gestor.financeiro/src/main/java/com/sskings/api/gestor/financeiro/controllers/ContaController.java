@@ -1,19 +1,15 @@
 package com.sskings.api.gestor.financeiro.controllers;
 
-import com.sskings.api.gestor.financeiro.dto.ContaRequestDto;
-import com.sskings.api.gestor.financeiro.dto.ContaResponseDto;
+import com.sskings.api.gestor.financeiro.dto.conta.ContaRequestDto;
+import com.sskings.api.gestor.financeiro.dto.conta.ContaResponseDto;
 import com.sskings.api.gestor.financeiro.models.ContaModel;
-import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.services.ContaService;
-import com.sskings.api.gestor.financeiro.services.UsuarioService;
 import org.springframework.beans.BeanUtils;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 

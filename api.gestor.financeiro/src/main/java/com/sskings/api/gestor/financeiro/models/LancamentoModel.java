@@ -1,5 +1,6 @@
 package com.sskings.api.gestor.financeiro.models;
 
+import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoRequestDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -45,5 +46,4 @@ public class LancamentoModel {
     @ManyToOne
     @JoinColumn(name = "conta_id")
     private ContaModel conta;
-
 }

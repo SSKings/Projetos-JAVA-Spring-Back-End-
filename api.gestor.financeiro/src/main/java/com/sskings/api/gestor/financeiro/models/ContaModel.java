@@ -1,6 +1,6 @@
 package com.sskings.api.gestor.financeiro.models;
 
-import com.sskings.api.gestor.financeiro.dto.ContaRequestDto;
+import com.sskings.api.gestor.financeiro.dto.conta.ContaRequestDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;

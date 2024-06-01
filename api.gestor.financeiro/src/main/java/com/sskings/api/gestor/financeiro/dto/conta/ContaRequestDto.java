@@ -1,4 +1,4 @@
-package com.sskings.api.gestor.financeiro.dto;
+package com.sskings.api.gestor.financeiro.dto.conta;
 
 import java.math.BigDecimal;
 import java.util.UUID;

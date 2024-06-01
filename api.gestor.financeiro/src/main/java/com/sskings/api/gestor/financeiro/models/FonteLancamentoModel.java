@@ -19,6 +19,6 @@ public class FonteLancamentoModel {
     private UUID id;
 
     @Column(nullable = false, length = 20)
-    private String fonte;
+    private String nome;
 
 }

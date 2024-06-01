@@ -1,13 +1,13 @@
 package com.sskings.api.gestor.financeiro.services;
 
-import com.sskings.api.gestor.financeiro.dto.ContaRequestDto;
-import com.sskings.api.gestor.financeiro.dto.ContaResponseDto;
+import com.sskings.api.gestor.financeiro.dto.conta.ContaRequestDto;
+import com.sskings.api.gestor.financeiro.dto.conta.ContaResponseDto;
+import com.sskings.api.gestor.financeiro.exception.RegraNegocioException;
 import com.sskings.api.gestor.financeiro.models.ContaModel;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.repositories.ContaRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -23,7 +23,7 @@ public class ContaService {
     @Transactional
     public ContaResponseDto save(ContaRequestDto contaRequestDto){
         UsuarioModel usuario = usuarioService.findById(contaRequestDto.usuario_id())
-                .orElseThrow(() -> new RuntimeException("Código de usuário inválido."));
+                .orElseThrow(() -> new RegraNegocioException("Código de usuário inválido."));
         ContaModel contaModel    = new ContaModel(contaRequestDto);
         contaModel.setUsuario(usuario);
         contaRepository.save(contaModel);
@@ -37,7 +37,7 @@ public class ContaService {
     @Transactional
     public ContaResponseDto update(ContaModel contaModel){
         UsuarioModel usuario = usuarioService.findById(contaModel.getUsuario().getId())
-                .orElseThrow(() -> new RuntimeException("Usuário inválido."));
+                .orElseThrow(() -> new RegraNegocioException("Usuário inválido."));
         contaModel.setUsuario(usuario);
         contaRepository.save(contaModel);
         ContaResponseDto dto = new ContaResponseDto(contaModel);

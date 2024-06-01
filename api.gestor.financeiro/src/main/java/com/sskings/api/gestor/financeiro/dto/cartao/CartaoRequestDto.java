@@ -1,4 +1,4 @@
-package com.sskings.api.gestor.financeiro.dto;
+package com.sskings.api.gestor.financeiro.dto.cartao;
 
 import com.sskings.api.gestor.financeiro.models.CartaoModel;
 

@@ -18,6 +18,6 @@ public class TipoLancamentoModel {
     private UUID id;
 
     @Column(nullable = false, length = 20)
-    private String tipo;
+    private String nome;
 
 }
