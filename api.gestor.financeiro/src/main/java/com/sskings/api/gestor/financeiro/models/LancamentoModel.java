@@ -1,21 +1,18 @@
 package com.sskings.api.gestor.financeiro.models;
 
-import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoRequestDto;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
-@Entity(name = "lancamento")
+@Entity
 @Table(name = "lancamento")
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name = "tipo")
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class LancamentoModel {
+public abstract class LancamentoModel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
@@ -39,11 +36,4 @@ public class LancamentoModel {
     @JoinColumn(name = "fonte_id", nullable = false)
     private FonteLancamentoModel fonte;
 
-    @ManyToOne
-    @JoinColumn(name = "cartao_credito_id")
-    private CartaoModel cartao;
-
-    @ManyToOne
-    @JoinColumn(name = "conta_id")
-    private ContaModel conta;
 }
