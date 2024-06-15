@@ -1,5 +1,6 @@
 package com.sskings.api.gestor.financeiro.models;
 
+import com.sskings.api.gestor.financeiro.dto.lancamento.fonte.FonteRequestDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -21,4 +22,7 @@ public class FonteLancamentoModel {
     @Column(nullable = false, length = 20)
     private String nome;
 
+    public FonteLancamentoModel(FonteRequestDto fonteRequestDto) {
+        this.nome = fonteRequestDto.fonte();
+    }
 }

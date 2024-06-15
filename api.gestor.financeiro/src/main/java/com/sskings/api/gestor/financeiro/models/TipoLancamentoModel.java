@@ -1,5 +1,6 @@
 package com.sskings.api.gestor.financeiro.models;
 
+import com.sskings.api.gestor.financeiro.dto.lancamento.tipo.TipoRequestDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,4 +21,7 @@ public class TipoLancamentoModel {
     @Column(nullable = false, length = 20)
     private String nome;
 
+    public TipoLancamentoModel(TipoRequestDto tipoRequestDto) {
+        this.nome = tipoRequestDto.tipo();
+    }
 }
