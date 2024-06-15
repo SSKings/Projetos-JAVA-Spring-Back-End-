@@ -5,6 +5,7 @@ import com.sskings.api.gestor.financeiro.dto.lancamento.fonte.FonteResponseDto;
 import com.sskings.api.gestor.financeiro.exception.RegraNegocioException;
 import com.sskings.api.gestor.financeiro.models.FonteLancamentoModel;
 import com.sskings.api.gestor.financeiro.repositories.FonteLancamentoRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +19,7 @@ public class FonteLancamentoService {
 
     private final FonteLancamentoRepository fonteLancamentoRepository;
 
+    @Transactional
     public FonteResponseDto save(FonteRequestDto fonteRequestDto){
         FonteLancamentoModel fonte = new FonteLancamentoModel(fonteRequestDto);
         fonteLancamentoRepository.save(fonte);
@@ -34,6 +36,7 @@ public class FonteLancamentoService {
         return fonteLancamentoRepository.findAll();
     }
 
+    @Transactional
     public void deleteById(UUID id){
         fonteLancamentoRepository.findById(id)
                 .orElseThrow(() -> new RegraNegocioException("Fonte não encontrada."));
