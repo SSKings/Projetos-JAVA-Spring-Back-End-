@@ -21,6 +21,7 @@ public class CartaoController {
     public CartaoController(CartaoService cartaoService) {
         this.cartaoService = cartaoService;
     }
+
     @GetMapping("/{id}")
     public ResponseEntity<Object> findById(@PathVariable(value = "id") UUID id){
         CartaoModel cartaoModel = cartaoService.findById(id)

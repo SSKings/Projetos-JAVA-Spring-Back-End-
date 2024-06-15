@@ -40,8 +40,7 @@ public class ContaService {
                 .orElseThrow(() -> new RegraNegocioException("Usuário inválido."));
         contaModel.setUsuario(usuario);
         contaRepository.save(contaModel);
-        ContaResponseDto dto = new ContaResponseDto(contaModel);
-        return dto;
+        return new ContaResponseDto(contaModel);
     }
 
     @Transactional

@@ -10,7 +10,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -32,8 +31,9 @@ public class ContaController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ContaResponseDto> findById(@PathVariable(value = "id") UUID id){
-        Optional<ContaModel> contaOptional = contaService.findById(id);
-        ContaResponseDto response = new ContaResponseDto(contaOptional.get());
+        ContaModel conta = contaService.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        ContaResponseDto response = new ContaResponseDto(conta);
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
@@ -51,11 +51,9 @@ public class ContaController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> delete(@PathVariable(value = "id") UUID id){
-        Optional<ContaModel> contaOptional = contaService.findById(id);
-        if (!contaOptional.isPresent()){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Conta não encontrada.");
-        }
-        contaService.delete(contaOptional.get());
+        ContaModel conta = contaService.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conta não encontrada."));
+        contaService.delete(conta);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 }
