@@ -32,14 +32,17 @@ public class TipoLancamentoService {
         return Optional.of(tipo);
     }
 
-    public List<TipoLancamentoModel> findAll(){
-        return tipoLancamentoRepository.findAll();
+    public List<TipoResponseDto> findAll(){
+        return tipoLancamentoRepository.findAll()
+                .stream()
+                .map(TipoResponseDto::new)
+                .toList();
     }
 
     @Transactional
     public void deleteById(UUID id){
         tipoLancamentoRepository.findById(id)
-            .orElseThrow(() -> new RegraNegocioException("Esse tipo de lançamento não existe."));
+            .orElseThrow(() -> new RegraNegocioException("O tipo de lançamento não existe."));
         tipoLancamentoRepository.deleteById(id);
     }
 

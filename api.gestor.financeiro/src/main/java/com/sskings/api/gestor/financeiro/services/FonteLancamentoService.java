@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,8 +33,11 @@ public class FonteLancamentoService {
         return Optional.of(fonte);
     }
 
-    public List<FonteLancamentoModel> findAll(){
-        return fonteLancamentoRepository.findAll();
+    public List<FonteResponseDto> findAll(){
+        return fonteLancamentoRepository.findAll()
+                .stream()
+                .map(FonteResponseDto::new)
+                .toList();
     }
 
     @Transactional
