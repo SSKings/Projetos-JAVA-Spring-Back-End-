@@ -2,15 +2,13 @@ package com.sskings.api.gestor.financeiro.controllers;
 
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoRequestDto;
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoResponseDto;
-import com.sskings.api.gestor.financeiro.models.LancamentoModel;
 import com.sskings.api.gestor.financeiro.services.LancamentoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/lancamentos")
@@ -24,4 +22,12 @@ public class LancamentoController {
         LancamentoResponseDto response = lancamentoService.save(lancamentoRequestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Object> deleteById(@PathVariable(value = "id") UUID id){
+        lancamentoService.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+
 }

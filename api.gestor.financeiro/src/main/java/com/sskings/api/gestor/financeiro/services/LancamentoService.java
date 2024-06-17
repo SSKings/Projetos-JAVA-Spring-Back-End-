@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -32,58 +33,68 @@ public class LancamentoService {
         FonteLancamentoModel fonte = fonteLancamentoRepository.findById(lancamentoRequestDto.fonte_id())
                 .orElseThrow(() -> new RegraNegocioException("Fonte do lançamento não encontrado."));
 
-
-        if (lancamentoRequestDto.conta_id() != null && lancamentoRequestDto.cartao_id() == null) {
-            Optional<ContaModel> contaOptional = contaRepository.findById(lancamentoRequestDto.conta_id());
-            if(contaOptional.isPresent()){
-                ContaLancamentoModel contaLancamento = new ContaLancamentoModel();
-                contaLancamento.setUsuario(usuarioModel);
-                contaLancamento.setValor(lancamentoRequestDto.valor());
-                contaLancamento.setTipo(tipo);
-                contaLancamento.setFonte(fonte);
-                contaLancamento.setConta(contaOptional.get());
-                contaLancamento.setDataLancamento(LocalDate.now());
-                lancamentoRepository.save((LancamentoModel) contaLancamento);
-                return new LancamentoResponseDto(
-                        contaLancamento.getValor(),contaLancamento.getUsuario(),contaLancamento.getTipo(),
-                        contaLancamento.getFonte(),contaLancamento.getDataLancamento(),null,contaLancamento.getConta()
-                );
-            }else{
-                throw new RegraNegocioException("Conta não encontrada");
-            }
-
-
-        } else if (lancamentoRequestDto.cartao_id() != null && lancamentoRequestDto.conta_id() == null) {
-            Optional<CartaoModel> cartaoOptional = cartaoRepository.findById(lancamentoRequestDto.cartao_id());
-            if(cartaoOptional.isPresent()){
-                CartaoLancamentoModel cartaoLancamento = new CartaoLancamentoModel();
-                cartaoLancamento.setValor(lancamentoRequestDto.valor());
-                cartaoLancamento.setUsuario(usuarioModel);
-                cartaoLancamento.setTipo(tipo);
-                cartaoLancamento.setFonte(fonte);
-                cartaoLancamento.setCartao(cartaoOptional.get());
-                cartaoLancamento.setDataLancamento(LocalDate.now());
-                lancamentoRepository.save((LancamentoModel) cartaoLancamento);
-                return new LancamentoResponseDto(
-                        cartaoLancamento.getValor(),cartaoLancamento.getUsuario(),cartaoLancamento.getTipo(),
-                        cartaoLancamento.getFonte(),cartaoLancamento.getDataLancamento(),cartaoLancamento.getCartao(), null
-                );
-
-            }else {
-                throw new RegraNegocioException("Cartão não encontrado.");
-            }
-
+        if (isContaLancamento(lancamentoRequestDto)) {
+            return processContaLancamento(lancamentoRequestDto, usuarioModel, tipo, fonte);
+        } else if (isCartaoLancamento(lancamentoRequestDto)) {
+            return processCartaoLancamento(lancamentoRequestDto, usuarioModel, tipo, fonte);
         } else {
             throw new RegraNegocioException("Um lancamento deve ser feito com ou um cartão ou uma conta.");
         }
     }
+
+
     @Transactional
-    public void delete(LancamentoModel lancamentoModel){
-        lancamentoRepository.findById(lancamentoModel.getId())
+    public void deleteById(UUID id){
+        lancamentoRepository.findById(id)
                 .orElseThrow(() -> new RegraNegocioException("Lançamento não encontrado"));
-        lancamentoRepository.delete(lancamentoModel);
+        lancamentoRepository.deleteById(id);
     }
 
 
+    private boolean isContaLancamento(LancamentoRequestDto lancamentoRequestDto){
+        return lancamentoRequestDto.conta_id() != null && lancamentoRequestDto.cartao_id() == null;
+    }
+
+    private boolean isCartaoLancamento(LancamentoRequestDto lancamentoRequestDto){
+        return lancamentoRequestDto.cartao_id() != null && lancamentoRequestDto.conta_id() == null;
+    }
+
+    private LancamentoResponseDto processContaLancamento(LancamentoRequestDto lancamentoRequestDto, UsuarioModel usuario,
+                                                         TipoLancamentoModel tipo, FonteLancamentoModel fonte){
+        ContaModel conta = contaRepository.findById(lancamentoRequestDto.conta_id())
+                .orElseThrow(() -> new RegraNegocioException("Conta inexistente"));
+        ContaLancamentoModel contaLancamentoModel = new ContaLancamentoModel();
+        contaLancamentoModel.setConta(conta);
+        contaLancamentoModel.setUsuario(usuario);
+        contaLancamentoModel.setValor(lancamentoRequestDto.valor());
+        contaLancamentoModel.setTipo(tipo);
+        contaLancamentoModel.setFonte(fonte);
+        contaLancamentoModel.setDataLancamento(LocalDate.now());
+        lancamentoRepository.save(contaLancamentoModel);
+        return new LancamentoResponseDto(
+                contaLancamentoModel.getValor(),contaLancamentoModel.getUsuario(),contaLancamentoModel.getTipo(),
+                contaLancamentoModel.getFonte(),contaLancamentoModel.getDataLancamento(),null,contaLancamentoModel.getConta()
+        );
+    }
+
+    private LancamentoResponseDto processCartaoLancamento(LancamentoRequestDto lancamentoRequestDto, UsuarioModel usuario,
+                                                          TipoLancamentoModel tipo, FonteLancamentoModel fonte){
+        CartaoModel cartao = cartaoRepository.findById(lancamentoRequestDto.cartao_id())
+                .orElseThrow(() -> new RegraNegocioException("Cartão inexistente"));
+        CartaoLancamentoModel cartaoLancamentoModel = new CartaoLancamentoModel();
+        cartaoLancamentoModel.setCartao(cartao);
+        cartaoLancamentoModel.setUsuario(usuario);
+        cartaoLancamentoModel.setValor(lancamentoRequestDto.valor());
+        cartaoLancamentoModel.setTipo(tipo);
+        cartaoLancamentoModel.setFonte(fonte);
+        cartaoLancamentoModel.setDataLancamento(LocalDate.now());
+        lancamentoRepository.save(cartaoLancamentoModel);
+        return new LancamentoResponseDto(
+                cartaoLancamentoModel.getValor(),cartaoLancamentoModel.getUsuario(),cartaoLancamentoModel.getTipo(),
+                cartaoLancamentoModel.getFonte(),cartaoLancamentoModel.getDataLancamento(),cartaoLancamentoModel.getCartao(), null
+        );
+
+
+    }
 
 }
