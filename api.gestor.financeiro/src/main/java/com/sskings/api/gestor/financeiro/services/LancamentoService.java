@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -41,6 +43,21 @@ public class LancamentoService {
         }
     }
 
+    public List<LancamentoModel> findAll(){
+        List<LancamentoModel> lancamentos = lancamentoRepository.findAll();
+        if (!lancamentos.isEmpty()) {
+            return lancamentos;
+        }
+        return new ArrayList<>();
+    }
+
+    public List<LancamentoModel> findByUsuarioId(UUID id){
+        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioId(id);
+        if (!lancamentos.isEmpty()){
+            return lancamentos;
+        }
+        return new ArrayList<>();
+    }
 
     @Transactional
     public void deleteById(UUID id){
@@ -48,7 +65,6 @@ public class LancamentoService {
                 .orElseThrow(() -> new RegraNegocioException("Lançamento não encontrado"));
         lancamentoRepository.deleteById(id);
     }
-
 
     private boolean isContaLancamento(LancamentoRequestDto lancamentoRequestDto){
         return lancamentoRequestDto.conta_id() != null && lancamentoRequestDto.cartao_id() == null;
