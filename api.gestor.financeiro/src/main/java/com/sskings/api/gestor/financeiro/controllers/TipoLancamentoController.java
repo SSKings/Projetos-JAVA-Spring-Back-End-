@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("api/lancamentos/tipo")
+@RequestMapping("api/tipo")
 @RequiredArgsConstructor
 public class TipoLancamentoController {
 

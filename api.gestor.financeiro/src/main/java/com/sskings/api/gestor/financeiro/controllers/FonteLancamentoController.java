@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("api/lancamentos/fonte")
+@RequestMapping("api/fonte")
 @RequiredArgsConstructor
 public class FonteLancamentoController {
 
