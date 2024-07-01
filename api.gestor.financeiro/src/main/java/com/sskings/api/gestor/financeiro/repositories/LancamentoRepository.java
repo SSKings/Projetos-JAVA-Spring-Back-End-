@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface LancamentoRepository extends JpaRepository<LancamentoModel, UUID> {
 
     List<LancamentoModel> findByUsuarioId(UUID id);
+    List<LancamentoModel> findByUsuarioIdAndFonteNomeIgnoreCase(UUID id, String fonteNome);
 }
