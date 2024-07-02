@@ -1,0 +1,52 @@
+-- TIPO (DOS LANÇAMENTOS)
+INSERT INTO tipo_lancamento (id, nome) VALUES ('0fa994b2-6cdf-4dba-8a60-e503dc73aa3f', 'RECEITA');
+INSERT INTO tipo_lancamento (id, nome) VALUES ('0fa334b2-6cdf-4dba-8a60-e503dc73aa3f', 'DESPESA');
+
+-- FONTE (DOS LANÇAMENTOS)
+INSERT INTO fonte_lancamento (id, nome) VALUES ('0fa224b2-6cdf-4dba-8a60-e503dc73aa3f', 'CREDITO');
+INSERT INTO fonte_lancamento (id, nome) VALUES ('0fa994b2-67d3-4dba-8a60-e503dc73aa3f', 'CONTA');
+
+-- USUÁRIOS
+INSERT INTO usuario (id, nome, email, data_cadastro) VALUES ('0fa994b2-6cdf-4dba-8a60-e503dc73aa6b', 'fulano', 'fu@email.com', '2024-05-25');
+INSERT INTO usuario (id, nome, email, data_cadastro) VALUES ('0fa994b2-6cdf-4dba-8a60-e503dc73aa5b', 'cicrano', 'ci@email.com', '2024-05-25');
+INSERT INTO usuario (id, nome, email, data_cadastro) VALUES ('0fa994b2-6cdf-4dba-8a60-e503dc73aa4b', 'beltrano', 'be@email.com', '2024-05-25');
+
+-- CONTAS
+INSERT INTO conta (id, numero, banco, usuario_id, saldo) VALUES ('1ba994b2-6cdf-4dba-8a60-e503dc73aa5b', 324356879087, 'BANCO DO BRASIL', '0fa994b2-6cdf-4dba-8a60-e503dc73aa5b', 1500.59);
+INSERT INTO conta (id, numero, banco, usuario_id, saldo) VALUES ('2ba994b2-6cdf-4dba-8a60-e503dc73aa5b', 324312312312, 'CAIXA', '0fa994b2-6cdf-4dba-8a60-e503dc73aa5b', 1500.59);
+INSERT INTO conta (id, numero, banco, usuario_id, saldo) VALUES ('3ba994b2-6cdf-4dba-8a60-e503dc73aa5b', 324356879087, 'BRADESCO', '0fa994b2-6cdf-4dba-8a60-e503dc73aa6b', 1200.59);
+INSERT INTO conta (id, numero, banco, usuario_id, saldo) VALUES ('4ba994b2-6cdf-4dba-8a60-e503dc73aa5b', 324312312312, 'CAIXA', '0fa994b2-6cdf-4dba-8a60-e503dc73aa6b', 2500.59);
+
+-- CARTÕES_DE_CRÉDITO
+INSERT INTO cartao_credito (id, numero, banco, vencimento, usuario_id, limite, limite_disponivel) VALUES ('1ca994b2-6cdf-4dba-8a60-e503dc73aa5b', 324356879087, 'DIGIO', '2024-07-01', '0fa994b2-6cdf-4dba-8a60-e503dc73aa5b', 1500.59, 1500.59);
+INSERT INTO cartao_credito (id, numero, banco, vencimento, usuario_id, limite, limite_disponivel) VALUES ('2ca994b2-6cdf-4dba-8a60-e503dc73aa5b', 324312312312, 'NUBANK', '2024-07-01', '0fa994b2-6cdf-4dba-8a60-e503dc73aa5b', 1500.59, 1500.59);
+INSERT INTO cartao_credito (id, numero, banco, vencimento, usuario_id, limite, limite_disponivel) VALUES ('3ca994b2-6cdf-4dba-8a60-e503dc73aa5b', 324356879087, 'INTER', '2024-07-01', '0fa994b2-6cdf-4dba-8a60-e503dc73aa6b', 1200.59, 1200.59);
+INSERT INTO cartao_credito (id, numero, banco, vencimento, usuario_id, limite, limite_disponivel) VALUES ('4ca994b2-6cdf-4dba-8a60-e503dc73aa5b', 324312312312, 'NUBANK', '2024-07-01', '0fa994b2-6cdf-4dba-8a60-e503dc73aa6b', 2500.59, 2500.59);
+
+-- LANÇAMENTOS
+INSERT INTO lancamentos (id, valor, data_lancamento, usuario_id, tipo_id, fonte_id, cartao_id, tipo)
+VALUES ('1da994b2-6cdf-4dba-8a60-e503dc73aa5b', 1000, '2024-07-01', '0fa994b2-6cdf-4dba-8a60-e503dc73aa5b', '0fa994b2-6cdf-4dba-8a60-e503dc73aa3f', '0fa224b2-6cdf-4dba-8a60-e503dc73aa3f', '1ca994b2-6cdf-4dba-8a60-e503dc73aa5b', 'CREDITO');
+
+INSERT INTO lancamentos (id, valor, data_lancamento, usuario_id, tipo_id, fonte_id, cartao_id, tipo)
+VALUES ('2da994b2-6cdf-4dba-8a60-e503dc73aa5b', 2000, '2024-07-01', '0fa994b2-6cdf-4dba-8a60-e503dc73aa5b', '0fa334b2-6cdf-4dba-8a60-e503dc73aa3f', '0fa224b2-6cdf-4dba-8a60-e503dc73aa3f', '2ca994b2-6cdf-4dba-8a60-e503dc73aa5b', 'CREDITO');
+
+INSERT INTO lancamentos (id, valor, data_lancamento, usuario_id, tipo_id, fonte_id, conta_id, tipo)
+VALUES ('3da994b2-6cdf-4dba-8a60-e503dc73aa5b', 3000, '2024-07-01', '0fa994b2-6cdf-4dba-8a60-e503dc73aa5b', '0fa994b2-6cdf-4dba-8a60-e503dc73aa3f', '0fa994b2-67d3-4dba-8a60-e503dc73aa3f', '1ba994b2-6cdf-4dba-8a60-e503dc73aa5b', 'SALDO');
+
+-- Despesa via crédito em cartão do usuário 'cicrano'
+INSERT INTO lancamentos (id, valor, data_lancamento, usuario_id, tipo_id, fonte_id, cartao_id, tipo)
+VALUES ('bda994b2-6cdf-4dba-8a60-e503dc73aa5b', 600, '2024-07-09', '0fa994b2-6cdf-4dba-8a60-e503dc73aa5b', '0fa334b2-6cdf-4dba-8a60-e503dc73aa3f', '0fa224b2-6cdf-4dba-8a60-e503dc73aa3f', '1ca994b2-6cdf-4dba-8a60-e503dc73aa5b', 'CREDITO');
+
+-- Despesa via crédito em conta do usuário 'beltrano'
+INSERT INTO lancamentos (id, valor, data_lancamento, usuario_id, tipo_id, fonte_id, conta_id, tipo)
+VALUES ('dda994b2-6cdf-4dba-8a60-e503dc73aa5b', 500, '2024-07-11', '0fa994b2-6cdf-4dba-8a60-e503dc73aa4b', '0fa334b2-6cdf-4dba-8a60-e503dc73aa3f', '0fa224b2-6cdf-4dba-8a60-e503dc73aa3f', '1ba994b2-6cdf-4dba-8a60-e503dc73aa5b', 'SALDO');
+
+-- Receita por saldo em conta do usuário 'cicrano'
+INSERT INTO lancamentos (id, valor, data_lancamento, usuario_id, tipo_id, fonte_id, conta_id, tipo)
+VALUES ('eda994b2-6cdf-4dba-8a60-e503dc73aa5b', 1000, '2024-07-12', '0fa994b2-6cdf-4dba-8a60-e503dc73aa5b', '0fa994b2-6cdf-4dba-8a60-e503dc73aa3f', '0fa994b2-67d3-4dba-8a60-e503dc73aa3f', '2ba994b2-6cdf-4dba-8a60-e503dc73aa5b', 'SALDO');
+
+-- Despesa via saldo em conta do usuário 'fulano'
+INSERT INTO lancamentos (id, valor, data_lancamento, usuario_id, tipo_id, fonte_id, conta_id, tipo)
+VALUES ('fda994b2-6cdf-4dba-8a60-e503dc73aa5b', 800, '2024-07-13', '0fa994b2-6cdf-4dba-8a60-e503dc73aa6b', '0fa334b2-6cdf-4dba-8a60-e503dc73aa3f', '0fa224b2-6cdf-4dba-8a60-e503dc73aa3f', '4ba994b2-6cdf-4dba-8a60-e503dc73aa5b', 'SALDO');
+
+
