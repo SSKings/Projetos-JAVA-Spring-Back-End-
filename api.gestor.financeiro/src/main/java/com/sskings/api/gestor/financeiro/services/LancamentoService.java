@@ -67,6 +67,15 @@ public class LancamentoService {
         return new ArrayList<>();
     }
 
+    public List<LancamentoModel> findByUsuarioIdAndTipoNomeIgnoreCase(UUID id, String tipo){
+        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndFonteNomeIgnoreCase(id ,tipo);
+        if (!lancamentos.isEmpty()){
+            return lancamentos;
+        }
+        return new ArrayList<>();
+    }
+
+
     @Transactional
     public void deleteById(UUID id){
         lancamentoRepository.findById(id)

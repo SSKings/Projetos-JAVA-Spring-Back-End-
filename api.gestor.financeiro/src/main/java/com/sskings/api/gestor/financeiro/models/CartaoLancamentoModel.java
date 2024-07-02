@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@DiscriminatorValue("credito")
+@DiscriminatorValue("CREDITO")
 @NoArgsConstructor
 @Getter
 @Setter

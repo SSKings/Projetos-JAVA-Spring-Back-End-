@@ -10,7 +10,7 @@ import lombok.Setter;
 
 
 @Entity
-@DiscriminatorValue("saldo")
+@DiscriminatorValue("SALDO")
 @NoArgsConstructor
 @Getter
 @Setter

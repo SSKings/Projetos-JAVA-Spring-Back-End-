@@ -44,6 +44,14 @@ public class LancamentoController {
         return ResponseEntity.ok(lancamentoService.findByUsuarioIdAndFonteNomeIgnoreCase(id,fonte));
     }
 
+    @GetMapping("/tipo")
+    public ResponseEntity<List<LancamentoModel>> findByUsuarioIdAndTipoNomeIgnoreCase(
+            @RequestParam("u") UUID id,
+            @RequestParam("t") String tipo
+    ){
+        return ResponseEntity.ok(lancamentoService.findByUsuarioIdAndTipoNomeIgnoreCase(id,tipo));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> deleteById(@PathVariable(value = "id") UUID id){
         lancamentoService.deleteById(id);

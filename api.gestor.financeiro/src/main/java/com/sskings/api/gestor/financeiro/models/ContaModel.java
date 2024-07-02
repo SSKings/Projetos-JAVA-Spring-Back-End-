@@ -20,7 +20,7 @@ public class ContaModel {
     private UUID id;
 
     @Column(nullable = false)
-    private long numero;
+    private Long numero;
 
     @Column(nullable = false)
     private String banco;
