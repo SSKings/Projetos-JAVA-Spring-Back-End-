@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -68,13 +69,20 @@ public class LancamentoService {
     }
 
     public List<LancamentoModel> findByUsuarioIdAndTipoNomeIgnoreCase(UUID id, String tipo){
-        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndFonteNomeIgnoreCase(id ,tipo);
+        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndTipoNomeIgnoreCase(id ,tipo);
         if (!lancamentos.isEmpty()){
             return lancamentos;
         }
         return new ArrayList<>();
     }
 
+    public List<LancamentoModel> findByUsuarioIdAndDataLancamento(UUID id, LocalDate data){
+        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndDataLancamento(id, data);
+        if(!lancamentos.isEmpty()){
+            return lancamentos;
+        }
+        return new ArrayList<>();
+    }
 
     @Transactional
     public void deleteById(UUID id){

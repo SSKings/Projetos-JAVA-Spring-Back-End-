@@ -15,5 +15,4 @@ public interface LancamentoRepository extends JpaRepository<LancamentoModel, UUI
     List<LancamentoModel> findByUsuarioIdAndFonteNomeIgnoreCase(UUID id, String fonteNome);
     List<LancamentoModel> findByUsuarioIdAndTipoNomeIgnoreCase(UUID id, String tipoNome);
     List<LancamentoModel> findByUsuarioIdAndDataLancamento(UUID id, LocalDate dataLancamento);
-
 }

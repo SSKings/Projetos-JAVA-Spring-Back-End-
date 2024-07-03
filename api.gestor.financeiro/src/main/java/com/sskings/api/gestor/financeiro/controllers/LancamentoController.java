@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,6 +51,14 @@ public class LancamentoController {
             @RequestParam("t") String tipo
     ){
         return ResponseEntity.ok(lancamentoService.findByUsuarioIdAndTipoNomeIgnoreCase(id,tipo));
+    }
+
+    @GetMapping("/data")
+    public ResponseEntity<List<LancamentoModel>> findByUsuarioIdAndDataLancamento(
+            @RequestParam("u") UUID id,
+            @RequestParam("d")LocalDate data
+            ){
+        return ResponseEntity.ok(lancamentoService.findByUsuarioIdAndDataLancamento(id,data));
     }
 
     @DeleteMapping("/{id}")
