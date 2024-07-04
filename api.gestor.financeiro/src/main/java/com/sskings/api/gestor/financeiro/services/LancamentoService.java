@@ -9,6 +9,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -79,6 +80,14 @@ public class LancamentoService {
     public List<LancamentoModel> findByUsuarioIdAndDataLancamento(UUID id, LocalDate data){
         List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndDataLancamento(id, data);
         if(!lancamentos.isEmpty()){
+            return lancamentos;
+        }
+        return new ArrayList<>();
+    }
+
+    public List<LancamentoModel> findByUsuarioIdAndValor(UUID id, BigDecimal valor){
+        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndValor(id, valor);
+        if (!lancamentos.isEmpty()){
             return lancamentos;
         }
         return new ArrayList<>();

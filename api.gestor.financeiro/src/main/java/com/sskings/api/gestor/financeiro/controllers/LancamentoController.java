@@ -5,11 +5,11 @@ import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoResponseDto;
 import com.sskings.api.gestor.financeiro.models.LancamentoModel;
 import com.sskings.api.gestor.financeiro.services.LancamentoService;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.Response;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -59,6 +59,14 @@ public class LancamentoController {
             @RequestParam("d")LocalDate data
             ){
         return ResponseEntity.ok(lancamentoService.findByUsuarioIdAndDataLancamento(id,data));
+    }
+
+    @GetMapping("/valor")
+    public ResponseEntity<List<LancamentoModel>> findByUsuarioIdAndValor(
+            @RequestParam("u") UUID id,
+            @RequestParam("v") BigDecimal valor
+    ){
+        return ResponseEntity.ok(lancamentoService.findByUsuarioIdAndValor(id,valor));
     }
 
     @DeleteMapping("/{id}")
