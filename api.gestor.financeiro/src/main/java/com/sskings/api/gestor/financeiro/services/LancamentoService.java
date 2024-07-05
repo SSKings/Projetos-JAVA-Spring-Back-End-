@@ -45,55 +45,67 @@ public class LancamentoService {
         }
     }
 
-    public List<LancamentoModel> findAll(){
-        List<LancamentoModel> lancamentos = lancamentoRepository.findAll();
-        if (!lancamentos.isEmpty()) {
-            return lancamentos;
+    public List<LancamentoResponseDto> findAll(){
+        List<LancamentoResponseDto> lancamentos = lancamentoRepository.findAll().stream()
+                .map(this::convertToDto).toList();
+        if (lancamentos.isEmpty()) {
+            throw new NotFoundException("não há lancamentos.");
         }
-        return new ArrayList<>();
+        return lancamentos;
     }
 
-    public List<LancamentoModel> findByUsuarioId(UUID id){
+    public List<LancamentoResponseDto> findByUsuarioId(UUID id){
         usuarioRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
-        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioId(id);
+        List<LancamentoResponseDto> lancamentos = lancamentoRepository.findByUsuarioId(id).stream()
+                .map(this::convertToDto).toList();
         if (lancamentos.isEmpty()){
-            throw new NotFoundException("não há lancamentos.");
+            throw new NotFoundException("não há lancamentos do usuário.");
         }
         return lancamentos;
 
     }
 
-    public List<LancamentoModel> findByUsuarioIdAndFonteNomeIgnoreCase(UUID id, String fonte){
+    public List<LancamentoResponseDto> findByUsuarioIdAndFonteNomeIgnoreCase(UUID id, String fonte){
         usuarioRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
-        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndFonteNomeIgnoreCase(id ,fonte);
+        List<LancamentoResponseDto> lancamentos = lancamentoRepository.findByUsuarioIdAndFonteNomeIgnoreCase(id ,fonte).stream()
+                .map(this::convertToDto).toList();
         if (lancamentos.isEmpty()){
-            throw new NotFoundException("não há lancamentos.");
+            throw new NotFoundException("não há lancamentos dessa fonte: " + fonte);
         }
         return lancamentos;
     }
 
-    public List<LancamentoModel> findByUsuarioIdAndTipoNomeIgnoreCase(UUID id, String tipo){
-        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndTipoNomeIgnoreCase(id ,tipo);
+    public List<LancamentoResponseDto> findByUsuarioIdAndTipoNomeIgnoreCase(UUID id, String tipo){
+        usuarioRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
+        List<LancamentoResponseDto> lancamentos = lancamentoRepository.findByUsuarioIdAndTipoNomeIgnoreCase(id ,tipo).stream()
+                .map(this::convertToDto).toList();
         if (lancamentos.isEmpty()){
-            throw new NotFoundException("não há lancamentos.");
+            throw new NotFoundException("não há lancamentos do tipo: " + tipo);
         }
         return lancamentos;
     }
 
-    public List<LancamentoModel> findByUsuarioIdAndDataLancamento(UUID id, LocalDate data){
-        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndDataLancamento(id, data);
+    public List<LancamentoResponseDto> findByUsuarioIdAndDataLancamento(UUID id, LocalDate data){
+        usuarioRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
+        List<LancamentoResponseDto> lancamentos = lancamentoRepository.findByUsuarioIdAndDataLancamento(id, data).stream()
+                .map(this::convertToDto).toList();
         if (lancamentos.isEmpty()){
-            throw new NotFoundException("não há lancamentos.");
+            throw new NotFoundException("não há lancamentos para data : " + data);
         }
         return lancamentos;
     }
 
-    public List<LancamentoModel> findByUsuarioIdAndValor(UUID id, BigDecimal valor){
-        List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndValor(id, valor);
+    public List<LancamentoResponseDto> findByUsuarioIdAndValor(UUID id, BigDecimal valor){
+        usuarioRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
+        List<LancamentoResponseDto> lancamentos = lancamentoRepository.findByUsuarioIdAndValor(id, valor).stream()
+                .map(this::convertToDto).toList();
         if (lancamentos.isEmpty()){
-            throw new NotFoundException("não há lancamentos.");
+            throw new NotFoundException("não há lancamentos com o valor: " + valor);
         }
         return lancamentos;
     }
@@ -126,8 +138,8 @@ public class LancamentoService {
         contaLancamentoModel.setDataLancamento(LocalDate.now());
         lancamentoRepository.save(contaLancamentoModel);
         return new LancamentoResponseDto(
-                contaLancamentoModel.getValor(),contaLancamentoModel.getUsuario(),contaLancamentoModel.getTipo(),
-                contaLancamentoModel.getFonte(),contaLancamentoModel.getDataLancamento(),null,contaLancamentoModel.getConta()
+                contaLancamentoModel.getValor(),contaLancamentoModel.getUsuario().getNome(),contaLancamentoModel.getTipo().getNome(),
+                contaLancamentoModel.getFonte().getNome(),contaLancamentoModel.getDataLancamento(),null,contaLancamentoModel.getConta().getNumero()
         );
     }
 
@@ -144,11 +156,24 @@ public class LancamentoService {
         cartaoLancamentoModel.setDataLancamento(LocalDate.now());
         lancamentoRepository.save(cartaoLancamentoModel);
         return new LancamentoResponseDto(
-                cartaoLancamentoModel.getValor(),cartaoLancamentoModel.getUsuario(),cartaoLancamentoModel.getTipo(),
-                cartaoLancamentoModel.getFonte(),cartaoLancamentoModel.getDataLancamento(),cartaoLancamentoModel.getCartao(), null
+                cartaoLancamentoModel.getValor(),cartaoLancamentoModel.getUsuario().getNome(),cartaoLancamentoModel.getTipo().getNome(),
+                cartaoLancamentoModel.getFonte().getNome(),cartaoLancamentoModel.getDataLancamento(),cartaoLancamentoModel.getCartao().getNumero(), null
         );
 
 
     }
+    private LancamentoResponseDto convertToDto(LancamentoModel lancamento){
+        Long conta = null;
+        Long cartao = null;
 
+        if (lancamento instanceof ContaLancamentoModel){
+            conta = ((ContaLancamentoModel) lancamento).getConta().getNumero();
+        }
+        else if (lancamento instanceof CartaoLancamentoModel){
+            cartao = ((CartaoLancamentoModel) lancamento).getCartao().getNumero();
+        }
+        return new LancamentoResponseDto(lancamento.getValor(),lancamento.getUsuario().getNome(),
+                lancamento.getTipo().getNome(), lancamento.getFonte().getNome(), lancamento.getDataLancamento(),
+                cartao, conta);
+    }
 }
