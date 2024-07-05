@@ -5,11 +5,8 @@ import com.sskings.api.gestor.financeiro.models.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-public record ContaLancamentoResponseDto(BigDecimal valor, UsuarioModel usuario, TipoLancamentoModel tipo,
-                                         FonteLancamentoModel fonte, LocalDate dataLancamento, ContaModel conta) {
+public record ContaLancamentoResponseDto(BigDecimal valor, String usuario, String tipo,
+                                         String fonte, LocalDate dataLancamento, String conta) {
 
-    public ContaLancamentoResponseDto(ContaLancamentoModel contaLancamentoModel){
-        this(contaLancamentoModel.getValor(),contaLancamentoModel.getUsuario(), contaLancamentoModel.getTipo()
-                ,contaLancamentoModel.getFonte(),contaLancamentoModel.getDataLancamento(),contaLancamentoModel.getConta());
-    }
+
 }

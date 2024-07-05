@@ -28,17 +28,17 @@ public class LancamentoController {
     }
 
     @GetMapping
-    public ResponseEntity<List<LancamentoModel>> findAll(){
+    public ResponseEntity<List<LancamentoResponseDto>> findAll(){
         return ResponseEntity.ok(lancamentoService.findAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<List<LancamentoModel>> findByUsuarioId(@PathVariable(value = "id") UUID id){
+    public ResponseEntity<List<LancamentoResponseDto>> findByUsuarioId(@PathVariable(value = "id") UUID id){
         return ResponseEntity.ok(lancamentoService.findByUsuarioId(id));
     }
 
     @GetMapping("/fonte")
-    public ResponseEntity<List<LancamentoModel>> findByUsuarioIdAndFonteNomeIgnoreCase(
+    public ResponseEntity<List<LancamentoResponseDto>> findByUsuarioIdAndFonteNomeIgnoreCase(
             @RequestParam("u") UUID id,
             @RequestParam("f") String fonte
     ){
@@ -46,7 +46,7 @@ public class LancamentoController {
     }
 
     @GetMapping("/tipo")
-    public ResponseEntity<List<LancamentoModel>> findByUsuarioIdAndTipoNomeIgnoreCase(
+    public ResponseEntity<List<LancamentoResponseDto>> findByUsuarioIdAndTipoNomeIgnoreCase(
             @RequestParam("u") UUID id,
             @RequestParam("t") String tipo
     ){
@@ -54,7 +54,7 @@ public class LancamentoController {
     }
 
     @GetMapping("/data")
-    public ResponseEntity<List<LancamentoModel>> findByUsuarioIdAndDataLancamento(
+    public ResponseEntity<List<LancamentoResponseDto>> findByUsuarioIdAndDataLancamento(
             @RequestParam("u") UUID id,
             @RequestParam("d")LocalDate data
             ){
@@ -62,7 +62,7 @@ public class LancamentoController {
     }
 
     @GetMapping("/valor")
-    public ResponseEntity<List<LancamentoModel>> findByUsuarioIdAndValor(
+    public ResponseEntity<List<LancamentoResponseDto>> findByUsuarioIdAndValor(
             @RequestParam("u") UUID id,
             @RequestParam("v") BigDecimal valor
     ){
