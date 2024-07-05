@@ -3,7 +3,7 @@ INSERT INTO tipo_lancamento (id, nome) VALUES ('0fa994b2-6cdf-4dba-8a60-e503dc73
 INSERT INTO tipo_lancamento (id, nome) VALUES ('0fa334b2-6cdf-4dba-8a60-e503dc73aa3f', 'DESPESA');
 
 -- FONTE (DOS LANÇAMENTOS)
-INSERT INTO fonte_lancamento (id, nome) VALUES ('0fa224b2-6cdf-4dba-8a60-e503dc73aa3f', 'CREDITO');
+INSERT INTO fonte_lancamento (id, nome) VALUES ('0fa224b2-6cdf-4dba-8a60-e503dc73aa3f', 'CARTAO');
 INSERT INTO fonte_lancamento (id, nome) VALUES ('0fa994b2-67d3-4dba-8a60-e503dc73aa3f', 'CONTA');
 
 -- USUÁRIOS
