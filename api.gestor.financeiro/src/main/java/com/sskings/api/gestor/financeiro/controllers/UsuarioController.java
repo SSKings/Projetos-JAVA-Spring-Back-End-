@@ -7,7 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -22,9 +21,6 @@ public class UsuarioController {
 
     @PostMapping
     public ResponseEntity<Object> save(@RequestBody UsuarioModel usuario){
-        if(usuarioService.existsByEmail(usuario.getEmail())){
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Este e-mail já está em uso.");
-        }
         return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.save(usuario));
     }
 
@@ -35,12 +31,9 @@ public class UsuarioController {
 
     @GetMapping("/{id}")
     public ResponseEntity<Object> findById(@PathVariable(value = "id") UUID id){
-        Optional<UsuarioModel> usuarioOptional = usuarioService.findById(id);
-        if (!usuarioOptional.isPresent()){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Usuário não encontrado.");
-        }
-        return ResponseEntity.status(HttpStatus.OK).body(usuarioOptional.get());
+        return ResponseEntity.ok(usuarioService.findById(id));
     }
+    
     @GetMapping("/s/{param}")
     public ResponseEntity<List<UsuarioModel>> findByNomeIgnoreCaseContaining(
             @PathVariable(value = "param") String param){
@@ -49,23 +42,16 @@ public class UsuarioController {
 
     @PutMapping("/{id}")
     public ResponseEntity<Object> update(@PathVariable(value = "id") UUID id,
-                                         @RequestBody UsuarioModel usuario){
-        Optional<UsuarioModel> usuarioOptional = usuarioService.findById(id);
-        if(!usuarioOptional.isPresent()){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Usuário não encontrado.");
-        }
-        usuario.setId(usuarioOptional.get().getId());
-        usuarioService.update(usuario);
+                                         @RequestBody UsuarioModel usuarioModel){
+        UsuarioModel usuario = usuarioService.findById(id);
+        usuarioModel.setId(usuario.getId());
+        usuarioService.update(usuarioModel);
         return ResponseEntity.status(HttpStatus.OK).body("Alterações realizadas.");
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> delete(@PathVariable(value = "id") UUID id){
-        Optional<UsuarioModel> usuarioOptional = usuarioService.findById(id);
-        if (!usuarioOptional.isPresent()){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Usuário não encontrado.");
-        }
-        UsuarioModel usuario = usuarioOptional.get();
+        UsuarioModel usuario = usuarioService.findById(id);
         usuarioService.delete(usuario);
         return ResponseEntity.status(HttpStatus.OK).body("Usuário deletado");
     }

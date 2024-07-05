@@ -2,6 +2,7 @@ package com.sskings.api.gestor.financeiro.controllers;
 
 import com.sskings.api.gestor.financeiro.dto.cartao.CartaoRequestDto;
 import com.sskings.api.gestor.financeiro.dto.cartao.CartaoResponseDto;
+import com.sskings.api.gestor.financeiro.exception.NotFoundException;
 import com.sskings.api.gestor.financeiro.models.CartaoModel;
 import com.sskings.api.gestor.financeiro.services.CartaoService;
 import org.springframework.beans.BeanUtils;
@@ -25,7 +26,7 @@ public class CartaoController {
     @GetMapping("/{id}")
     public ResponseEntity<Object> findById(@PathVariable(value = "id") UUID id){
         CartaoModel cartaoModel = cartaoService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Cartão não encontrado."));
+                .orElseThrow(() -> new NotFoundException("Cartão não encontrado"));
         CartaoResponseDto response = new CartaoResponseDto(cartaoModel);
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
@@ -39,7 +40,7 @@ public class CartaoController {
     public ResponseEntity<CartaoResponseDto> update(@PathVariable(value = "id") UUID id,
                                          @RequestBody CartaoRequestDto cartaoRequestDto){
         CartaoModel cartaoModel = cartaoService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cartão não encontrado."));
+                .orElseThrow(() -> new NotFoundException("Cartão não encontrado"));
         BeanUtils.copyProperties(cartaoRequestDto, cartaoModel);
         return ResponseEntity.status(HttpStatus.OK).body(cartaoService.update(cartaoModel));
     }
@@ -47,7 +48,7 @@ public class CartaoController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> delete(@PathVariable(value = "id") UUID id){
         CartaoModel cartaoModel = cartaoService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cartão não encontrado."));
+                .orElseThrow(() -> new NotFoundException("Cartão não encontrado"));
         cartaoService.delete(cartaoModel);
         return ResponseEntity.status(HttpStatus.OK).body("Cartão deletado.");
     }

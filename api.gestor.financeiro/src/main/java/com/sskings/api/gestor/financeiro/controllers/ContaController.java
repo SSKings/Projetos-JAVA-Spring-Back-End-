@@ -2,6 +2,7 @@ package com.sskings.api.gestor.financeiro.controllers;
 
 import com.sskings.api.gestor.financeiro.dto.conta.ContaRequestDto;
 import com.sskings.api.gestor.financeiro.dto.conta.ContaResponseDto;
+import com.sskings.api.gestor.financeiro.exception.NotFoundException;
 import com.sskings.api.gestor.financeiro.models.ContaModel;
 import com.sskings.api.gestor.financeiro.services.ContaService;
 import org.springframework.beans.BeanUtils;
@@ -32,7 +33,7 @@ public class ContaController {
     @GetMapping("/{id}")
     public ResponseEntity<ContaResponseDto> findById(@PathVariable(value = "id") UUID id){
         ContaModel conta = contaService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new NotFoundException("Conta não encontrada"));
         ContaResponseDto response = new ContaResponseDto(conta);
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
@@ -41,7 +42,7 @@ public class ContaController {
     public ResponseEntity<Object> update(@PathVariable(value = "id") UUID id,
                                                    @RequestBody ContaRequestDto contaRequestDto){
         ContaModel contaModel = contaService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conta não encontrada."));
+                .orElseThrow(() -> new NotFoundException("Conta não encontrada"));
         BeanUtils.copyProperties(contaRequestDto, contaModel);
         ContaResponseDto response = contaService.update(contaModel);
         return ResponseEntity.status(HttpStatus.OK).body(response);
@@ -52,7 +53,7 @@ public class ContaController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> delete(@PathVariable(value = "id") UUID id){
         ContaModel conta = contaService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conta não encontrada."));
+                .orElseThrow(() -> new NotFoundException("Conta não encontrada"));
         contaService.delete(conta);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }

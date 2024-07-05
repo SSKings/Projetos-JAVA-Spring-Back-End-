@@ -2,7 +2,7 @@ package com.sskings.api.gestor.financeiro.services;
 
 import com.sskings.api.gestor.financeiro.dto.cartao.CartaoRequestDto;
 import com.sskings.api.gestor.financeiro.dto.cartao.CartaoResponseDto;
-import com.sskings.api.gestor.financeiro.exception.RegraNegocioException;
+import com.sskings.api.gestor.financeiro.exception.BadRequestException;
 import com.sskings.api.gestor.financeiro.models.CartaoModel;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.repositories.CartaoRepository;
@@ -24,7 +24,7 @@ public class CartaoService {
     @Transactional
     public CartaoResponseDto save(CartaoRequestDto cartaoRequestDto){
         UsuarioModel usuario = usuarioRepository.findById(cartaoRequestDto.usuario_id())
-                .orElseThrow(() -> new RegraNegocioException("Código de usuário inválido"));
+                .orElseThrow(() -> new BadRequestException("Código de usuário inválido"));
         CartaoModel cartaoModel = new CartaoModel(cartaoRequestDto);
         cartaoModel.setUsuario(usuario);
         cartaoRepository.save(cartaoModel);
@@ -39,7 +39,7 @@ public class CartaoService {
     @Transactional
     public CartaoResponseDto update(CartaoModel cartaoModel){
         UsuarioModel usuario = usuarioRepository.findById(cartaoModel.getUsuario().getId())
-                .orElseThrow(() -> new RegraNegocioException("Código de usuário inválido."));
+                .orElseThrow(() -> new BadRequestException("Código de usuário inválido."));
         cartaoModel.setUsuario(usuario);
         cartaoRepository.save(cartaoModel);
         return new CartaoResponseDto(cartaoModel);

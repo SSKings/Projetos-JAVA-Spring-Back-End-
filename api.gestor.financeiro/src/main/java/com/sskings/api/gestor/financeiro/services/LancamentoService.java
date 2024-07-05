@@ -2,7 +2,8 @@ package com.sskings.api.gestor.financeiro.services;
 
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoRequestDto;
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoResponseDto;
-import com.sskings.api.gestor.financeiro.exception.RegraNegocioException;
+import com.sskings.api.gestor.financeiro.exception.BadRequestException;
+import com.sskings.api.gestor.financeiro.exception.NotFoundException;
 import com.sskings.api.gestor.financeiro.models.*;
 import com.sskings.api.gestor.financeiro.repositories.*;
 import jakarta.transaction.Transactional;
@@ -11,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -30,18 +30,18 @@ public class LancamentoService {
     @Transactional
     public LancamentoResponseDto save(LancamentoRequestDto lancamentoRequestDto) {
         UsuarioModel usuarioModel = usuarioRepository.findById(lancamentoRequestDto.usuario_id())
-                .orElseThrow(() -> new RegraNegocioException("Usuário não encontrado."));
+                .orElseThrow(() -> new BadRequestException("Usuário não encontrado."));
         TipoLancamentoModel tipo = tipoLancamentoRepository.findById(lancamentoRequestDto.tipo_id())
-                .orElseThrow(() -> new RegraNegocioException("Tipo de lançamento não encontrado."));
+                .orElseThrow(() -> new BadRequestException("Tipo de lançamento não encontrado."));
         FonteLancamentoModel fonte = fonteLancamentoRepository.findById(lancamentoRequestDto.fonte_id())
-                .orElseThrow(() -> new RegraNegocioException("Fonte do lançamento não encontrado."));
+                .orElseThrow(() -> new BadRequestException("Fonte do lançamento não encontrado."));
 
         if (isContaLancamento(lancamentoRequestDto)) {
             return processContaLancamento(lancamentoRequestDto, usuarioModel, tipo, fonte);
         } else if (isCartaoLancamento(lancamentoRequestDto)) {
             return processCartaoLancamento(lancamentoRequestDto, usuarioModel, tipo, fonte);
         } else {
-            throw new RegraNegocioException("Um lancamento deve ser feito com ou um cartão ou uma conta.");
+            throw new BadRequestException("Um lancamento deve ser feito com ou um cartão ou uma conta.");
         }
     }
 
@@ -54,49 +54,54 @@ public class LancamentoService {
     }
 
     public List<LancamentoModel> findByUsuarioId(UUID id){
+        usuarioRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
         List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioId(id);
-        if (!lancamentos.isEmpty()){
-            return lancamentos;
+        if (lancamentos.isEmpty()){
+            throw new NotFoundException("não há lancamentos.");
         }
-        return new ArrayList<>();
+        return lancamentos;
+
     }
 
     public List<LancamentoModel> findByUsuarioIdAndFonteNomeIgnoreCase(UUID id, String fonte){
+        usuarioRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
         List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndFonteNomeIgnoreCase(id ,fonte);
-        if (!lancamentos.isEmpty()){
-            return lancamentos;
+        if (lancamentos.isEmpty()){
+            throw new NotFoundException("não há lancamentos.");
         }
-        return new ArrayList<>();
+        return lancamentos;
     }
 
     public List<LancamentoModel> findByUsuarioIdAndTipoNomeIgnoreCase(UUID id, String tipo){
         List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndTipoNomeIgnoreCase(id ,tipo);
-        if (!lancamentos.isEmpty()){
-            return lancamentos;
+        if (lancamentos.isEmpty()){
+            throw new NotFoundException("não há lancamentos.");
         }
-        return new ArrayList<>();
+        return lancamentos;
     }
 
     public List<LancamentoModel> findByUsuarioIdAndDataLancamento(UUID id, LocalDate data){
         List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndDataLancamento(id, data);
-        if(!lancamentos.isEmpty()){
-            return lancamentos;
+        if (lancamentos.isEmpty()){
+            throw new NotFoundException("não há lancamentos.");
         }
-        return new ArrayList<>();
+        return lancamentos;
     }
 
     public List<LancamentoModel> findByUsuarioIdAndValor(UUID id, BigDecimal valor){
         List<LancamentoModel> lancamentos = lancamentoRepository.findByUsuarioIdAndValor(id, valor);
-        if (!lancamentos.isEmpty()){
-            return lancamentos;
+        if (lancamentos.isEmpty()){
+            throw new NotFoundException("não há lancamentos.");
         }
-        return new ArrayList<>();
+        return lancamentos;
     }
 
     @Transactional
     public void deleteById(UUID id){
         lancamentoRepository.findById(id)
-                .orElseThrow(() -> new RegraNegocioException("Lançamento não encontrado"));
+                .orElseThrow(() -> new NotFoundException("Lançamento não encontrado"));
         lancamentoRepository.deleteById(id);
     }
 
@@ -111,7 +116,7 @@ public class LancamentoService {
     private LancamentoResponseDto processContaLancamento(LancamentoRequestDto lancamentoRequestDto, UsuarioModel usuario,
                                                          TipoLancamentoModel tipo, FonteLancamentoModel fonte){
         ContaModel conta = contaRepository.findById(lancamentoRequestDto.conta_id())
-                .orElseThrow(() -> new RegraNegocioException("Conta inexistente"));
+                .orElseThrow(() -> new BadRequestException("Conta inexistente"));
         ContaLancamentoModel contaLancamentoModel = new ContaLancamentoModel();
         contaLancamentoModel.setConta(conta);
         contaLancamentoModel.setUsuario(usuario);
@@ -129,7 +134,7 @@ public class LancamentoService {
     private LancamentoResponseDto processCartaoLancamento(LancamentoRequestDto lancamentoRequestDto, UsuarioModel usuario,
                                                           TipoLancamentoModel tipo, FonteLancamentoModel fonte){
         CartaoModel cartao = cartaoRepository.findById(lancamentoRequestDto.cartao_id())
-                .orElseThrow(() -> new RegraNegocioException("Cartão inexistente"));
+                .orElseThrow(() -> new BadRequestException("Cartão inexistente"));
         CartaoLancamentoModel cartaoLancamentoModel = new CartaoLancamentoModel();
         cartaoLancamentoModel.setCartao(cartao);
         cartaoLancamentoModel.setUsuario(usuario);

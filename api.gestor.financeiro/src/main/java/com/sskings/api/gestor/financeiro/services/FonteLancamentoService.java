@@ -2,7 +2,8 @@ package com.sskings.api.gestor.financeiro.services;
 
 import com.sskings.api.gestor.financeiro.dto.lancamento.fonte.FonteRequestDto;
 import com.sskings.api.gestor.financeiro.dto.lancamento.fonte.FonteResponseDto;
-import com.sskings.api.gestor.financeiro.exception.RegraNegocioException;
+import com.sskings.api.gestor.financeiro.exception.BadRequestException;
+import com.sskings.api.gestor.financeiro.exception.NotFoundException;
 import com.sskings.api.gestor.financeiro.models.FonteLancamentoModel;
 import com.sskings.api.gestor.financeiro.repositories.FonteLancamentoRepository;
 import jakarta.transaction.Transactional;
@@ -12,7 +13,6 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,7 +29,7 @@ public class FonteLancamentoService {
 
     public Optional<FonteLancamentoModel> findById(UUID id){
         FonteLancamentoModel fonte = fonteLancamentoRepository.findById(id)
-                .orElseThrow(() -> new RegraNegocioException("Fonte não encontrada."));
+                .orElseThrow(() -> new NotFoundException("Fonte não encontrada."));
         return Optional.of(fonte);
     }
 
@@ -43,7 +43,7 @@ public class FonteLancamentoService {
     @Transactional
     public void deleteById(UUID id){
         fonteLancamentoRepository.findById(id)
-                .orElseThrow(() -> new RegraNegocioException("Fonte não encontrada."));
+                .orElseThrow(() -> new NotFoundException("Fonte não encontrada."));
         fonteLancamentoRepository.deleteById(id);
     }
 }

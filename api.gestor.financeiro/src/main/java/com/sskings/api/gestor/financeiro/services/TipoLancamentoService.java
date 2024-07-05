@@ -2,7 +2,7 @@ package com.sskings.api.gestor.financeiro.services;
 
 import com.sskings.api.gestor.financeiro.dto.lancamento.tipo.TipoRequestDto;
 import com.sskings.api.gestor.financeiro.dto.lancamento.tipo.TipoResponseDto;
-import com.sskings.api.gestor.financeiro.exception.RegraNegocioException;
+import com.sskings.api.gestor.financeiro.exception.BadRequestException;
 import com.sskings.api.gestor.financeiro.models.TipoLancamentoModel;
 import com.sskings.api.gestor.financeiro.repositories.TipoLancamentoRepository;
 import jakarta.transaction.Transactional;
@@ -28,7 +28,7 @@ public class TipoLancamentoService {
 
     public Optional<TipoLancamentoModel> findById(UUID id){
         TipoLancamentoModel tipo = tipoLancamentoRepository.findById(id)
-                .orElseThrow(() -> new RegraNegocioException("Esse tipo de lançamento não existe."));
+                .orElseThrow(() -> new BadRequestException("Esse tipo de lançamento não existe."));
         return Optional.of(tipo);
     }
 
@@ -42,7 +42,7 @@ public class TipoLancamentoService {
     @Transactional
     public void deleteById(UUID id){
         tipoLancamentoRepository.findById(id)
-            .orElseThrow(() -> new RegraNegocioException("O tipo de lançamento não existe."));
+            .orElseThrow(() -> new BadRequestException("O tipo de lançamento não existe."));
         tipoLancamentoRepository.deleteById(id);
     }
 
