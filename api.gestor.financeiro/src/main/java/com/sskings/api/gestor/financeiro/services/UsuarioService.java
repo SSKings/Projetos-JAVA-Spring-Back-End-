@@ -2,6 +2,7 @@ package com.sskings.api.gestor.financeiro.services;
 
 import com.sskings.api.gestor.financeiro.dto.cartao.CartaoResponseDto;
 import com.sskings.api.gestor.financeiro.dto.conta.ContaResponseDto;
+import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioRequestDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioResponseDto;
 import com.sskings.api.gestor.financeiro.exception.ConflictException;
 import com.sskings.api.gestor.financeiro.exception.NotFoundException;
@@ -14,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -27,10 +30,12 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
 
     @Transactional
-    public UsuarioModel save(UsuarioModel usuario){
-        if(usuarioRepository.existsByEmail(usuario.getEmail())){
+    public UsuarioModel save(UsuarioRequestDto usuarioRequestDto){
+        if(usuarioRepository.existsByEmail(usuarioRequestDto.email())){
             throw new ConflictException("O e-mail já está cadastrado");
         }
+        var usuario = new UsuarioModel(usuarioRequestDto);
+        usuario.setDataCadastro(LocalDate.now(ZoneId.of("America/Sao_Paulo")));
         return usuarioRepository.save(usuario);
     }
 

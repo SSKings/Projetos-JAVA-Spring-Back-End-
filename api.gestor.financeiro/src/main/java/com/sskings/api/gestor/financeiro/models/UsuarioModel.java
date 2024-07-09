@@ -1,8 +1,10 @@
 package com.sskings.api.gestor.financeiro.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioRequestDto;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -40,4 +42,8 @@ public class UsuarioModel {
     @OneToMany(mappedBy = "usuario", fetch = FetchType.LAZY)
     private Set<ContaModel> contas;
 
+    public UsuarioModel(UsuarioRequestDto usuarioRequestDto) {
+        this.nome = usuarioRequestDto.nome();
+        this.email = usuarioRequestDto.email();
+    }
 }
