@@ -32,4 +32,6 @@ public class ApplicationControllerAdvice {
         String mensagemErro = ex.getMessage();
         return new ApiErrors(mensagemErro);
     }
-}
+
+
+}   

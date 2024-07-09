@@ -1,29 +1,32 @@
 package com.sskings.api.gestor.financeiro.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDate;
 import java.util.Set;
 import java.util.UUID;
 
-@Entity(name = "usuario")
+@Entity
 @Table(name = "usuario")
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class UsuarioModel {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
+    @EqualsAndHashCode.Include
     private UUID id;
 
     @Column(length = 50, nullable = false)
     private String nome;
 
     @Column(nullable = false, unique = true)
+    @EqualsAndHashCode.Include
     private String email;
 
     @Column(name = "data_cadastro", nullable = false)

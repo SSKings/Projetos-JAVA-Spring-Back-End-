@@ -2,7 +2,6 @@ package com.sskings.api.gestor.financeiro.controllers;
 
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoRequestDto;
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoResponseDto;
-import com.sskings.api.gestor.financeiro.models.LancamentoModel;
 import com.sskings.api.gestor.financeiro.services.LancamentoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

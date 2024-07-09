@@ -2,16 +2,16 @@ package com.sskings.api.gestor.financeiro.models;
 
 import com.sskings.api.gestor.financeiro.dto.conta.ContaRequestDto;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity(name = "conta")
 @Table(name = "conta")
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(of = "id")
 @NoArgsConstructor
 @AllArgsConstructor
 public class ContaModel {

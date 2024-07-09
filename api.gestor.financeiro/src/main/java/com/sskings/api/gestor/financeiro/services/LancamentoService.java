@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -162,6 +161,7 @@ public class LancamentoService {
 
 
     }
+
     private LancamentoResponseDto convertToDto(LancamentoModel lancamento){
         Long conta = null;
         Long cartao = null;
