@@ -16,4 +16,5 @@ public class ApiErrors {
         this.errors = Arrays.asList(mensagemErro);
     }
 
- }
+    public ApiErrors(List<String> errors) { this.errors = errors; }
+}

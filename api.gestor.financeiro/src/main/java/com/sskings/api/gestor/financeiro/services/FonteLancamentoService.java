@@ -2,7 +2,6 @@ package com.sskings.api.gestor.financeiro.services;
 
 import com.sskings.api.gestor.financeiro.dto.lancamento.fonte.FonteRequestDto;
 import com.sskings.api.gestor.financeiro.dto.lancamento.fonte.FonteResponseDto;
-import com.sskings.api.gestor.financeiro.exception.BadRequestException;
 import com.sskings.api.gestor.financeiro.exception.NotFoundException;
 import com.sskings.api.gestor.financeiro.models.FonteLancamentoModel;
 import com.sskings.api.gestor.financeiro.repositories.FonteLancamentoRepository;
