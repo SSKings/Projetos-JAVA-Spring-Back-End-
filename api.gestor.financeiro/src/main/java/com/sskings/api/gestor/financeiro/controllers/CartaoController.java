@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -29,6 +30,11 @@ public class CartaoController {
                 .orElseThrow(() -> new NotFoundException("Cartão não encontrado"));
         CartaoResponseDto response = new CartaoResponseDto(cartaoModel);
         return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @GetMapping("/u/{id}")
+    public ResponseEntity<List<CartaoModel>> findByUsuarioId(@PathVariable(value = "id") UUID id){
+        return ResponseEntity.ok(cartaoService.findByUsuarioId(id));
     }
 
     @PostMapping

@@ -11,6 +11,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,6 +35,10 @@ public class CartaoService {
 
     public Optional<CartaoModel> findById(UUID id){
         return cartaoRepository.findById(id);
+    }
+
+    public List<CartaoModel> findByUsuarioId(UUID id){
+        return cartaoRepository.findByUsuarioId(id);
     }
 
     @Transactional
