@@ -1,5 +1,6 @@
 package com.sskings.api.gestor.financeiro.controllers;
 
+import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioResponseDto;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.services.UsuarioService;
 import org.springframework.http.HttpStatus;
@@ -40,19 +41,21 @@ public class UsuarioController {
         return ResponseEntity.status(HttpStatus.FOUND).body(usuarioService.findByNomeIgnoreCaseContaining(param));
     }
 
+    @GetMapping("/cartoes/{id}")
+    public ResponseEntity<UsuarioResponseDto> findByIdWithCartoesAndContas(@PathVariable(value = "id") UUID id){
+            return ResponseEntity.ok(usuarioService.findByIdWithCartoes(id));
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<Object> update(@PathVariable(value = "id") UUID id,
                                          @RequestBody UsuarioModel usuarioModel){
-        UsuarioModel usuario = usuarioService.findById(id);
-        usuarioModel.setId(usuario.getId());
-        usuarioService.update(usuarioModel);
+        usuarioService.update(id, usuarioModel);
         return ResponseEntity.status(HttpStatus.OK).body("Alterações realizadas.");
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Object> delete(@PathVariable(value = "id") UUID id){
-        UsuarioModel usuario = usuarioService.findById(id);
-        usuarioService.delete(usuario);
+    public ResponseEntity<Object> deleteById(@PathVariable(value = "id") UUID id){
+        usuarioService.deleteById(id);
         return ResponseEntity.status(HttpStatus.OK).body("Usuário deletado");
     }
 }
