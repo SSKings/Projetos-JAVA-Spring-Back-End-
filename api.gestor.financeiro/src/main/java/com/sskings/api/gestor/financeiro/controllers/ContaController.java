@@ -5,6 +5,7 @@ import com.sskings.api.gestor.financeiro.dto.conta.ContaResponseDto;
 import com.sskings.api.gestor.financeiro.exception.NotFoundException;
 import com.sskings.api.gestor.financeiro.models.ContaModel;
 import com.sskings.api.gestor.financeiro.services.ContaService;
+import jakarta.validation.Valid;
 import org.springframework.beans.BeanUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +26,7 @@ public class ContaController {
     }
 
     @PostMapping
-    public ResponseEntity<ContaResponseDto> save(@RequestBody ContaRequestDto contaRequestDto){
+    public ResponseEntity<ContaResponseDto> save(@RequestBody @Valid ContaRequestDto contaRequestDto){
         return ResponseEntity.status(HttpStatus.CREATED).body(contaService.save(contaRequestDto));
     }
 
