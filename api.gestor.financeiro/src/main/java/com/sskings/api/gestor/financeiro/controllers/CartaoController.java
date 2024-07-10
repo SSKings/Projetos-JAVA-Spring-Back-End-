@@ -5,6 +5,7 @@ import com.sskings.api.gestor.financeiro.dto.cartao.CartaoResponseDto;
 import com.sskings.api.gestor.financeiro.exception.NotFoundException;
 import com.sskings.api.gestor.financeiro.models.CartaoModel;
 import com.sskings.api.gestor.financeiro.services.CartaoService;
+import jakarta.validation.Valid;
 import org.springframework.beans.BeanUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,13 +39,13 @@ public class CartaoController {
     }
 
     @PostMapping
-    public ResponseEntity<CartaoResponseDto> save(@RequestBody CartaoRequestDto cartaoRequestDto){
+    public ResponseEntity<CartaoResponseDto> save(@RequestBody @Valid CartaoRequestDto cartaoRequestDto){
         return ResponseEntity.status(HttpStatus.CREATED).body(cartaoService.save(cartaoRequestDto));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<CartaoResponseDto> update(@PathVariable(value = "id") UUID id,
-                                         @RequestBody CartaoRequestDto cartaoRequestDto){
+                                         @RequestBody @Valid CartaoRequestDto cartaoRequestDto){
         CartaoModel cartaoModel = cartaoService.findById(id)
                 .orElseThrow(() -> new NotFoundException("Cartão não encontrado"));
         BeanUtils.copyProperties(cartaoRequestDto, cartaoModel);

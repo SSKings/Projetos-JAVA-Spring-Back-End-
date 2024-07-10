@@ -1,6 +1,5 @@
 package com.sskings.api.gestor.financeiro.models;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.sskings.api.gestor.financeiro.dto.cartao.CartaoRequestDto;
 import jakarta.persistence.*;
 import lombok.*;
@@ -8,7 +7,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Objects;
 import java.util.UUID;
 
 @Entity
