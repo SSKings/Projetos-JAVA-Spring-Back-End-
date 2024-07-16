@@ -137,7 +137,7 @@ public class LancamentoService {
         contaLancamentoModel.setDataLancamento(LocalDate.now());
         lancamentoRepository.save(contaLancamentoModel);
         return new LancamentoResponseDto(
-                contaLancamentoModel.getValor(),contaLancamentoModel.getUsuario().getNome(),contaLancamentoModel.getTipo().getNome(),
+                contaLancamentoModel.getValor(),contaLancamentoModel.getUsuario().getUsername(),contaLancamentoModel.getTipo().getNome(),
                 contaLancamentoModel.getFonte().getNome(),contaLancamentoModel.getDataLancamento(),null,contaLancamentoModel.getConta().getNumero()
         );
     }
@@ -155,7 +155,7 @@ public class LancamentoService {
         cartaoLancamentoModel.setDataLancamento(LocalDate.now());
         lancamentoRepository.save(cartaoLancamentoModel);
         return new LancamentoResponseDto(
-                cartaoLancamentoModel.getValor(),cartaoLancamentoModel.getUsuario().getNome(),cartaoLancamentoModel.getTipo().getNome(),
+                cartaoLancamentoModel.getValor(),cartaoLancamentoModel.getUsuario().getUsername(),cartaoLancamentoModel.getTipo().getNome(),
                 cartaoLancamentoModel.getFonte().getNome(),cartaoLancamentoModel.getDataLancamento(),cartaoLancamentoModel.getCartao().getNumero(), null
         );
 
@@ -172,7 +172,7 @@ public class LancamentoService {
         else if (lancamento instanceof CartaoLancamentoModel){
             cartao = ((CartaoLancamentoModel) lancamento).getCartao().getNumero();
         }
-        return new LancamentoResponseDto(lancamento.getValor(),lancamento.getUsuario().getNome(),
+        return new LancamentoResponseDto(lancamento.getValor(),lancamento.getUsuario().getUsername(),
                 lancamento.getTipo().getNome(), lancamento.getFonte().getNome(), lancamento.getDataLancamento(),
                 cartao, conta);
     }

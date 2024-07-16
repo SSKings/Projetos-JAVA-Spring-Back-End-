@@ -3,6 +3,7 @@ package com.sskings.api.gestor.financeiro.controllers;
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoRequestDto;
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoResponseDto;
 import com.sskings.api.gestor.financeiro.services.LancamentoService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +22,7 @@ public class LancamentoController {
     private final LancamentoService lancamentoService;
 
     @PostMapping
-    public ResponseEntity<LancamentoResponseDto> save(@RequestBody LancamentoRequestDto lancamentoRequestDto) {
+    public ResponseEntity<LancamentoResponseDto> save(@RequestBody @Valid LancamentoRequestDto lancamentoRequestDto) {
         LancamentoResponseDto response = lancamentoService.save(lancamentoRequestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
