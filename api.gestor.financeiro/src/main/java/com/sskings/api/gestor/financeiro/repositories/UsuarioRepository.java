@@ -4,6 +4,7 @@ import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -15,9 +16,10 @@ public interface UsuarioRepository extends JpaRepository<UsuarioModel, UUID> {
 
     boolean existsByEmail(String email);
 
-    List<UsuarioModel> findByNomeIgnoreCaseContaining(String nome);
+    List<UsuarioModel> findByUsernameIgnoreCaseContaining(String username);
 
     @Query(" SELECT u FROM UsuarioModel u LEFT JOIN FETCH u.cartoes LEFT JOIN FETCH u.contas WHERE u.id = :id ")
     Optional<UsuarioModel> findByIdWithCartoesAndContas(@Param("id") UUID id);
 
+    Optional<UserDetails> findByUsername(String username);
 }
