@@ -12,6 +12,7 @@ import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.repositories.UsuarioRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -28,6 +29,8 @@ import java.util.stream.Collectors;
 public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
+    private final PasswordEncoder passwordEncoder;
+
 
     @Transactional
     public UsuarioModel save(UsuarioRequestDto usuarioRequestDto){
@@ -35,8 +38,11 @@ public class UsuarioService {
             throw new ConflictException("O e-mail já está cadastrado");
         }
         var usuario = new UsuarioModel(usuarioRequestDto);
+        String senhaCriptografada = passwordEncoder.encode(usuarioRequestDto.password());
+        usuario.setPassword(senhaCriptografada);
         usuario.setDataCadastro(LocalDate.now(ZoneId.of("America/Sao_Paulo")));
         return usuarioRepository.save(usuario);
+
     }
 
     public List<UsuarioModel> findAll(){
@@ -70,12 +76,12 @@ public class UsuarioService {
     }
 
     public List<UsuarioModel> findByNomeIgnoreCaseContaining(String nome){
-        return usuarioRepository.findByNomeIgnoreCaseContaining(nome);
+        return usuarioRepository.findByUsernameIgnoreCaseContaining(nome);
     }
 
     public UsuarioResponseDto findByIdWithCartoes(UUID id){
         return usuarioRepository.findByIdWithCartoesAndContas(id).map(usuarioModel -> UsuarioResponseDto.builder()
-                .nome(usuarioModel.getNome())
+                .nome(usuarioModel.getUsername())
                 .email(usuarioModel.getEmail())
                 .cartoes(convertCartoes(usuarioModel.getCartoes()))
                 .contas(convertContas(usuarioModel.getContas())).build())
@@ -104,4 +110,5 @@ public class UsuarioService {
         return contas.stream()
                 .map(ContaResponseDto::new).collect(Collectors.toSet());
     }
+
 }
