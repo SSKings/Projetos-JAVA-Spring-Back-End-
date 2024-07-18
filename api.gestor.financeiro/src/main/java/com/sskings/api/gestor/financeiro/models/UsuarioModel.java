@@ -91,5 +91,6 @@ public class UsuarioModel implements UserDetails {
         this.username = usuarioRequestDto.username();
         this.password = usuarioRequestDto.password();
         this.email = usuarioRequestDto.email();
+        this.role = usuarioRequestDto.role();
     }
 }
