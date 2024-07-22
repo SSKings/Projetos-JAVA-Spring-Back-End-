@@ -8,7 +8,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.sql.Array;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -34,7 +33,7 @@ public class UsuarioModel implements UserDetails {
     @Column(nullable = false)
     private String password;
     @Column
-    private UserRole role;
+    private UsuarioRole role;
     @Column(nullable = false, unique = true)
     @EqualsAndHashCode.Include
     private String email;
@@ -53,7 +52,7 @@ public class UsuarioModel implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        if(this.role == UserRole.ADMIN) return List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("ROLE_USER"));
+        if(this.role == UsuarioRole.ADMIN) return List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("ROLE_USER"));
         else return List.of(new SimpleGrantedAuthority("ROLE_USER"));
     }
 

@@ -22,7 +22,8 @@ public class UsuarioController {
         this.usuarioService = usuarioService;
     }
 
-    @PostMapping
+
+    @PostMapping("/register")
     public ResponseEntity<Object> save(@RequestBody @Valid UsuarioRequestDto usuarioRequestDto){
         return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.save(usuarioRequestDto));
     }

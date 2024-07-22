@@ -1,12 +1,12 @@
 package com.sskings.api.gestor.financeiro.models;
 
-public enum UserRole {
+public enum UsuarioRole {
     ADMIN("admin"),
     USER("user");
 
     private String role;
 
-    UserRole(String role) {
+    UsuarioRole(String role) {
         this.role = role;
     }
 

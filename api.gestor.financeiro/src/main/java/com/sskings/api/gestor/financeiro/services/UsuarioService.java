@@ -12,16 +12,14 @@ import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.repositories.UsuarioRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -74,6 +72,7 @@ public class UsuarioService {
     public boolean existsByEmail(String email){
         return usuarioRepository.existsByEmail(email);
     }
+
 
     public List<UsuarioModel> findByNomeIgnoreCaseContaining(String nome){
         return usuarioRepository.findByUsernameIgnoreCaseContaining(nome);

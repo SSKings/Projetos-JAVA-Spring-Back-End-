@@ -21,5 +21,5 @@ public interface UsuarioRepository extends JpaRepository<UsuarioModel, UUID> {
     @Query(" SELECT u FROM UsuarioModel u LEFT JOIN FETCH u.cartoes LEFT JOIN FETCH u.contas WHERE u.id = :id ")
     Optional<UsuarioModel> findByIdWithCartoesAndContas(@Param("id") UUID id);
 
-    Optional<UserDetails> findByUsername(String username);
+    UserDetails findByUsername(String username);
 }
