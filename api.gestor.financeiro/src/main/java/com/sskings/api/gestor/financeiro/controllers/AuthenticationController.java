@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("auth")
 public class AuthenticationController {
 
-    private final UsuarioService usuarioService;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenService jwtTokenService;
 

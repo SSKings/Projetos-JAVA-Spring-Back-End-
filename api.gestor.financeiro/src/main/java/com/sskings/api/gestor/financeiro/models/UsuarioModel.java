@@ -32,8 +32,11 @@ public class UsuarioModel implements UserDetails {
 
     @Column(nullable = false)
     private String password;
+
     @Column
+    @Enumerated(EnumType.STRING)
     private UsuarioRole role;
+
     @Column(nullable = false, unique = true)
     @EqualsAndHashCode.Include
     private String email;
