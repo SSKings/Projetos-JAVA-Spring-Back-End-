@@ -135,7 +135,9 @@ public class LancamentoService {
         contaLancamentoModel.setTipo(tipo);
         contaLancamentoModel.setFonte(fonte);
         contaLancamentoModel.setDataLancamento(LocalDate.now());
+
         lancamentoRepository.save(contaLancamentoModel);
+        gerenciarSaldo(conta, lancamentoRequestDto);
         return new LancamentoResponseDto(
                 contaLancamentoModel.getValor(),contaLancamentoModel.getUsuario().getUsername(),contaLancamentoModel.getTipo().getNome(),
                 contaLancamentoModel.getFonte().getNome(),contaLancamentoModel.getDataLancamento(),null,contaLancamentoModel.getConta().getNumero()
@@ -154,6 +156,7 @@ public class LancamentoService {
         cartaoLancamentoModel.setFonte(fonte);
         cartaoLancamentoModel.setDataLancamento(LocalDate.now());
         lancamentoRepository.save(cartaoLancamentoModel);
+        gerenciarLimiteDisponivel(cartao, lancamentoRequestDto);
         return new LancamentoResponseDto(
                 cartaoLancamentoModel.getValor(),cartaoLancamentoModel.getUsuario().getUsername(),cartaoLancamentoModel.getTipo().getNome(),
                 cartaoLancamentoModel.getFonte().getNome(),cartaoLancamentoModel.getDataLancamento(),cartaoLancamentoModel.getCartao().getNumero(), null
@@ -176,4 +179,51 @@ public class LancamentoService {
                 lancamento.getTipo().getNome(), lancamento.getFonte().getNome(), lancamento.getDataLancamento(),
                 cartao, conta);
     }
+
+    private void gerenciarSaldo(ContaModel conta, LancamentoRequestDto lancamento){
+        if(isDespesa(lancamento)) {
+            if (conta.getSaldo() != null && conta.getSaldo().equals(BigDecimal.ZERO)
+                    && conta.getSaldo().compareTo(lancamento.valor()) > 0) {
+                throw new RuntimeException("O saldo é insuficiente para esse lançamento");
+            }
+            BigDecimal saldo = conta.getSaldo().subtract(lancamento.valor());
+            conta.setSaldo(saldo);
+            contaRepository.save(conta);
+        }
+        else if(isReceita(lancamento)) {
+            if( lancamento.valor().compareTo(BigDecimal.ZERO) > 0 ){
+                BigDecimal saldo = conta.getSaldo().add(lancamento.valor());
+                conta.setSaldo(saldo);
+                contaRepository.save(conta);
+            } else {
+                throw new RuntimeException("O valor do lançamento deve ser positivo.");
+            }
+
+        }
+    }
+
+    private void gerenciarLimiteDisponivel(CartaoModel cartao, LancamentoRequestDto lancamento){
+        if(isDespesa(lancamento)) {
+            if (cartao.getLimite_disponivel() != null && cartao.getLimite_disponivel().compareTo(lancamento.valor()) >= 0 ){
+                BigDecimal limiteDisponivel = cartao.getLimite().subtract(lancamento.valor());
+                cartao.setLimite_disponivel(limiteDisponivel);
+                cartaoRepository.save(cartao);
+            }
+        } else if (isReceita(lancamento)) {
+            if (lancamento.valor().compareTo(BigDecimal.ZERO) > 0 ){
+                BigDecimal limiteDisponivel = cartao.getLimite().add(lancamento.valor());
+            }
+        }
+    }
+
+    private boolean isReceita(LancamentoRequestDto lancamento){
+        TipoLancamentoModel tipo = tipoLancamentoRepository.findById(lancamento.tipo_id()).orElse(null);
+        return tipo.getNome().equals("RECEITA");
+    }
+
+    private boolean isDespesa(LancamentoRequestDto lancamento){
+        TipoLancamentoModel tipo = tipoLancamentoRepository.findById(lancamento.tipo_id()).orElse(null);
+        return tipo.getNome().equals("DESPESA");
+    }
+
 }
