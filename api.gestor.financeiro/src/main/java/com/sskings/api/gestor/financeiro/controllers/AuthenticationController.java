@@ -4,7 +4,6 @@ import com.sskings.api.gestor.financeiro.dto.usuario.AuthenticationDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.LoginResponseDto;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.security.JwtTokenService;
-import com.sskings.api.gestor.financeiro.services.UsuarioService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

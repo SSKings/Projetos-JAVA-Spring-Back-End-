@@ -16,8 +16,6 @@ public record LancamentoRequestDto(
         UUID tipo_id,
         @NotNull(message = "Campo fonte_id é obrigatório")
         UUID fonte_id,
-        @NotNull(message = "Campo cartao_id é obrigatório")
         UUID cartao_id,
-        @NotNull(message = "Campo conta_id é obrigatório")
         UUID conta_id ) {
 }
