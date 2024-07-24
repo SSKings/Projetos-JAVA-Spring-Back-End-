@@ -2,8 +2,7 @@ package com.sskings.api.gestor.financeiro.services;
 
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoRequestDto;
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoResponseDto;
-import com.sskings.api.gestor.financeiro.exception.BadRequestException;
-import com.sskings.api.gestor.financeiro.exception.NotFoundException;
+import com.sskings.api.gestor.financeiro.exception.*;
 import com.sskings.api.gestor.financeiro.models.*;
 import com.sskings.api.gestor.financeiro.repositories.*;
 import jakarta.transaction.Transactional;
@@ -136,8 +135,8 @@ public class LancamentoService {
         contaLancamentoModel.setFonte(fonte);
         contaLancamentoModel.setDataLancamento(LocalDate.now());
 
-        lancamentoRepository.save(contaLancamentoModel);
         gerenciarSaldo(conta, lancamentoRequestDto);
+        lancamentoRepository.save(contaLancamentoModel);
         return new LancamentoResponseDto(
                 contaLancamentoModel.getValor(),contaLancamentoModel.getUsuario().getUsername(),contaLancamentoModel.getTipo().getNome(),
                 contaLancamentoModel.getFonte().getNome(),contaLancamentoModel.getDataLancamento(),null,contaLancamentoModel.getConta().getNumero()
@@ -155,8 +154,10 @@ public class LancamentoService {
         cartaoLancamentoModel.setTipo(tipo);
         cartaoLancamentoModel.setFonte(fonte);
         cartaoLancamentoModel.setDataLancamento(LocalDate.now());
-        lancamentoRepository.save(cartaoLancamentoModel);
+
         gerenciarLimiteDisponivel(cartao, lancamentoRequestDto);
+        lancamentoRepository.save(cartaoLancamentoModel);
+
         return new LancamentoResponseDto(
                 cartaoLancamentoModel.getValor(),cartaoLancamentoModel.getUsuario().getUsername(),cartaoLancamentoModel.getTipo().getNome(),
                 cartaoLancamentoModel.getFonte().getNome(),cartaoLancamentoModel.getDataLancamento(),cartaoLancamentoModel.getCartao().getNumero(), null
@@ -182,37 +183,38 @@ public class LancamentoService {
 
     private void gerenciarSaldo(ContaModel conta, LancamentoRequestDto lancamento){
         if(isDespesa(lancamento)) {
-            if (conta.getSaldo() != null && conta.getSaldo().equals(BigDecimal.ZERO)
-                    && conta.getSaldo().compareTo(lancamento.valor()) > 0) {
-                throw new RuntimeException("O saldo é insuficiente para esse lançamento");
+            if (conta.getSaldo() == null || conta.getSaldo().compareTo(BigDecimal.ZERO) == 0
+                    || conta.getSaldo().compareTo(lancamento.valor()) < 0) {
+                throw new SaldoContaException("O saldo é insuficiente para esse lançamento");
             }
             BigDecimal saldo = conta.getSaldo().subtract(lancamento.valor());
             conta.setSaldo(saldo);
             contaRepository.save(conta);
         }
         else if(isReceita(lancamento)) {
-            if( lancamento.valor().compareTo(BigDecimal.ZERO) > 0 ){
+            if ( lancamento.valor().compareTo(BigDecimal.ZERO) > 0 ){
                 BigDecimal saldo = conta.getSaldo().add(lancamento.valor());
                 conta.setSaldo(saldo);
                 contaRepository.save(conta);
-            } else {
-                throw new RuntimeException("O valor do lançamento deve ser positivo.");
             }
-
+                throw new ValorDeLancamentoException("O valor do lançamento deve ser positivo.");
         }
     }
 
     private void gerenciarLimiteDisponivel(CartaoModel cartao, LancamentoRequestDto lancamento){
         if(isDespesa(lancamento)) {
-            if (cartao.getLimite_disponivel() != null && cartao.getLimite_disponivel().compareTo(lancamento.valor()) >= 0 ){
+            if (cartao.getLimite_disponivel() != null || cartao.getLimite_disponivel().compareTo(lancamento.valor()) > 0 ){
                 BigDecimal limiteDisponivel = cartao.getLimite().subtract(lancamento.valor());
                 cartao.setLimite_disponivel(limiteDisponivel);
                 cartaoRepository.save(cartao);
             }
+            throw new LimiteCartaoException("Limite Disponível do cartão é insuficiente.");
+
         } else if (isReceita(lancamento)) {
             if (lancamento.valor().compareTo(BigDecimal.ZERO) > 0 ){
                 BigDecimal limiteDisponivel = cartao.getLimite().add(lancamento.valor());
             }
+            throw new ValorDeLancamentoException("O valor do lançamento deve ser positivo.");
         }
     }
 
