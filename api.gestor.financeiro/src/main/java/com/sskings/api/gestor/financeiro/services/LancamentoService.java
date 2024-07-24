@@ -203,16 +203,20 @@ public class LancamentoService {
 
     private void gerenciarLimiteDisponivel(CartaoModel cartao, LancamentoRequestDto lancamento){
         if(isDespesa(lancamento)) {
-            if (cartao.getLimite_disponivel() != null || cartao.getLimite_disponivel().compareTo(lancamento.valor()) > 0 ){
-                BigDecimal limiteDisponivel = cartao.getLimite().subtract(lancamento.valor());
-                cartao.setLimite_disponivel(limiteDisponivel);
-                cartaoRepository.save(cartao);
+            if (cartao.getLimite_disponivel() == null || cartao.getLimite_disponivel().compareTo(lancamento.valor()) < 0){
+                throw new LimiteCartaoException("Limite Disponível do cartão é insuficiente.");
             }
-            throw new LimiteCartaoException("Limite Disponível do cartão é insuficiente.");
+
+            BigDecimal limiteDisponivel = cartao.getLimite().subtract(lancamento.valor());
+            cartao.setLimite_disponivel(limiteDisponivel);
+            cartaoRepository.save(cartao);
+
 
         } else if (isReceita(lancamento)) {
             if (lancamento.valor().compareTo(BigDecimal.ZERO) > 0 ){
-                BigDecimal limiteDisponivel = cartao.getLimite().add(lancamento.valor());
+                BigDecimal limiteDisponivel = cartao.getLimite_disponivel().add(lancamento.valor());
+                cartao.setLimite_disponivel(limiteDisponivel);
+                cartaoRepository.save(cartao);
             }
             throw new ValorDeLancamentoException("O valor do lançamento deve ser positivo.");
         }
