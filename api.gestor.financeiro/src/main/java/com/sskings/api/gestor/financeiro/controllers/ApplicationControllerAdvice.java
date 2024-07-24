@@ -1,9 +1,7 @@
 package com.sskings.api.gestor.financeiro.controllers;
 
 import com.sskings.api.gestor.financeiro.errors.ApiErrors;
-import com.sskings.api.gestor.financeiro.exception.BadRequestException;
-import com.sskings.api.gestor.financeiro.exception.ConflictException;
-import com.sskings.api.gestor.financeiro.exception.NotFoundException;
+import com.sskings.api.gestor.financeiro.exception.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -40,10 +38,23 @@ public class ApplicationControllerAdvice {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiErrors handMethodArgumentInvalidException(MethodArgumentNotValidException ex){
+    public ApiErrors handleMethodArgumentInvalidException(MethodArgumentNotValidException ex){
         List<String> errors = ex.getBindingResult().getAllErrors()
                 .stream().map(erro -> erro.getDefaultMessage()).toList();
         return new ApiErrors(errors);
     }
 
+    @ExceptionHandler(SaldoContaException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiErrors handleSaldoContaException(SaldoContaException ex){
+        String mensagemErro = ex.getMessage();
+        return new ApiErrors(mensagemErro);
+    }
+
+    @ExceptionHandler(ValorDeLancamentoException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiErrors handleValorDeLancamentoException(ValorDeLancamentoException ex){
+        String mensagemErro = ex.getMessage();
+        return new ApiErrors(mensagemErro);
+    }
 }   
