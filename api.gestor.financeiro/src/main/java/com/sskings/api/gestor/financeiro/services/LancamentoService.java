@@ -207,7 +207,7 @@ public class LancamentoService {
                 throw new LimiteCartaoException("Limite Disponível do cartão é insuficiente.");
             }
 
-            BigDecimal limiteDisponivel = cartao.getLimite().subtract(lancamento.valor());
+            BigDecimal limiteDisponivel = cartao.getLimite_disponivel().subtract(lancamento.valor());
             cartao.setLimite_disponivel(limiteDisponivel);
             cartaoRepository.save(cartao);
 
