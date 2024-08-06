@@ -5,6 +5,9 @@ import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioResponseDto;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.services.UsuarioService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -46,7 +49,13 @@ public class UsuarioController {
 
     @GetMapping("/cartoes/{id}")
     public ResponseEntity<UsuarioResponseDto> findByIdWithCartoesAndContas(@PathVariable(value = "id") UUID id){
-            return ResponseEntity.ok(usuarioService.findByIdWithCartoes(id));
+            return ResponseEntity.ok(usuarioService.findByIdWithCartoesAndContas(id));
+    }
+
+    @GetMapping("/lancamentos/{id}")
+    public ResponseEntity<Page<UsuarioResponseDto>> findByIdWithLancamentos(@PathVariable(value = "id") UUID id,
+                                                                            @PageableDefault(page = 0, size = 10) Pageable pageable){
+        return ResponseEntity.ok(usuarioService.findByIdWithLancamentos(id, pageable));
     }
 
     @PutMapping("/{id}")

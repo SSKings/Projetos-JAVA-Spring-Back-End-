@@ -12,6 +12,8 @@ import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.repositories.UsuarioRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -78,13 +80,20 @@ public class UsuarioService {
         return usuarioRepository.findByUsernameIgnoreCaseContaining(nome);
     }
 
-    public UsuarioResponseDto findByIdWithCartoes(UUID id){
+    public UsuarioResponseDto findByIdWithCartoesAndContas(UUID id){
         return usuarioRepository.findByIdWithCartoesAndContas(id).map(usuarioModel -> UsuarioResponseDto.builder()
                 .nome(usuarioModel.getUsername())
                 .email(usuarioModel.getEmail())
                 .cartoes(convertCartoes(usuarioModel.getCartoes()))
                 .contas(convertContas(usuarioModel.getContas())).build())
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
+    }
+
+    public Page<UsuarioResponseDto> findByIdWithLancamentos(UUID id, Pageable pageable){
+        usuarioRepository.findById(id).orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
+        return usuarioRepository.findByIdWithLancamentos(id, pageable).map(usuarioModel -> UsuarioResponseDto.builder()
+                .nome(usuarioModel.getUsername())
+                .lancamentos(usuarioModel.getLancamentos()).build());
     }
 
     @Transactional

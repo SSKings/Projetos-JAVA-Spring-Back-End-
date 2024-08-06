@@ -52,6 +52,9 @@ public class UsuarioModel implements UserDetails {
     @OneToMany(mappedBy = "usuario", fetch = FetchType.LAZY)
     private Set<ContaModel> contas;
 
+    @JsonIgnore
+    @OneToMany(mappedBy = "usuario", fetch = FetchType.LAZY)
+    private Set<LancamentoModel> lancamentos;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
