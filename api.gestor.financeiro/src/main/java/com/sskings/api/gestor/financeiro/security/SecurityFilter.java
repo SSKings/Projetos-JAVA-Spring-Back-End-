@@ -1,5 +1,6 @@
 package com.sskings.api.gestor.financeiro.security;
 
+import com.sskings.api.gestor.financeiro.exception.NotFoundException;
 import com.sskings.api.gestor.financeiro.repositories.UsuarioRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -31,7 +32,8 @@ public class SecurityFilter extends OncePerRequestFilter {
         var token = recoverToken(request);
         if (token != null) {
             var username = tokenService.validateToken(token);
-            UserDetails user = usuarioRepository.findByUsername(username);
+            UserDetails user = usuarioRepository.findByUsername(username)
+                    .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
 
             var auth = new UsernamePasswordAuthenticationToken(username, null, user.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(auth);

@@ -15,14 +15,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -32,12 +30,10 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
-    private final LancamentoRepository lancamentoRepository;
-
 
     @Transactional
     public UsuarioModel save(UsuarioRequestDto usuarioRequestDto){
-        if(usuarioRepository.existsByEmail(usuarioRequestDto.email())){
+        if(existsByEmail(usuarioRequestDto.email())){
             throw new ConflictException("O e-mail já está cadastrado");
         }
         var usuario = new UsuarioModel(usuarioRequestDto);
