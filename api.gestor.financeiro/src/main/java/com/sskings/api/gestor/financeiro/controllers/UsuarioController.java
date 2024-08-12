@@ -36,6 +36,12 @@ public class UsuarioController {
         return ResponseEntity.status(HttpStatus.OK).body(usuarioService.findAll());
     }
 
+    @GetMapping("/p")
+    public ResponseEntity<Page<UsuarioModel>> findUsuarioWithPagination(@RequestParam(defaultValue = "0") int page,
+                                                                        @RequestParam(defaultValue = "1") int size){
+            return ResponseEntity.ok(usuarioService.findUsuarioWithPagination(page,size));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Object> findById(@PathVariable(value = "id") UUID id){
         return ResponseEntity.ok(usuarioService.findById(id));
@@ -53,9 +59,8 @@ public class UsuarioController {
     }
 
     @GetMapping("/lancamentos/{id}")
-    public ResponseEntity<Page<UsuarioResponseDto>> findByIdWithLancamentos(@PathVariable(value = "id") UUID id,
-                                                                            @PageableDefault(page = 0, size = 10) Pageable pageable){
-        return ResponseEntity.ok(usuarioService.findByIdWithLancamentos(id, pageable));
+    public ResponseEntity<UsuarioResponseDto> findByIdWithLancamentos(@PathVariable(value = "id") UUID id){
+        return ResponseEntity.ok(usuarioService.findByIdWithLancamentos(id));
     }
 
     @PutMapping("/{id}")

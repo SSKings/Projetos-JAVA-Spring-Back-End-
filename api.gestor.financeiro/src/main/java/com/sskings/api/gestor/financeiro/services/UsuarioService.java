@@ -2,17 +2,18 @@ package com.sskings.api.gestor.financeiro.services;
 
 import com.sskings.api.gestor.financeiro.dto.cartao.CartaoResponseDto;
 import com.sskings.api.gestor.financeiro.dto.conta.ContaResponseDto;
+import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoResponseDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioRequestDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioResponseDto;
 import com.sskings.api.gestor.financeiro.exception.ConflictException;
 import com.sskings.api.gestor.financeiro.exception.NotFoundException;
-import com.sskings.api.gestor.financeiro.models.CartaoModel;
-import com.sskings.api.gestor.financeiro.models.ContaModel;
-import com.sskings.api.gestor.financeiro.models.UsuarioModel;
+import com.sskings.api.gestor.financeiro.models.*;
+import com.sskings.api.gestor.financeiro.repositories.LancamentoRepository;
 import com.sskings.api.gestor.financeiro.repositories.UsuarioRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,6 +22,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -30,6 +32,7 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final LancamentoRepository lancamentoRepository;
 
 
     @Transactional
@@ -47,6 +50,15 @@ public class UsuarioService {
 
     public List<UsuarioModel> findAll(){
         List<UsuarioModel> usuarios = usuarioRepository.findAll();
+        if (usuarios.isEmpty()){
+            throw new NotFoundException("não há usuários cadastrados.");
+        }
+        return usuarios;
+    }
+
+    public Page<UsuarioModel> findUsuarioWithPagination(int page, int size){
+        Pageable pageable = PageRequest.of(page,size);
+        Page<UsuarioModel> usuarios = usuarioRepository.findAll(pageable);
         if (usuarios.isEmpty()){
             throw new NotFoundException("não há usuários cadastrados.");
         }
@@ -89,11 +101,13 @@ public class UsuarioService {
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
     }
 
-    public Page<UsuarioResponseDto> findByIdWithLancamentos(UUID id, Pageable pageable){
+    public UsuarioResponseDto findByIdWithLancamentos(UUID id){
         usuarioRepository.findById(id).orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
-        return usuarioRepository.findByIdWithLancamentos(id, pageable).map(usuarioModel -> UsuarioResponseDto.builder()
-                .nome(usuarioModel.getUsername())
-                .lancamentos(usuarioModel.getLancamentos()).build());
+        UsuarioModel usuario = usuarioRepository.findByIdWithLancamentos(id);
+        return UsuarioResponseDto.builder()
+                .nome(usuario.getUsername())
+                .lancamentos(converterLancamentos(usuario.getLancamentos()))
+                .build();
     }
 
     @Transactional
@@ -117,6 +131,42 @@ public class UsuarioService {
         }
         return contas.stream()
                 .map(ContaResponseDto::new).collect(Collectors.toSet());
+    }
+
+    private Set<LancamentoResponseDto> converterLancamentos(Set<LancamentoModel> lancamentos){
+        if(CollectionUtils.isEmpty(lancamentos)){
+            return  Collections.emptySet();
+        }
+
+        Set<LancamentoResponseDto> setLancamentos = new HashSet<>();
+
+        lancamentos
+                .forEach( lancamentoModel -> {
+                    if(lancamentoModel instanceof CartaoLancamentoModel){
+                        LancamentoResponseDto lancamento = LancamentoResponseDto.builder()
+                            .usuario(lancamentoModel.getUsuario().getUsername())
+                            .dataLancamento(lancamentoModel.getDataLancamento())
+                            .tipo(lancamentoModel.getTipo().getNome())
+                            .fonte(lancamentoModel.getFonte().getNome())
+                            .cartao(((CartaoLancamentoModel) lancamentoModel).getCartao().getNumero())
+                            .valor(lancamentoModel.getValor())
+                            .build();
+                        setLancamentos.add(lancamento);
+                    }
+                    if(lancamentoModel instanceof ContaLancamentoModel){
+                        LancamentoResponseDto lancamento = LancamentoResponseDto.builder()
+                                .usuario(lancamentoModel.getUsuario().getUsername())
+                                .dataLancamento((lancamentoModel.getDataLancamento()))
+                                .tipo(lancamentoModel.getTipo().getNome())
+                                .fonte(lancamentoModel.getFonte().getNome())
+                                .conta(((ContaLancamentoModel) lancamentoModel).getConta().getNumero())
+                                .valor(lancamentoModel.getValor())
+                                .build();
+                        setLancamentos.add(lancamento);
+                    }
+
+        });
+        return setLancamentos;
     }
 
 }
