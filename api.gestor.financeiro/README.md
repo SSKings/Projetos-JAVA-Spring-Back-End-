@@ -13,8 +13,9 @@
 ## Tecnologias Utilizadas
 
 * JAVA 17
+* LOMBOK
 * SPRING BOOT
-* SPRING JPA
+* SPRING DATA JPA
 * SPRING SECURITY
 * JWT 
 * H2 DATABASE (desenvolvimento)
