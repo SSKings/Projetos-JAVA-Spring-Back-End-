@@ -2,12 +2,11 @@ package com.sskings.api.gestor.financeiro.controllers;
 
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioRequestDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioResponseDto;
+import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioSimpleResponseDto;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.services.UsuarioService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -32,18 +31,18 @@ public class UsuarioController {
     }
 
     @GetMapping
-    public ResponseEntity<List<UsuarioModel>> findAll(){
+    public ResponseEntity<List<UsuarioSimpleResponseDto>> findAll(){
         return ResponseEntity.status(HttpStatus.OK).body(usuarioService.findAll());
     }
 
     @GetMapping("/p")
-    public ResponseEntity<Page<UsuarioModel>> findUsuarioWithPagination(@RequestParam(defaultValue = "0") int page,
+    public ResponseEntity<Page<UsuarioSimpleResponseDto>> findUsuarioWithPagination(@RequestParam(defaultValue = "0") int page,
                                                                         @RequestParam(defaultValue = "1") int size){
             return ResponseEntity.ok(usuarioService.findUsuarioWithPagination(page,size));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Object> findById(@PathVariable(value = "id") UUID id){
+    public ResponseEntity<UsuarioSimpleResponseDto> findById(@PathVariable(value = "id") UUID id){
         return ResponseEntity.ok(usuarioService.findById(id));
     }
     
@@ -53,7 +52,7 @@ public class UsuarioController {
         return ResponseEntity.status(HttpStatus.FOUND).body(usuarioService.findByNomeIgnoreCaseContaining(param));
     }
 
-    @GetMapping("/cartoes/{id}")
+    @GetMapping("/cartoes&contas/{id}")
     public ResponseEntity<UsuarioResponseDto> findByIdWithCartoesAndContas(@PathVariable(value = "id") UUID id){
             return ResponseEntity.ok(usuarioService.findByIdWithCartoesAndContas(id));
     }

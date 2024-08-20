@@ -222,14 +222,18 @@ public class LancamentoService {
         }
     }
 
-    private boolean isReceita(LancamentoRequestDto lancamento){
-        TipoLancamentoModel tipo = tipoLancamentoRepository.findById(lancamento.tipo_id()).orElse(null);
-        return tipo.getNome().equals("RECEITA");
+    private boolean isReceita(LancamentoRequestDto lancamento) {
+        return tipoLancamentoRepository.findById(lancamento.tipo_id())
+                .map(TipoLancamentoModel::getNome)
+                .map("RECEITA"::equals)
+                .orElse(false);
     }
 
     private boolean isDespesa(LancamentoRequestDto lancamento){
-        TipoLancamentoModel tipo = tipoLancamentoRepository.findById(lancamento.tipo_id()).orElse(null);
-        return tipo.getNome().equals("DESPESA");
+        return tipoLancamentoRepository.findById(lancamento.tipo_id())
+                .map(TipoLancamentoModel::getNome)
+                .map("DESPESA"::equals)
+                .orElse(false);
     }
 
 }

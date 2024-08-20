@@ -5,11 +5,12 @@ import com.sskings.api.gestor.financeiro.dto.conta.ContaResponseDto;
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoResponseDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioRequestDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioResponseDto;
+import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioSimpleResponseDto;
 import com.sskings.api.gestor.financeiro.exception.ConflictException;
 import com.sskings.api.gestor.financeiro.exception.NotFoundException;
 import com.sskings.api.gestor.financeiro.models.*;
-import com.sskings.api.gestor.financeiro.repositories.LancamentoRepository;
 import com.sskings.api.gestor.financeiro.repositories.UsuarioRepository;
+import com.sskings.api.gestor.financeiro.utils.Utils;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -21,7 +22,10 @@ import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,25 +48,30 @@ public class UsuarioService {
 
     }
 
-    public List<UsuarioModel> findAll(){
+    public List<UsuarioSimpleResponseDto> findAll(){
         List<UsuarioModel> usuarios = usuarioRepository.findAll();
         if (usuarios.isEmpty()){
             throw new NotFoundException("não há usuários cadastrados.");
         }
-        return usuarios;
+        return usuarios.stream()
+                .map(UsuarioSimpleResponseDto::new)
+                .toList();
     }
 
-    public Page<UsuarioModel> findUsuarioWithPagination(int page, int size){
+    public Page<UsuarioSimpleResponseDto> findUsuarioWithPagination(int page, int size){
         Pageable pageable = PageRequest.of(page,size);
-        Page<UsuarioModel> usuarios = usuarioRepository.findAll(pageable);
+        Page<UsuarioSimpleResponseDto> usuarios = usuarioRepository.findAll(pageable)
+                .map(UsuarioSimpleResponseDto::new);
         if (usuarios.isEmpty()){
             throw new NotFoundException("não há usuários cadastrados.");
         }
         return usuarios;
+
     }
 
-    public UsuarioModel findById(UUID id){
+    public UsuarioSimpleResponseDto findById(UUID id){
         return usuarioRepository.findById(id)
+                .map(UsuarioSimpleResponseDto::new)
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
     }
 
@@ -92,8 +101,8 @@ public class UsuarioService {
         return usuarioRepository.findByIdWithCartoesAndContas(id).map(usuarioModel -> UsuarioResponseDto.builder()
                 .nome(usuarioModel.getUsername())
                 .email(usuarioModel.getEmail())
-                .cartoes(convertCartoes(usuarioModel.getCartoes()))
-                .contas(convertContas(usuarioModel.getContas())).build())
+                .cartoes(Utils.convertCartoes(usuarioModel.getCartoes()))
+                .contas(Utils.convertContas(usuarioModel.getContas())).build())
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
     }
 
@@ -102,7 +111,7 @@ public class UsuarioService {
         UsuarioModel usuario = usuarioRepository.findByIdWithLancamentos(id);
         return UsuarioResponseDto.builder()
                 .nome(usuario.getUsername())
-                .lancamentos(converterLancamentos(usuario.getLancamentos()))
+                .lancamentos(Utils.converterLancamentos(usuario.getLancamentos()))
                 .build();
     }
 
@@ -111,58 +120,6 @@ public class UsuarioService {
         UsuarioModel usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
         usuarioRepository.delete(usuario);
-    }
-
-    private Set<CartaoResponseDto> convertCartoes(Set<CartaoModel> cartoes){
-        if(CollectionUtils.isEmpty(cartoes)){
-            return Collections.emptySet();
-        }
-        return cartoes.stream()
-                .map(CartaoResponseDto::new).collect(Collectors.toSet());
-    }
-
-    private Set<ContaResponseDto> convertContas(Set<ContaModel> contas){
-        if(CollectionUtils.isEmpty(contas)){
-            return  Collections.emptySet();
-        }
-        return contas.stream()
-                .map(ContaResponseDto::new).collect(Collectors.toSet());
-    }
-
-    private Set<LancamentoResponseDto> converterLancamentos(Set<LancamentoModel> lancamentos){
-        if(CollectionUtils.isEmpty(lancamentos)){
-            return  Collections.emptySet();
-        }
-
-        Set<LancamentoResponseDto> setLancamentos = new HashSet<>();
-
-        lancamentos
-                .forEach( lancamentoModel -> {
-                    if(lancamentoModel instanceof CartaoLancamentoModel){
-                        LancamentoResponseDto lancamento = LancamentoResponseDto.builder()
-                            .usuario(lancamentoModel.getUsuario().getUsername())
-                            .dataLancamento(lancamentoModel.getDataLancamento())
-                            .tipo(lancamentoModel.getTipo().getNome())
-                            .fonte(lancamentoModel.getFonte().getNome())
-                            .cartao(((CartaoLancamentoModel) lancamentoModel).getCartao().getNumero())
-                            .valor(lancamentoModel.getValor())
-                            .build();
-                        setLancamentos.add(lancamento);
-                    }
-                    if(lancamentoModel instanceof ContaLancamentoModel){
-                        LancamentoResponseDto lancamento = LancamentoResponseDto.builder()
-                                .usuario(lancamentoModel.getUsuario().getUsername())
-                                .dataLancamento((lancamentoModel.getDataLancamento()))
-                                .tipo(lancamentoModel.getTipo().getNome())
-                                .fonte(lancamentoModel.getFonte().getNome())
-                                .conta(((ContaLancamentoModel) lancamentoModel).getConta().getNumero())
-                                .valor(lancamentoModel.getValor())
-                                .build();
-                        setLancamentos.add(lancamento);
-                    }
-
-        });
-        return setLancamentos;
     }
 
 }
