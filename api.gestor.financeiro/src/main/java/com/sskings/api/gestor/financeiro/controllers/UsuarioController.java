@@ -51,6 +51,15 @@ public class UsuarioController {
             @PathVariable(value = "param") String param){
         return ResponseEntity.status(HttpStatus.FOUND).body(usuarioService.findByNomeIgnoreCaseContaining(param));
     }
+    @GetMapping("/cartoes/{id}")
+    public ResponseEntity<UsuarioResponseDto> findByIdWithCartoes(@PathVariable(value = "id") UUID id){
+        return ResponseEntity.ok(usuarioService.findByIdWithCartoes(id));
+    }
+
+    @GetMapping("/contas/{id}")
+    public ResponseEntity<UsuarioResponseDto> findByIdWithContas(@PathVariable(value = "id") UUID id){
+        return ResponseEntity.ok(usuarioService.findByIdWithContas(id));
+    }
 
     @GetMapping("/cartoes&contas/{id}")
     public ResponseEntity<UsuarioResponseDto> findByIdWithCartoesAndContas(@PathVariable(value = "id") UUID id){

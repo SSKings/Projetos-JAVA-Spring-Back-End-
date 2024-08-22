@@ -16,16 +16,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.query.Param;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -97,12 +95,35 @@ public class UsuarioService {
         return usuarioRepository.findByUsernameIgnoreCaseContaining(nome);
     }
 
+    public UsuarioResponseDto findByIdWithCartoes(UUID id){
+        return usuarioRepository.findByIdWithCartoes(id).map(usuarioModel -> UsuarioResponseDto.builder()
+                .nome(usuarioModel.getUsername())
+                .email(usuarioModel.getEmail())
+                .cartoes(Utils.convertCartoes(usuarioModel.getCartoes()))
+                .contas(new HashSet<>())
+                .lancamentos(new HashSet<>())
+                .build())
+                .orElseThrow(() -> new NotFoundException("Usuario não encontrado"));
+    }
+
+    public UsuarioResponseDto findByIdWithContas(UUID id){
+        return usuarioRepository.findByIdWithContas(id).map(usuarioModel -> UsuarioResponseDto.builder()
+                        .nome(usuarioModel.getUsername())
+                        .email(usuarioModel.getEmail())
+                        .cartoes(new HashSet<>())
+                        .contas(Utils.convertContas(usuarioModel.getContas()))
+                        .lancamentos(new HashSet<>())
+                        .build())
+                .orElseThrow(() -> new NotFoundException("Usuario não encontrado"));
+    }
     public UsuarioResponseDto findByIdWithCartoesAndContas(UUID id){
         return usuarioRepository.findByIdWithCartoesAndContas(id).map(usuarioModel -> UsuarioResponseDto.builder()
                 .nome(usuarioModel.getUsername())
                 .email(usuarioModel.getEmail())
                 .cartoes(Utils.convertCartoes(usuarioModel.getCartoes()))
-                .contas(Utils.convertContas(usuarioModel.getContas())).build())
+                .contas(Utils.convertContas(usuarioModel.getContas()))
+                .lancamentos(new HashSet<>())
+                        .build())
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
     }
 

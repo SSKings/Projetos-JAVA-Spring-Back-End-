@@ -3,6 +3,7 @@ package com.sskings.api.gestor.financeiro.repositories;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +20,14 @@ public interface UsuarioRepository extends JpaRepository<UsuarioModel, UUID> {
     boolean existsByEmail(String email);
 
     List<UsuarioModel> findByUsernameIgnoreCaseContaining(String username);
+
+    @EntityGraph(attributePaths = {"cartoes"})
+    @Query(" SELECT u FROM UsuarioModel u JOIN FETCH u.cartoes WHERE u.id = :id ")
+    Optional<UsuarioModel> findByIdWithCartoes(@Param("id") UUID id);
+
+    @EntityGraph(attributePaths = {"contas"})
+    @Query(" SELECT u FROM UsuarioModel u JOIN FETCH u.contas WHERE u.id = :id ")
+    Optional<UsuarioModel> findByIdWithContas(@Param("id") UUID id);
 
     @Query(" SELECT u FROM UsuarioModel u LEFT JOIN FETCH u.cartoes LEFT JOIN FETCH u.contas WHERE u.id = :id ")
     Optional<UsuarioModel> findByIdWithCartoesAndContas(@Param("id") UUID id);
