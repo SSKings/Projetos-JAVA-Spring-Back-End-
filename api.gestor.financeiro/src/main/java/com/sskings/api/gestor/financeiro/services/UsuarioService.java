@@ -1,14 +1,11 @@
 package com.sskings.api.gestor.financeiro.services;
 
-import com.sskings.api.gestor.financeiro.dto.cartao.CartaoResponseDto;
-import com.sskings.api.gestor.financeiro.dto.conta.ContaResponseDto;
-import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoResponseDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioRequestDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioResponseDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioSimpleResponseDto;
 import com.sskings.api.gestor.financeiro.exception.ConflictException;
 import com.sskings.api.gestor.financeiro.exception.NotFoundException;
-import com.sskings.api.gestor.financeiro.models.*;
+import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.repositories.UsuarioRepository;
 import com.sskings.api.gestor.financeiro.utils.Utils;
 import jakarta.transaction.Transactional;
@@ -16,15 +13,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.repository.query.Param;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.HashSet;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -123,17 +119,18 @@ public class UsuarioService {
                 .cartoes(Utils.convertCartoes(usuarioModel.getCartoes()))
                 .contas(Utils.convertContas(usuarioModel.getContas()))
                 .lancamentos(new HashSet<>())
-                        .build())
+                .build())
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
     }
 
     public UsuarioResponseDto findByIdWithLancamentos(UUID id){
-        usuarioRepository.findById(id).orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
-        UsuarioModel usuario = usuarioRepository.findByIdWithLancamentos(id);
-        return UsuarioResponseDto.builder()
+        return usuarioRepository.findByIdWithLancamentos(id).map(usuario -> UsuarioResponseDto.builder()
                 .nome(usuario.getUsername())
+                .cartoes(new HashSet<>())
+                .contas(new HashSet<>())
                 .lancamentos(Utils.converterLancamentos(usuario.getLancamentos()))
-                .build();
+                .build())
+                .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
     }
 
     @Transactional
