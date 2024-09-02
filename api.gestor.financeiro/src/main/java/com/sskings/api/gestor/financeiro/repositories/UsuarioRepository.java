@@ -21,11 +21,9 @@ public interface UsuarioRepository extends JpaRepository<UsuarioModel, UUID> {
 
     List<UsuarioModel> findByUsernameIgnoreCaseContaining(String username);
 
-    @EntityGraph(attributePaths = {"cartoes"})
     @Query(" SELECT u FROM UsuarioModel u JOIN FETCH u.cartoes WHERE u.id = :id ")
     Optional<UsuarioModel> findByIdWithCartoes(@Param("id") UUID id);
 
-    @EntityGraph(attributePaths = {"contas"})
     @Query(" SELECT u FROM UsuarioModel u JOIN FETCH u.contas WHERE u.id = :id ")
     Optional<UsuarioModel> findByIdWithContas(@Param("id") UUID id);
 
@@ -33,7 +31,7 @@ public interface UsuarioRepository extends JpaRepository<UsuarioModel, UUID> {
     Optional<UsuarioModel> findByIdWithCartoesAndContas(@Param("id") UUID id);
 
     @Query("SELECT u FROM UsuarioModel u LEFT JOIN FETCH u.lancamentos WHERE u.id = :id")
-    UsuarioModel findByIdWithLancamentos(@Param("id") UUID id);
+    Optional<UsuarioModel> findByIdWithLancamentos(@Param("id") UUID id);
 
     Optional<UserDetails> findByUsername(String username);
 }
