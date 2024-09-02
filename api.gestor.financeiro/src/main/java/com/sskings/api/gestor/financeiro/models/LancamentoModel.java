@@ -1,7 +1,9 @@
 package com.sskings.api.gestor.financeiro.models;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -12,6 +14,8 @@ import java.util.UUID;
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "tipo")
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public abstract class LancamentoModel {
 
     @Id
