@@ -3,6 +3,7 @@ package com.sskings.api.gestor.financeiro.services;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioRequestDto;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioSimpleResponseDto;
 import com.sskings.api.gestor.financeiro.exception.ConflictException;
+import com.sskings.api.gestor.financeiro.exception.NotFoundException;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import com.sskings.api.gestor.financeiro.models.UsuarioRole;
 import com.sskings.api.gestor.financeiro.repositories.UsuarioRepository;
@@ -19,6 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -97,7 +99,7 @@ class UsuarioServiceTest {
         verify(usuarioRepository, never()).save(any(UsuarioModel.class));
     }
 
-    @DisplayName("Given Usuarios List When FindAll Usuarios  When Return UsuarioSimpleResponseDto List")
+    @DisplayName("Given Usuarios List When FindAll Usuarios  Then Return UsuarioSimpleResponseDto List")
     @Test
     void testGivenUsuariosList_whenFindAllUsuarios_whenReturnUsuarioSimpleResponseDtoList() {
         // Given / Arrange
@@ -118,4 +120,50 @@ class UsuarioServiceTest {
         assertNotNull(usuariosList);
         assertEquals(2, usuariosList.size());
     }
+
+
+    @DisplayName("Given No Usuarios When FindAll Usuarios Then Throws Exception")
+    @Test
+    void testFindAll_whenUsuarioNotFound_thenThrowsException() {
+        // Given / Arrange
+        given(usuarioRepository.findAll()).willReturn(List.of());
+        // When / Act
+        NotFoundException exception = assertThrows(NotFoundException.class, () -> {
+            usuarioService.findAll();
+        });
+        // Then / Assert
+        assertEquals("não há usuários cadastrados.", exception.getMessage());
+
+    }
+
+
+    @DisplayName("Given UsuarioId When FindById Then Return UsuarioSimpleResponseDto")
+    @Test
+    void testGivenUsuarioId_whenFindById_thenReturnUsuarioSimpleResponseDto() {
+        // Given / Arrange
+        UUID id = UUID.randomUUID();
+        given(usuarioRepository.findById(id)).willReturn(Optional.of(usuario0));
+        // When / Act
+        UsuarioSimpleResponseDto usuarioRetorned = usuarioService.findById(id);
+        // Then / Assert
+        assertNotNull(usuarioRetorned);
+        assertEquals("sergio", usuarioRetorned.username());
+        assertEquals("sergio@email.com", usuarioRetorned.email());
+    }
+
+
+    @DisplayName("Given Incorrect UsuarioId When FindById When Throws Exception")
+    @Test
+    void testGivenIncorrectId_whenFindById_thenThrowsException() {
+        // Given / Arrange
+        UUID id = UUID.randomUUID();
+        given(usuarioRepository.findById(id)).willReturn(Optional.empty());
+        // When / Act
+        NotFoundException exception = assertThrows(NotFoundException.class, () -> {
+            usuarioService.findById(id);
+        });
+        // Then / Assert
+        assertEquals("Usuário não encontrado.", exception.getMessage());
+    }
+
 }
