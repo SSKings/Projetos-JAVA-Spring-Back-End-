@@ -1,0 +1,64 @@
+CREATE DATABASE deliveryDB;
+USE deliveryDB;
+
+CREATE TABLE cliente(
+id bigint auto_increment not null primary key,
+nome varchar(100) not null,
+email varchar(100) not null,
+telefone varchar(15) not null,
+cpf varchar(11) not null,
+data_cadastro timestamp default current_timestamp
+
+);
+
+CREATE TABLE endereco(
+id bigint auto_increment not null primary key,
+cliente_id bigint not null,
+logradouro varchar(255) not null,
+numero varchar(10) not null,
+bairro varchar(100) not null,
+complemento varchar(100) not null,
+data_cadastro timestamp default current_timestamp,
+constraint fk_cliente_endereco foreign key(cliente_id) references cliente(id) on delete cascade
+);
+
+CREATE TABLE item(
+id bigint auto_increment not null primary key,
+nome varchar(100) not null,
+url_image varchar(255) not null,
+descricao varchar(255) not null,
+estoque int not null,
+preco_unitario DECIMAL(10,2) not null
+);
+
+CREATE TABLE pedido(
+id bigint auto_increment not null primary key,
+cliente_id bigint not null,
+endereco_entrega_id bigint not null,
+data_pedido timestamp default current_timestamp,
+status varchar(50) default 'PENDENTE',
+total DECIMAL(10,2) default 0.00,
+constraint fk_cliente_pedido foreign key(cliente_id) references cliente(id),
+constraint fk_endereco_pedido foreign key(endereco_entrega_id) references endereco(id) 
+);
+
+CREATE TABLE item_pedido(
+id bigint auto_increment not null primary key,
+pedido_id bigint not null,
+item_id bigint not null,
+quantidade bigint not null,
+preco_unitario DECIMAL(10,2) not null,
+subtotal DECIMAL(10,2) AS (quantidade * preco_unitario) STORED,
+constraint fk_pedido_item_pedido foreign key(pedido_id) references pedido(id) on delete cascade,
+constraint fk_item_item_pedido foreign key(item_id) references item(id) on delete cascade
+);
+
+CREATE TABLE pagamento(
+id bigint auto_increment not null primary key,
+pedido_id bigint not null,
+valor_pago DECIMAL(10.0) not null,
+metodo varchar(50) not null,
+data_pagamento timestamp default current_timestamp,
+status varchar(50) default 'PEDENTE',
+constraint fk_pedido_pagamento foreign key(pedido_id) references pedido(id)
+);
