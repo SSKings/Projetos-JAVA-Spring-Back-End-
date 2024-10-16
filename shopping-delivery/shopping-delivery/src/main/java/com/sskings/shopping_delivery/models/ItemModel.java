@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @EqualsAndHashCode(of = "id")
 @Getter
@@ -32,5 +33,8 @@ public class ItemModel {
 
     @Column(name = "preco_unitario",nullable = false, precision = 10, scale = 2)
     private BigDecimal preco;
+
+    @OneToMany(mappedBy = "item", cascade = CascadeType.ALL)
+    private List<ItemPedidoModel> pedidos;
 
 }
