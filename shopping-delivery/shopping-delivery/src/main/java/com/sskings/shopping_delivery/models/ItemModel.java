@@ -16,7 +16,7 @@ public class ItemModel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
-    private long id;
+    private Long id;
 
     @Column(nullable = false, length = 100)
     private String nome;
@@ -28,7 +28,7 @@ public class ItemModel {
     private String descricao;
 
     @Column(nullable = false)
-    private int estoque;
+    private Integer estoque;
 
     @Column(name = "preco_unitario",nullable = false, precision = 10, scale = 2)
     private BigDecimal preco;
