@@ -20,7 +20,6 @@ public class ClienteModel {
 
     @Column(nullable = false, length = 100)
     private String nome;
-
     @Column(nullable = false, length = 100)
     private String email;
 
@@ -30,7 +29,7 @@ public class ClienteModel {
     @Column(nullable = false, length = 15)
     private String cpf;
 
-    @Column(name = "data_cadastro")
+    @Column(name = "data_cadastro", nullable = false, updatable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime dataCadastro;
 
 }
