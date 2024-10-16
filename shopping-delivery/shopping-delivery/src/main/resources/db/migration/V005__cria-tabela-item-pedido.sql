@@ -4,7 +4,7 @@ CREATE TABLE item_pedido(
                             item_id bigint not null,
                             quantidade bigint not null,
                             preco_unitario DECIMAL(10,2) not null,
-                            subtotal DECIMAL(10,2) AS (quantidade * preco_unitario) STORED,
+                            subtotal DECIMAL(10,2) AS (quantidade * preco_unitario),
                             constraint fk_pedido_item_pedido foreign key(pedido_id) references pedido(id) on delete cascade,
                             constraint fk_item_item_pedido foreign key(item_id) references item(id) on delete cascade
 );
