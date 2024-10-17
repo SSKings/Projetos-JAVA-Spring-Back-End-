@@ -1,9 +1,7 @@
 package com.sskings.shopping_delivery.models;
 
 import jakarta.persistence.*;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -12,6 +10,8 @@ import java.time.LocalDateTime;
 @Setter
 @Entity
 @Table(name = "endereco")
+@AllArgsConstructor
+@NoArgsConstructor
 public class EnderecoModel {
 
     @Id
