@@ -1,0 +1,10 @@
+spring:
+    application:
+        name: shopping-delivery
+    profiles:
+        active: dev
+
+
+
+
+
