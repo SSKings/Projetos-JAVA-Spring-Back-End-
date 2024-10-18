@@ -13,6 +13,8 @@ public interface ClienteRepository extends JpaRepository<ClienteModel, Long> {
 
     Optional<ClienteModel> findByCpf(String cpf);
 
+    boolean existsByEmail(String email);
+
     @Query("SELECT c FROM ClienteModel c JOIN FETCH c.enderecos WHERE c.id = :id")
     Optional<ClienteModel> findByIdWithEnderecos(@Param("id") Long id);
 
