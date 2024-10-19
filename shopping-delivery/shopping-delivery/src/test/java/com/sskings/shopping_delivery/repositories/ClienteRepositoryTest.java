@@ -49,8 +49,8 @@ class ClienteRepositoryTest {
 
         cliente0.setEnderecos(List.of(endereco0));
         cliente0.setPedidos(List.of(pedido0));
-        clienteRepository.save(cliente0);
-        entityManager.flush();
+        clienteRepository.saveAndFlush(cliente0);
+
 
 
     }

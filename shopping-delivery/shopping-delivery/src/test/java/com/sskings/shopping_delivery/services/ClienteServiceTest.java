@@ -31,8 +31,6 @@ class ClienteServiceTest {
     private ClienteService clienteService;
 
     private ClienteModel clienteModel;
-    private List<EnderecoModel> enderecos;
-    private List<PedidoModel> pedidos;
 
     @BeforeEach
     void setUp() {
@@ -46,7 +44,7 @@ class ClienteServiceTest {
         clienteModel.setDataCadastro(LocalDateTime.now());
 
         // Mock de endereços
-        enderecos = new ArrayList<>();
+        List<EnderecoModel> enderecos = new ArrayList<>();
         EnderecoModel endereco = new EnderecoModel();
         endereco.setId(null);
         endereco.setLogradouro("Rua A");
@@ -59,7 +57,7 @@ class ClienteServiceTest {
         clienteModel.setEnderecos(enderecos);
 
         // Mock de pedidos
-        pedidos = new ArrayList<>();
+        List<PedidoModel> pedidos = new ArrayList<>();
         PedidoModel pedido = new PedidoModel();
         pedido.setId(null);
         pedido.setCliente(clienteModel);
@@ -119,7 +117,7 @@ class ClienteServiceTest {
 
     @Test
     void deveBuscarClientePorIdComSucesso() {
-        when(clienteRepository.findById(1L)).thenReturn(Optional.of(clienteModel));
+        when(clienteRepository.findById(anyLong())).thenReturn(Optional.of(clienteModel));
 
         ClienteModel resultado = clienteService.buscarPorId(1L);
 
@@ -130,7 +128,7 @@ class ClienteServiceTest {
 
     @Test
     void deveLancarExcecaoQuandoClienteNaoEncontradoPorId() {
-        when(clienteRepository.findById(1L)).thenReturn(Optional.empty());
+        when(clienteRepository.findById(anyLong())).thenReturn(Optional.empty());
 
         Exception exception = assertThrows(RuntimeException.class, () -> clienteService.buscarPorId(1L));
 
@@ -140,7 +138,7 @@ class ClienteServiceTest {
 
     @Test
     void deveAtualizarClienteComSucesso() {
-        when(clienteRepository.findById(1L)).thenReturn(Optional.of(clienteModel));
+        when(clienteRepository.findById(anyLong())).thenReturn(Optional.of(clienteModel));
         when(clienteRepository.save(clienteModel)).thenReturn(clienteModel);
 
         ClienteModel resultado = clienteService.atualizar(1L, clienteModel);
@@ -152,7 +150,7 @@ class ClienteServiceTest {
 
     @Test
     void deveLancarExcecaoQuandoAtualizarClienteNaoEncontrado() {
-        when(clienteRepository.findById(1L)).thenReturn(Optional.empty());
+        when(clienteRepository.findById(anyLong())).thenReturn(Optional.empty());
 
         Exception exception = assertThrows(RuntimeException.class, () -> clienteService.atualizar(1L, clienteModel));
 
@@ -162,7 +160,7 @@ class ClienteServiceTest {
 
     @Test
     void deveRemoverClientePorIdComSucesso() {
-        when(clienteRepository.findById(1L)).thenReturn(Optional.of(clienteModel));
+        when(clienteRepository.findById(anyLong())).thenReturn(Optional.of(clienteModel));
 
         clienteService.removerPorId(1L);
 
@@ -171,7 +169,7 @@ class ClienteServiceTest {
 
     @Test
     void deveLancarExcecaoQuandoRemoverClienteNaoEncontrado() {
-        when(clienteRepository.findById(1L)).thenReturn(Optional.empty());
+        when(clienteRepository.findById(anyLong())).thenReturn(Optional.empty());
 
         Exception exception = assertThrows(RuntimeException.class, () -> clienteService.removerPorId(1L));
 
@@ -181,7 +179,7 @@ class ClienteServiceTest {
 
     @Test
     void deveBuscarClientePorIdComEnderecos() {
-        when(clienteRepository.findByIdWithEnderecos(1L)).thenReturn(Optional.of(clienteModel));
+        when(clienteRepository.findByIdWithEnderecos(anyLong())).thenReturn(Optional.of(clienteModel));
 
         ClienteModel resultado = clienteService.buscarPorIdComEnderecos(1L);
 
@@ -194,7 +192,7 @@ class ClienteServiceTest {
 
     @Test
     void deveBuscarClientePorIdComPedidos() {
-        when(clienteRepository.findByIdWithPedidos(1L)).thenReturn(Optional.of(clienteModel));
+        when(clienteRepository.findByIdWithPedidos(anyLong())).thenReturn(Optional.of(clienteModel));
 
         ClienteModel resultado = clienteService.buscarPorIdComPedidos(1L);
 
