@@ -34,7 +34,7 @@ public class ItemModel {
     @Column(name = "preco_unitario",nullable = false, precision = 10, scale = 2)
     private BigDecimal preco;
 
-    @OneToMany(mappedBy = "item", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ItemPedidoModel> pedidos;
 
 }

@@ -20,11 +20,11 @@ public class PedidoModel {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cliente_id", nullable = false)
     private ClienteModel cliente;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "endereco_entrega_id", nullable = false)
     private EnderecoModel endereco;
 
@@ -39,7 +39,7 @@ public class PedidoModel {
     @Column(nullable = false, precision = 10, scale = 2, columnDefinition = "DECIMAL(10,2) DEFAULT 0.00")
     private BigDecimal total;
 
-    @OneToMany(mappedBy = "pedido",cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "pedido",cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ItemPedidoModel> itens;
 
 }
