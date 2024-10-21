@@ -1,9 +1,6 @@
 package com.sskings.api.gestor.financeiro.models;
 
-import jakarta.persistence.DiscriminatorValue;
-import jakarta.persistence.Entity;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,7 +16,7 @@ import java.util.UUID;
 @NoArgsConstructor
 public class CartaoLancamentoModel extends LancamentoModel{
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cartao_id")
     private CartaoModel cartao;
 

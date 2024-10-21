@@ -1,9 +1,6 @@
 package com.sskings.api.gestor.financeiro.models;
 
-import jakarta.persistence.DiscriminatorValue;
-import jakarta.persistence.Entity;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,7 +17,7 @@ import java.util.UUID;
 @Setter
 public class ContaLancamentoModel extends LancamentoModel {
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "conta_id")
     private ContaModel conta;
 

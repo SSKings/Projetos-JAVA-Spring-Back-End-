@@ -25,7 +25,7 @@ public class ContaModel {
     @Column(nullable = false)
     private String banco;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
     private UsuarioModel usuario;
 

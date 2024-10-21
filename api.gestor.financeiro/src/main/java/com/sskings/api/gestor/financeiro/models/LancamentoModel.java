@@ -28,15 +28,15 @@ public abstract class LancamentoModel {
     @Column(name = "data_lancamento", nullable = false)
     private LocalDate dataLancamento;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
     private UsuarioModel usuario;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tipo_id", nullable = false)
     private TipoLancamentoModel tipo;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "fonte_id", nullable = false)
     private FonteLancamentoModel fonte;
 

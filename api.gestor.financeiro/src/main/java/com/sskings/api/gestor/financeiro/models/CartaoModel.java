@@ -31,7 +31,7 @@ public class CartaoModel {
     @DateTimeFormat(pattern = "MM:yy")
     private LocalDate vencimento;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
     private UsuarioModel usuario;
 
