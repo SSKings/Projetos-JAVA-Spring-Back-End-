@@ -31,13 +31,12 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         auth -> auth
-                                .requestMatchers("/h2-console/**").permitAll()
-                                .requestMatchers(HttpMethod.POST, "api/usuarios/register", "auth/login").permitAll()
-                                .requestMatchers(HttpMethod.GET,"api/lancamentos", "api/usuarios")
+                                .requestMatchers(HttpMethod.POST, "/api/usuarios/register", "/auth/login").permitAll()
+                                .requestMatchers(HttpMethod.GET,"/api/lancamentos/**", "/api/usuarios/**")
                                     .hasRole("ADMIN")
                                 .anyRequest().authenticated()
-                ).addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
-                .headers(h -> h.frameOptions(f -> f.sameOrigin())) //configuração que desbloqueia conexão p/ h2-console
+                )
+                .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
 
     }
@@ -55,7 +54,7 @@ public class SecurityConfig {
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
         return web -> web.ignoring().requestMatchers(
-                "/swagger-ui/**", "/v3/api-docs/**"
+                "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**"
         );
     }
     

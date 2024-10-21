@@ -1,7 +1,6 @@
 spring:
   datasource:
     url: jdbc:h2:~/deliveryDB
-
     driverClassName: org.h2.Driver
     username: user
 

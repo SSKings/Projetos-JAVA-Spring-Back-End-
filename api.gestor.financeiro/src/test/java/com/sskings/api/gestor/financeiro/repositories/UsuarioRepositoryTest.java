@@ -9,12 +9,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
-import javax.swing.text.html.Option;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @DataJpaTest
 class UsuarioRepositoryTest {
@@ -111,12 +109,15 @@ class UsuarioRepositoryTest {
                 // Then / Assert
                 Assertions.assertTrue(usuarioOptional.isPresent());
                 Assertions.assertNotNull(usuarioOptional.get().getCartoes());
+                Assertions.assertTrue(usuarioOptional.get().getContas().isEmpty());
+                Assertions.assertTrue(usuarioOptional.get().getLancamentos().isEmpty());
 
                 Optional<CartaoModel> cartaoRetornado = usuarioOptional.get().getCartoes().stream().filter(
                         cartaoModel -> cartaoModel.getBanco().equals("NU")
                 ).findFirst();
 
                 Assertions.assertTrue(cartaoRetornado.isPresent());
+
 
         }
 
@@ -131,6 +132,8 @@ class UsuarioRepositoryTest {
                 // Then / Assert
                 Assertions.assertTrue(usuarioOptional.isPresent());
                 Assertions.assertNotNull(usuarioOptional.get().getContas());
+                Assertions.assertTrue(usuarioOptional.get().getCartoes().isEmpty());
+                Assertions.assertTrue(usuarioOptional.get().getLancamentos().isEmpty());
 
                 Optional<ContaModel> contaRetornada = usuarioOptional.get().getContas().stream().filter(
                         contaModel -> contaModel.getBanco().equals("BRADESCO")
