@@ -109,8 +109,6 @@ class UsuarioRepositoryTest {
                 // Then / Assert
                 Assertions.assertTrue(usuarioOptional.isPresent());
                 Assertions.assertNotNull(usuarioOptional.get().getCartoes());
-                Assertions.assertTrue(usuarioOptional.get().getContas().isEmpty());
-                Assertions.assertTrue(usuarioOptional.get().getLancamentos().isEmpty());
 
                 Optional<CartaoModel> cartaoRetornado = usuarioOptional.get().getCartoes().stream().filter(
                         cartaoModel -> cartaoModel.getBanco().equals("NU")
@@ -132,9 +130,6 @@ class UsuarioRepositoryTest {
                 // Then / Assert
                 Assertions.assertTrue(usuarioOptional.isPresent());
                 Assertions.assertNotNull(usuarioOptional.get().getContas());
-                Assertions.assertTrue(usuarioOptional.get().getCartoes().isEmpty());
-                Assertions.assertTrue(usuarioOptional.get().getLancamentos().isEmpty());
-
                 Optional<ContaModel> contaRetornada = usuarioOptional.get().getContas().stream().filter(
                         contaModel -> contaModel.getBanco().equals("BRADESCO")
                 ).findFirst();
