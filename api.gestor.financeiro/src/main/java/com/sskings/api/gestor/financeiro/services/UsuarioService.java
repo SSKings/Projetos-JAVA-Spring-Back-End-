@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
@@ -31,13 +32,17 @@ public class UsuarioService {
 
     @Transactional
     public UsuarioModel save(UsuarioRequestDto usuarioRequestDto){
+
         if(existsByEmail(usuarioRequestDto.email())){
             throw new ConflictException("O e-mail já está cadastrado");
+        }
+        if(existsByUsername(usuarioRequestDto.username())){
+            throw new ConflictException("Nome de usuário não disponível.");
         }
         var usuario = new UsuarioModel(usuarioRequestDto);
         String senhaCriptografada = passwordEncoder.encode(usuarioRequestDto.password());
         usuario.setPassword(senhaCriptografada);
-        usuario.setDataCadastro(LocalDate.now(ZoneId.of("America/Sao_Paulo")));
+        usuario.setDataCadastro(LocalDate.now());
         return usuarioRepository.save(usuario);
 
     }
@@ -45,7 +50,7 @@ public class UsuarioService {
     public List<UsuarioSimpleResponseDto> findAll(){
         List<UsuarioModel> usuarios = usuarioRepository.findAll();
         if (usuarios.isEmpty()){
-            throw new NotFoundException("não há usuários cadastrados.");
+            return new ArrayList<>();
         }
         return usuarios.stream()
                 .map(UsuarioSimpleResponseDto::new)
@@ -86,49 +91,63 @@ public class UsuarioService {
         return usuarioRepository.existsByEmail(email);
     }
 
+    public boolean existsByUsername(String username){ return usuarioRepository.existsByUsername(username);}
+
 
     public List<UsuarioModel> findByNomeIgnoreCaseContaining(String nome){
-        return usuarioRepository.findByUsernameIgnoreCaseContaining(nome);
+        List<UsuarioModel> usuarios = usuarioRepository.findByUsernameIgnoreCaseContaining(nome);
+        if (usuarios.isEmpty()){
+            return new ArrayList<>();
+        }
+        return usuarios;
     }
 
     public UsuarioResponseDto findByIdWithCartoes(UUID id){
-        return usuarioRepository.findByIdWithCartoes(id).map(usuarioModel -> UsuarioResponseDto.builder()
-                .nome(usuarioModel.getUsername())
-                .email(usuarioModel.getEmail())
-                .cartoes(Utils.convertCartoes(usuarioModel.getCartoes()))
-                .contas(new HashSet<>())
-                .lancamentos(new HashSet<>())
+        return usuarioRepository.findByIdWithCartoes(id)
+                .map(usuarioModel -> UsuarioResponseDto
+                        .builder()
+                            .nome(usuarioModel.getUsername())
+                            .email(usuarioModel.getEmail())
+                            .cartoes(Utils.convertCartoes(usuarioModel.getCartoes()))
+                            .contas(new HashSet<>())
+                            .lancamentos(new HashSet<>())
                 .build())
                 .orElseThrow(() -> new NotFoundException("Usuario não encontrado"));
     }
 
     public UsuarioResponseDto findByIdWithContas(UUID id){
-        return usuarioRepository.findByIdWithContas(id).map(usuarioModel -> UsuarioResponseDto.builder()
-                        .nome(usuarioModel.getUsername())
-                        .email(usuarioModel.getEmail())
-                        .cartoes(new HashSet<>())
-                        .contas(Utils.convertContas(usuarioModel.getContas()))
-                        .lancamentos(new HashSet<>())
+        return usuarioRepository.findByIdWithContas(id)
+                .map(usuarioModel -> UsuarioResponseDto
+                        .builder()
+                            .nome(usuarioModel.getUsername())
+                            .email(usuarioModel.getEmail())
+                            .cartoes(new HashSet<>())
+                            .contas(Utils.convertContas(usuarioModel.getContas()))
+                            .lancamentos(new HashSet<>())
                         .build())
                 .orElseThrow(() -> new NotFoundException("Usuario não encontrado"));
     }
     public UsuarioResponseDto findByIdWithCartoesAndContas(UUID id){
-        return usuarioRepository.findByIdWithCartoesAndContas(id).map(usuarioModel -> UsuarioResponseDto.builder()
-                .nome(usuarioModel.getUsername())
-                .email(usuarioModel.getEmail())
-                .cartoes(Utils.convertCartoes(usuarioModel.getCartoes()))
-                .contas(Utils.convertContas(usuarioModel.getContas()))
-                .lancamentos(new HashSet<>())
+        return usuarioRepository.findByIdWithCartoesAndContas(id)
+                .map(usuarioModel -> UsuarioResponseDto
+                        .builder()
+                            .nome(usuarioModel.getUsername())
+                            .email(usuarioModel.getEmail())
+                            .cartoes(Utils.convertCartoes(usuarioModel.getCartoes()))
+                            .contas(Utils.convertContas(usuarioModel.getContas()))
+                            .lancamentos(new HashSet<>())
                 .build())
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
     }
 
     public UsuarioResponseDto findByIdWithLancamentos(UUID id){
-        return usuarioRepository.findByIdWithLancamentos(id).map(usuario -> UsuarioResponseDto.builder()
-                .nome(usuario.getUsername())
-                .cartoes(new HashSet<>())
-                .contas(new HashSet<>())
-                .lancamentos(Utils.converterLancamentos(usuario.getLancamentos()))
+        return usuarioRepository.findByIdWithLancamentos(id)
+                .map(usuarioModel -> UsuarioResponseDto
+                        .builder()
+                            .nome(usuarioModel.getUsername())
+                            .cartoes(new HashSet<>())
+                            .contas(new HashSet<>())
+                            .lancamentos(Utils.converterLancamentos(usuarioModel.getLancamentos()))
                 .build())
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
     }
