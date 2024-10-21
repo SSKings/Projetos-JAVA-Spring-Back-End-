@@ -128,11 +128,12 @@ class UsuarioServiceTest {
         // Given / Arrange
         given(usuarioRepository.findAll()).willReturn(List.of());
         // When / Act
-        NotFoundException exception = assertThrows(NotFoundException.class, () -> {
-            usuarioService.findAll();
-        });
+        List<UsuarioSimpleResponseDto> usuariosList = usuarioService.findAll();
+        assertNotNull(usuariosList);
+        assertEquals(0, usuariosList.size());
+        assertTrue(usuariosList.isEmpty());
         // Then / Assert
-        assertEquals("não há usuários cadastrados.", exception.getMessage());
+        ;
 
     }
 
