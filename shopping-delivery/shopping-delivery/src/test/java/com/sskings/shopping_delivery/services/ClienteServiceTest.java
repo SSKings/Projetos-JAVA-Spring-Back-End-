@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+    import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ClienteServiceTest {
@@ -93,10 +93,7 @@ class ClienteServiceTest {
 
     @Test
     void deveListarClientes() {
-        List<ClienteModel> clientes = new ArrayList<>();
-        clientes.add(clienteModel);
-
-        when(clienteRepository.findAll()).thenReturn(clientes);
+        when(clienteRepository.findAll()).thenReturn(List.of(clienteModel));
 
         List<ClienteModel> resultado = clienteService.listar();
 
@@ -122,13 +119,13 @@ class ClienteServiceTest {
         ClienteModel resultado = clienteService.buscarPorId(1L);
 
         assertNotNull(resultado);
-        assertEquals(clienteModel.getId(), resultado.getId());
+        assertEquals("Cliente Teste", resultado.getNome());
         verify(clienteRepository, times(1)).findById(1L);
     }
 
     @Test
     void deveLancarExcecaoQuandoClienteNaoEncontradoPorId() {
-        when(clienteRepository.findById(anyLong())).thenReturn(Optional.empty());
+        when(clienteRepository.findById(1L)).thenReturn(Optional.empty());
 
         Exception exception = assertThrows(RuntimeException.class, () -> clienteService.buscarPorId(1L));
 
@@ -138,29 +135,36 @@ class ClienteServiceTest {
 
     @Test
     void deveAtualizarClienteComSucesso() {
-        when(clienteRepository.findById(anyLong())).thenReturn(Optional.of(clienteModel));
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(clienteModel));
         when(clienteRepository.save(clienteModel)).thenReturn(clienteModel);
 
+        clienteModel.setNome("Cliente Atualizado");
         ClienteModel resultado = clienteService.atualizar(1L, clienteModel);
 
         assertNotNull(resultado);
-        assertEquals(clienteModel.getId(), resultado.getId());
+        assertEquals("Cliente Atualizado", resultado.getNome());
         verify(clienteRepository, times(1)).save(clienteModel);
     }
 
     @Test
     void deveLancarExcecaoQuandoAtualizarClienteNaoEncontrado() {
-        when(clienteRepository.findById(anyLong())).thenReturn(Optional.empty());
+        when(clienteRepository.findById(1L)).thenReturn(Optional.empty());
 
         Exception exception = assertThrows(RuntimeException.class, () -> clienteService.atualizar(1L, clienteModel));
 
         assertEquals("Cliente não encontrado.", exception.getMessage());
+
+        verify(clienteRepository, times(1)).findById(1L);
+
         verify(clienteRepository, never()).save(any(ClienteModel.class));
+
+
     }
 
     @Test
     void deveRemoverClientePorIdComSucesso() {
-        when(clienteRepository.findById(anyLong())).thenReturn(Optional.of(clienteModel));
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(clienteModel));
+        willDoNothing().given(clienteRepository).deleteById(1L);
 
         clienteService.removerPorId(1L);
 
@@ -169,7 +173,7 @@ class ClienteServiceTest {
 
     @Test
     void deveLancarExcecaoQuandoRemoverClienteNaoEncontrado() {
-        when(clienteRepository.findById(anyLong())).thenReturn(Optional.empty());
+        when(clienteRepository.findById(1L)).thenReturn(Optional.empty());
 
         Exception exception = assertThrows(RuntimeException.class, () -> clienteService.removerPorId(1L));
 
@@ -179,7 +183,7 @@ class ClienteServiceTest {
 
     @Test
     void deveBuscarClientePorIdComEnderecos() {
-        when(clienteRepository.findByIdWithEnderecos(anyLong())).thenReturn(Optional.of(clienteModel));
+        when(clienteRepository.findByIdWithEnderecos(1L)).thenReturn(Optional.of(clienteModel));
 
         ClienteModel resultado = clienteService.buscarPorIdComEnderecos(1L);
 
@@ -192,7 +196,7 @@ class ClienteServiceTest {
 
     @Test
     void deveBuscarClientePorIdComPedidos() {
-        when(clienteRepository.findByIdWithPedidos(anyLong())).thenReturn(Optional.of(clienteModel));
+        when(clienteRepository.findByIdWithPedidos(1L)).thenReturn(Optional.of(clienteModel));
 
         ClienteModel resultado = clienteService.buscarPorIdComPedidos(1L);
 

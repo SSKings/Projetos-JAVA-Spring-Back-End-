@@ -22,6 +22,7 @@ public class ClienteModel {
 
     @Column(nullable = false, length = 100)
     private String nome;
+
     @Column(nullable = false, length = 100, unique = true)
     private String email;
 
