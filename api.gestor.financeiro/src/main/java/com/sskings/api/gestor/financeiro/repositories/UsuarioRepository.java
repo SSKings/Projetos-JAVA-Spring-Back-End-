@@ -19,12 +19,14 @@ public interface UsuarioRepository extends JpaRepository<UsuarioModel, UUID> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByUsername(String username);
+
     List<UsuarioModel> findByUsernameIgnoreCaseContaining(String username);
 
-    @Query(" SELECT u FROM UsuarioModel u JOIN FETCH u.cartoes WHERE u.id = :id ")
+    @Query(" SELECT u FROM UsuarioModel u LEFT JOIN FETCH u.cartoes WHERE u.id = :id ")
     Optional<UsuarioModel> findByIdWithCartoes(@Param("id") UUID id);
 
-    @Query(" SELECT u FROM UsuarioModel u JOIN FETCH u.contas WHERE u.id = :id ")
+    @Query(" SELECT u FROM UsuarioModel u LEFT JOIN FETCH u.contas WHERE u.id = :id ")
     Optional<UsuarioModel> findByIdWithContas(@Param("id") UUID id);
 
     @Query(" SELECT u FROM UsuarioModel u LEFT JOIN FETCH u.cartoes LEFT JOIN FETCH u.contas WHERE u.id = :id ")
