@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: jdbc:h2:~/gestor_financeiro
+    driverClassName: org.h2.Driver
+    username: user
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
