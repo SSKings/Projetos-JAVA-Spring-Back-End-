@@ -15,6 +15,8 @@ public interface ClienteRepository extends JpaRepository<ClienteModel, Long> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByCpf(String cpf);
+
     @Query("SELECT c FROM ClienteModel c JOIN FETCH c.enderecos WHERE c.id = :id")
     Optional<ClienteModel> findByIdWithEnderecos(@Param("id") Long id);
 
