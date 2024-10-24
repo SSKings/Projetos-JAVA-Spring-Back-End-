@@ -40,8 +40,9 @@ class EnderecoServiceTest {
                 "Bairro Test",
                 "Complemento",
                 LocalDateTime.now(),
-                new ClienteModel(null, "usuario_test", "test@email.com", "00-00000-0000", "000.000.000-00", LocalDateTime.now(),
-                        List.of(), List.of())
+                new ClienteModel(null, "usuario_test", "test@email.com",
+                        "00-00000-0000", "000.000.000-00", LocalDateTime.now(),
+                                List.of(), List.of())
         );
 
     }
@@ -91,7 +92,7 @@ class EnderecoServiceTest {
         // Given / Arrange
         when(enderecoRepository.findAll()).thenReturn(Collections.emptyList());
         // When / Act
-        List listaRetornada = enderecoService.listar();
+        List<EnderecoModel> listaRetornada = enderecoService.listar();
         // Then / Assert
         assertNotNull(listaRetornada);
         assertTrue(listaRetornada.isEmpty());
