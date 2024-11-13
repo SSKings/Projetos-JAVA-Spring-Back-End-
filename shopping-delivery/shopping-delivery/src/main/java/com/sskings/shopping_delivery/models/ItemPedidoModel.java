@@ -1,9 +1,7 @@
 package com.sskings.shopping_delivery.models;
 
 import jakarta.persistence.*;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.math.BigDecimal;
 
@@ -12,6 +10,8 @@ import java.math.BigDecimal;
 @Setter
 @Entity
 @Table(name = "item_pedido")
+@AllArgsConstructor
+@NoArgsConstructor
 public class ItemPedidoModel {
 
     @Id

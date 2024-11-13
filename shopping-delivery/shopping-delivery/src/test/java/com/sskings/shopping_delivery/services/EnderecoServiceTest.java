@@ -73,7 +73,7 @@ class EnderecoServiceTest {
                 "Bairro Test2",
                 "Complemento2",
                 LocalDateTime.now(),
-                new ClienteModel(null, "usuario_test2", "test2@email.com", "00-00000-0002", "000.000.000-02", LocalDateTime.now(),
+                new ClienteModel(1L, "usuario_test2", "test2@email.com", "00-00000-0002", "000.000.000-02", LocalDateTime.now(),
                         List.of(), List.of())
         );
         when(enderecoRepository.findAll()).thenReturn(List.of(enderecoModel, enderecoModel2));

@@ -4,12 +4,14 @@ import com.sskings.api.gestor.financeiro.dto.cartao.CartaoResponseDto;
 import com.sskings.api.gestor.financeiro.dto.conta.ContaResponseDto;
 import com.sskings.api.gestor.financeiro.dto.lancamento.LancamentoResponseDto;
 import com.sskings.api.gestor.financeiro.models.*;
+import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Component
 public class Utils {
 
     public static Set<CartaoResponseDto> convertCartoes(Set<CartaoModel> cartoes){

@@ -4,16 +4,13 @@ import com.sskings.shopping_delivery.models.*;
 import com.sskings.shopping_delivery.repositories.ClienteRepository;
 import com.sskings.shopping_delivery.repositories.EnderecoRepository;
 import com.sskings.shopping_delivery.repositories.PedidoRepository;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import static  org.mockito.BDDMockito.*;
-
-import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -22,7 +19,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-@ExtendWith(SpringExtension.class)
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.BDDMockito.*;
+
+@ExtendWith(MockitoExtension.class)
 public class PedidoServiceTest {
 
     @Mock
