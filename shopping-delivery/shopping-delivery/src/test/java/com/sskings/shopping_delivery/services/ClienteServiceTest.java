@@ -1,5 +1,6 @@
 package com.sskings.shopping_delivery.services;
 
+import com.sskings.shopping_delivery.exceptions.EmailExistenteException;
 import com.sskings.shopping_delivery.models.ClienteModel;
 import com.sskings.shopping_delivery.models.EnderecoModel;
 import com.sskings.shopping_delivery.models.PedidoModel;
@@ -85,7 +86,7 @@ class ClienteServiceTest {
     void deveLancarExcecaoQuandoEmailJaCadastrado() {
         when(clienteRepository.existsByEmail(clienteModel.getEmail())).thenReturn(true);
 
-        Exception exception = assertThrows(RuntimeException.class, () -> clienteService.salvar(clienteModel));
+        Exception exception = assertThrows(EmailExistenteException.class, () -> clienteService.salvar(clienteModel));
 
         assertEquals("Endereço de e-mail já possui um cadastro", exception.getMessage());
         verify(clienteRepository, never()).save(any(ClienteModel.class));
