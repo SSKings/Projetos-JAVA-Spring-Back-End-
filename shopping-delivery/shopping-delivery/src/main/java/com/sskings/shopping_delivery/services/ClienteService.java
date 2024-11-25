@@ -1,5 +1,6 @@
 package com.sskings.shopping_delivery.services;
 
+import com.sskings.shopping_delivery.exceptions.EmailExistenteException;
 import com.sskings.shopping_delivery.models.ClienteModel;
 import com.sskings.shopping_delivery.repositories.ClienteRepository;
 import jakarta.transaction.Transactional;
@@ -17,8 +18,8 @@ public class ClienteService {
 
     @Transactional
     public ClienteModel salvar(ClienteModel clienteModel) {
-        if (clienteRepository.existsByEmail(clienteModel.getEmail())){
-            throw new RuntimeException("Endereço de e-mail já possui um cadastro");
+        if (existePorEmail(clienteModel.getEmail())){
+            throw new EmailExistenteException("Endereço de e-mail já possui um cadastro");
         }
         return clienteRepository.save(clienteModel);
     }
@@ -59,5 +60,9 @@ public class ClienteService {
         clienteRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado."));
         clienteRepository.deleteById(id);
+    }
+
+    public boolean existePorEmail(String email) {
+        return clienteRepository.existsByEmail(email);
     }
 }
