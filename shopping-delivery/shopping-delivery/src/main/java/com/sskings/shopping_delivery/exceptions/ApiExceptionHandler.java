@@ -47,4 +47,24 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         apiErrors.setTimestamp(LocalDateTime.now());
         return apiErrors;
     }
+
+    @ExceptionHandler(CpfExistenteException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiErrors handleCpfExistenteException(CpfExistenteException ex){
+        ApiErrors apiErrors = new ApiErrors();
+        apiErrors.setMessage(ex.getMessage());
+        apiErrors.setStatusCode(HttpStatus.BAD_REQUEST.value());
+        apiErrors.setTimestamp(LocalDateTime.now());
+        return apiErrors;
+    }
+
+    @ExceptionHandler(ClienteNaoEncontradoException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiErrors handleClienteNaoEncontradoException(ClienteNaoEncontradoException ex){
+        ApiErrors apiErrors = new ApiErrors();
+        apiErrors.setMessage(ex.getMessage());
+        apiErrors.setStatusCode(HttpStatus.NOT_FOUND.value());
+        apiErrors.setTimestamp(LocalDateTime.now());
+        return apiErrors;
+    }
 }
