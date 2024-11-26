@@ -1,5 +1,6 @@
 package com.sskings.shopping_delivery.services;
 
+import com.sskings.shopping_delivery.exceptions.CpfExistenteException;
 import com.sskings.shopping_delivery.exceptions.EmailExistenteException;
 import com.sskings.shopping_delivery.models.ClienteModel;
 import com.sskings.shopping_delivery.repositories.ClienteRepository;
@@ -20,6 +21,9 @@ public class ClienteService {
     public ClienteModel salvar(ClienteModel clienteModel) {
         if (existePorEmail(clienteModel.getEmail())){
             throw new EmailExistenteException("Endereço de e-mail já possui um cadastro");
+        }
+        if (existePorCpf(clienteModel.getCpf())){
+            throw new CpfExistenteException("Cpf já cadastrado.");
         }
         return clienteRepository.save(clienteModel);
     }
@@ -64,5 +68,9 @@ public class ClienteService {
 
     public boolean existePorEmail(String email) {
         return clienteRepository.existsByEmail(email);
+    }
+
+    public boolean existePorCpf(String cpf) {
+        return clienteRepository.existsByCpf(cpf);
     }
 }
