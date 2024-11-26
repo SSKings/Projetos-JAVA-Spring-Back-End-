@@ -27,4 +27,15 @@ public class ClienteController {
     public ResponseEntity<List<ClienteModel>> ListarClientes(){
         return ResponseEntity.status(HttpStatus.OK).body(clienteService.listar());
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ClienteModel> buscarPorId(@PathVariable long id) {
+        ClienteModel clienteRetornado = clienteService.buscarPorId(id);
+        return ResponseEntity.ok(clienteRetornado);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ClienteModel> atualizarCliente(@PathVariable long id, @RequestBody ClienteModel cliente) {
+        return ResponseEntity.status(HttpStatus.OK).body(clienteService.atualizar(id, cliente));
+    }
 }
