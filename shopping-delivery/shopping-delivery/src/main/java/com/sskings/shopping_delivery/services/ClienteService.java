@@ -1,5 +1,6 @@
 package com.sskings.shopping_delivery.services;
 
+import com.sskings.shopping_delivery.exceptions.ClienteNaoEncontradoException;
 import com.sskings.shopping_delivery.exceptions.CpfExistenteException;
 import com.sskings.shopping_delivery.exceptions.EmailExistenteException;
 import com.sskings.shopping_delivery.models.ClienteModel;
@@ -38,31 +39,29 @@ public class ClienteService {
 
     public ClienteModel buscarPorId(Long id) {
         return clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado."));
+                .orElseThrow(() -> new ClienteNaoEncontradoException("Cliente não encontrado."));
     }
 
     public ClienteModel buscarPorIdComEnderecos(Long id){
         return clienteRepository.findByIdWithEnderecos(id)
-                .orElseThrow(() -> new RuntimeException("Não encontrado"));
+                .orElseThrow(() -> new ClienteNaoEncontradoException("Cliente não encontrado"));
     }
 
     public ClienteModel buscarPorIdComPedidos(Long id){
         return clienteRepository.findByIdWithPedidos(id)
-                .orElseThrow(() -> new RuntimeException("Não encontrado"));
+                .orElseThrow(() -> new ClienteNaoEncontradoException("Cliente não encontrado"));
     }
 
     @Transactional
     public ClienteModel atualizar(Long id, ClienteModel clienteModel) {
-        ClienteModel clienteRetornado = clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado."));
+        ClienteModel clienteRetornado = buscarPorId(id);
         clienteModel.setId(clienteRetornado.getId());
         return clienteRepository.save(clienteModel);
     }
 
     @Transactional
     public void removerPorId(Long id) {
-        clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado."));
+        buscarPorId(id);
         clienteRepository.deleteById(id);
     }
 
