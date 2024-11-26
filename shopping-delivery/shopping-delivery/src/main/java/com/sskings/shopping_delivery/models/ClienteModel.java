@@ -36,11 +36,11 @@ public class ClienteModel {
     private LocalDateTime dataCadastro;
 
     @JsonIgnore
-    @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<EnderecoModel> enderecos;
 
     @JsonIgnore
-    @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<PedidoModel> pedidos;
 
 }
