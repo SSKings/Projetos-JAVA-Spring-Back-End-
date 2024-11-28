@@ -38,4 +38,10 @@ public class ClienteController {
     public ResponseEntity<ClienteModel> atualizarCliente(@PathVariable long id, @RequestBody ClienteModel cliente) {
         return ResponseEntity.status(HttpStatus.OK).body(clienteService.atualizar(id, cliente));
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> removerCliente(@PathVariable long id) {
+        clienteService.buscarPorId(id);
+        return ResponseEntity.noContent().build();
+    }
 }
