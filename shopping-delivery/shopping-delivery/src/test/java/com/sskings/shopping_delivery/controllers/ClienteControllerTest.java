@@ -1,6 +1,5 @@
 package com.sskings.shopping_delivery.controllers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sskings.shopping_delivery.exceptions.ClienteNaoEncontradoException;
 import com.sskings.shopping_delivery.exceptions.EmailExistenteException;
@@ -16,14 +15,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
-import javax.xml.transform.Result;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.any;
-import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,7 +42,7 @@ public class ClienteControllerTest {
 
     @BeforeEach
     void setUp() {
-        // Configura um cliente com endereços e pedidos
+
         clienteModel = new ClienteModel();
         clienteModel.setId(1L);
         clienteModel.setNome("Cliente Teste");
@@ -160,5 +157,53 @@ public class ClienteControllerTest {
 
     }
 
+    @DisplayName("Dado ClienteId Incorreto Quando Atualizar Lançar Exceção De Cliente Nao Encotrado")
+    @Test
+    void dadoClienteIdIncorretoQuandoAtualizarLancarExcecaoDeClienteNaoEncotrado() throws Exception {
+        // Given / Arrange
+        given(clienteService.buscarPorId(1L)).willThrow(ClienteNaoEncontradoException.class);
+        given(clienteService.atualizar(eq(1L), any(ClienteModel.class)))
+                .willThrow(ClienteNaoEncontradoException.class);
+        // When / Act
+        ClienteModel clienteAtualizado = new ClienteModel(null, "Vera", "vera@email.com", "71-1111-1111", "060-606-906-60", LocalDateTime.now(), null, null );
 
+        ResultActions response = mockMvc.perform(put("/clientes/{id}",1L, clienteAtualizado)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(clienteAtualizado)));
+        // Then /
+
+        response
+                .andExpect(status().isNotFound())
+                .andDo(print());
+    }
+
+
+    @DisplayName("Dado ClienteId Deve Remover Cliente Com Sucesso")
+    @Test
+    void dadoClienteIdDeveRemoverClienteComSucesso() throws Exception {
+        // Given / Arrange
+        given(clienteService.buscarPorId(1L)).willReturn(clienteModel);
+        willDoNothing().given(clienteService).removerPorId(1L);
+        // When / Act
+        ResultActions response = mockMvc.perform(delete("/clientes/{id}", 1L));
+        // Then / Assert
+        response
+                .andExpect(status().isNoContent())
+                .andDo(print());
+
+    }
+
+@DisplayName("Dado ClienteId Inválido Quando RemoverCliente Deve Lançar Exceção")
+    @Test
+    void dadoClienteIdDeveDeletarClienteComSucesso() throws Exception {
+        // Given / Arrange
+        given(clienteService.buscarPorId(1L)).willThrow(ClienteNaoEncontradoException.class);
+
+        ResultActions response = mockMvc.perform(delete("/clientes/{id}", 1L));
+        // Then / Assert
+        response
+                .andExpect(status().isNotFound())
+                .andDo(print());
+
+    }
 }
