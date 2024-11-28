@@ -14,9 +14,11 @@ import java.util.List;
 public class EnderecoService {
 
     private final EnderecoRepository enderecoRepository;
+    private final ClienteService clienteService;
 
     @Transactional
     public EnderecoModel salvar(EnderecoModel enderecoModel){
+        clienteService.buscarPorId(enderecoModel.getCliente().getId());
         return enderecoRepository.save(enderecoModel);
     }
 
