@@ -15,7 +15,6 @@ import java.util.List;
 @AllArgsConstructor
 public class ClienteController {
 
-    @Autowired
     private ClienteService clienteService;
 
     @PostMapping

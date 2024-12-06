@@ -1,6 +1,7 @@
 package com.sskings.shopping_delivery.services;
 
 import com.sskings.shopping_delivery.models.EnderecoModel;
+import com.sskings.shopping_delivery.repositories.ClienteRepository;
 import com.sskings.shopping_delivery.repositories.EnderecoRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -14,11 +15,11 @@ import java.util.List;
 public class EnderecoService {
 
     private final EnderecoRepository enderecoRepository;
-    private final ClienteService clienteService;
+    private final ClienteRepository clienteRepository;
 
     @Transactional
     public EnderecoModel salvar(EnderecoModel enderecoModel){
-        clienteService.buscarPorId(enderecoModel.getCliente().getId());
+        clienteRepository.findById(enderecoModel.getCliente().getId());
         return enderecoRepository.save(enderecoModel);
     }
 

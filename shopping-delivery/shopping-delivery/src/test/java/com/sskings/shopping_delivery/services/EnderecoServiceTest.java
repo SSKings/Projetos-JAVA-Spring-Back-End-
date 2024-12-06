@@ -4,6 +4,7 @@ import static org.mockito.BDDMockito.*;
 
 import com.sskings.shopping_delivery.models.ClienteModel;
 import com.sskings.shopping_delivery.models.EnderecoModel;
+import com.sskings.shopping_delivery.repositories.ClienteRepository;
 import com.sskings.shopping_delivery.repositories.EnderecoRepository;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,9 @@ class EnderecoServiceTest {
     @Mock
     private EnderecoRepository enderecoRepository;
 
+    @Mock
+    private ClienteRepository clienteRepository;
+
     @InjectMocks
     private EnderecoService enderecoService;
 
@@ -40,7 +44,7 @@ class EnderecoServiceTest {
                 "Bairro Test",
                 "Complemento",
                 LocalDateTime.now(),
-                new ClienteModel(null, "usuario_test", "test@email.com",
+                new ClienteModel(1L, "usuario_test", "test@email.com",
                         "00-00000-0000", "000.000.000-00", LocalDateTime.now(),
                                 List.of(), List.of())
         );
@@ -52,6 +56,7 @@ class EnderecoServiceTest {
     @Test
     void deveSalvarUmEnderecoComSucesso() {
         // Given / Arrange
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(enderecoModel.getCliente()));
         when(enderecoRepository.save(enderecoModel)).thenReturn(enderecoModel);
         // When / Act
         EnderecoModel enderecoRetornado = enderecoService.salvar(enderecoModel);
