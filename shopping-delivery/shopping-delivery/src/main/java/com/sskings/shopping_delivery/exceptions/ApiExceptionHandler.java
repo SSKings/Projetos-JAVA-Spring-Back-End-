@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-@RestControllerAdvice
+@RestControllerAdvice()
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @Override
@@ -61,6 +61,16 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ClienteNaoEncontradoException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ApiErrors handleClienteNaoEncontradoException(ClienteNaoEncontradoException ex){
+        ApiErrors apiErrors = new ApiErrors();
+        apiErrors.setMessage(ex.getMessage());
+        apiErrors.setStatusCode(HttpStatus.NOT_FOUND.value());
+        apiErrors.setTimestamp(LocalDateTime.now());
+        return apiErrors;
+    }
+
+    @ExceptionHandler(EnderecoNaoEncontradoException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiErrors handleEnderecoNaoEncontradoException(EnderecoNaoEncontradoException ex){
         ApiErrors apiErrors = new ApiErrors();
         apiErrors.setMessage(ex.getMessage());
         apiErrors.setStatusCode(HttpStatus.NOT_FOUND.value());

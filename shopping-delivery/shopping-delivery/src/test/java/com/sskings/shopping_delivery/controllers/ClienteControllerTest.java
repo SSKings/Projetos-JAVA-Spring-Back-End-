@@ -66,7 +66,7 @@ public class ClienteControllerTest {
         // Then / Assert
 
         response.andDo(print())
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.nome").value(clienteModel.getNome()))
                 .andExpect(jsonPath("$.email").value(clienteModel.getEmail()));
 
