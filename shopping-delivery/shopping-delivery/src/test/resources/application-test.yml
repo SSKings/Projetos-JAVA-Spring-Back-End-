@@ -1,16 +1,3 @@
-# CONFIGURAÇÃO PARA TESTES UNITÁRIOS COM H2
-#spring:
-#  datasource:
-#    url: jdbc:h2:~/deliveryDB
-#    driverClassName: org.h2.Driver
-#    username: user
-#
-#  jpa:
-#    hibernate:
-#      ddl-auto: create-drop
-#    database-platform: org.hibernate.dialect.H2Dialect
-
-
 #CONFIGURAÇÂO PARA TESTES DE INTEGRAÇÃO COM MYSQL
 server:
   port: 8888
