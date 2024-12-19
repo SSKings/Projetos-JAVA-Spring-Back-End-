@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
@@ -27,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ClienteController.class)
+@AutoConfigureMockMvc
 public class ClienteControllerTest {
 
     @Autowired
@@ -195,7 +197,7 @@ public class ClienteControllerTest {
 
 @DisplayName("Dado ClienteId Inválido Quando RemoverCliente Deve Lançar Exceção")
     @Test
-    void dadoClienteIdDeveDeletarClienteComSucesso() throws Exception {
+    void dadoClienteIdInvalidoQuandoRemoverClienteDeveLancarExcecao() throws Exception {
         // Given / Arrange
         given(clienteService.buscarPorId(1L)).willThrow(ClienteNaoEncontradoException.class);
 

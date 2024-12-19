@@ -1,5 +1,7 @@
 package com.sskings.shopping_delivery.services;
 
+import com.sskings.shopping_delivery.exceptions.ClienteNaoEncontradoException;
+import com.sskings.shopping_delivery.exceptions.EnderecoNaoEncontradoException;
 import com.sskings.shopping_delivery.models.EnderecoModel;
 import com.sskings.shopping_delivery.repositories.ClienteRepository;
 import com.sskings.shopping_delivery.repositories.EnderecoRepository;
@@ -33,13 +35,15 @@ public class EnderecoService {
 
     public EnderecoModel buscarPorId(Long id){
         return enderecoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Endereço não encontrado."));
+                .orElseThrow(() -> new EnderecoNaoEncontradoException("Endereço não encontrado."));
     }
 
     @Transactional
     public EnderecoModel atualizar(Long id, EnderecoModel enderecoModel){
+        clienteRepository.findById(enderecoModel.getCliente().getId())
+                .orElseThrow(() -> new ClienteNaoEncontradoException("Cliente inválido."));
         enderecoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Endereço não encontrado."));
+                .orElseThrow(() -> new EnderecoNaoEncontradoException("Endereço não encontrado."));
         enderecoModel.setId(id);
         return enderecoRepository.save(enderecoModel);
 
@@ -47,8 +51,7 @@ public class EnderecoService {
 
     @Transactional
     public void removerPorId(Long id){
-        enderecoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Endereço não encontrado."));
+        buscarPorId(id);
         enderecoRepository.deleteById(id);
     }
 

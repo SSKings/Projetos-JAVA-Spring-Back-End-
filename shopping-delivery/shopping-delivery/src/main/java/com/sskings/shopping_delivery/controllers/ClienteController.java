@@ -3,7 +3,6 @@ package com.sskings.shopping_delivery.controllers;
 import com.sskings.shopping_delivery.models.ClienteModel;
 import com.sskings.shopping_delivery.services.ClienteService;
 import lombok.AllArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -35,7 +34,8 @@ public class ClienteController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ClienteModel> atualizarCliente(@PathVariable long id, @RequestBody ClienteModel cliente) {
-        return ResponseEntity.status(HttpStatus.OK).body(clienteService.atualizar(id, cliente));
+        ClienteModel clienteAtualido = clienteService.atualizar(id, cliente);
+        return ResponseEntity.ok(clienteAtualido);
     }
 
     @DeleteMapping("/{id}")
