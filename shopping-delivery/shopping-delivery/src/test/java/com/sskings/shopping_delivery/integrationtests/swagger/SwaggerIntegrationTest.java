@@ -6,11 +6,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import static io.restassured.RestAssured.given;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
-class SwaggerIntegrationTest extends AbstractIntegrationTest {
+@ActiveProfiles(value = "integration-test")
+public class SwaggerIntegrationTest extends AbstractIntegrationTest {
 
 	@DisplayName("Deve Mostrar A Página Do Swagger UI")
 	@Test
