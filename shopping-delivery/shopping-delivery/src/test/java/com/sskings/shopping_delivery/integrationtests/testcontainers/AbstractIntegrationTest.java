@@ -18,7 +18,6 @@ public class AbstractIntegrationTest {
     static class Initializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
         static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0.28")
-                .withDatabaseName("testdb")
                 .withUsername("test")
                 .withPassword("test")
                 .withReuse(true)
