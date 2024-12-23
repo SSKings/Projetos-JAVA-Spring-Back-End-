@@ -1,5 +1,6 @@
 package com.sskings.shopping_delivery.repositories;
 
+import com.sskings.shopping_delivery.integrationtests.testcontainers.AbstractIntegrationTest;
 import com.sskings.shopping_delivery.models.ClienteModel;
 import com.sskings.shopping_delivery.models.EnderecoModel;
 import com.sskings.shopping_delivery.models.PedidoModel;
@@ -8,8 +9,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -18,14 +21,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@ActiveProfiles(value = "integration-test")
 @DataJpaTest
-class ClienteRepositoryTest {
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+class ClienteRepositoryTest extends AbstractIntegrationTest {
 
     @Autowired
     private ClienteRepository clienteRepository;
-
-    @Autowired
-    private TestEntityManager entityManager;
 
     private ClienteModel cliente0;
 
