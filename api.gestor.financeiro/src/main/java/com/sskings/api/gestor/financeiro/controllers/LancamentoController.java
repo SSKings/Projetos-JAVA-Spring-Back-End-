@@ -61,6 +61,16 @@ public class LancamentoController {
         return ResponseEntity.ok(lancamentoService.findByUsuarioIdAndDataLancamento(id,data));
     }
 
+    @GetMapping("/intervalo")
+    public ResponseEntity<List<LancamentoResponseDto>> findByUsuarioIdAndDataLancamentoBetween(
+            @RequestParam("u") UUID id,
+            @RequestParam("d1") LocalDate data1,
+            @RequestParam("d2") LocalDate data2
+    ){
+        return ResponseEntity.ok(lancamentoService.findByUsuarioIdAndDataLancamentoBetween(id,data1,data2));
+    }
+
+
     @GetMapping("/valor")
     public ResponseEntity<List<LancamentoResponseDto>> findByUsuarioIdAndValor(
             @RequestParam("u") UUID id,

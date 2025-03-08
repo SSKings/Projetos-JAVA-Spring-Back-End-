@@ -97,6 +97,17 @@ public class LancamentoService {
         return lancamentos;
     }
 
+    public List<LancamentoResponseDto> findByUsuarioIdAndDataLancamentoBetween(UUID id, LocalDate data1, LocalDate data2){
+        usuarioRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Usuário não encontrado"));
+        List<LancamentoResponseDto> lancamentos = lancamentoRepository.findByUsuarioIdAndDataLancamentoBetween(id, data1, data2)
+                .stream().map(this::convertToDto).toList();
+        if (lancamentos.isEmpty()){
+            throw new NotFoundException("Não foram encotrados lançamentos entre as datas " + data1 + " e " + data2);
+        }
+        return lancamentos;
+    }
+
     public List<LancamentoResponseDto> findByUsuarioIdAndValor(UUID id, BigDecimal valor){
         usuarioRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
