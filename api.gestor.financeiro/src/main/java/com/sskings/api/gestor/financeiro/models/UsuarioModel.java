@@ -4,11 +4,14 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.sskings.api.gestor.financeiro.dto.usuario.UsuarioRequestDto;
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -21,6 +24,8 @@ import java.util.UUID;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString(exclude = {"cartoes", "contas", "lancamentos"})
+@EntityListeners(AuditingEntityListener.class)
 public class UsuarioModel implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
@@ -42,7 +47,8 @@ public class UsuarioModel implements UserDetails {
     private String email;
 
     @Column(name = "data_cadastro", nullable = false)
-    private LocalDate dataCadastro;
+    @CreatedDate
+    private LocalDateTime dataCadastro;
 
     @JsonIgnore
     @OneToMany(mappedBy = "usuario", fetch = FetchType.LAZY)

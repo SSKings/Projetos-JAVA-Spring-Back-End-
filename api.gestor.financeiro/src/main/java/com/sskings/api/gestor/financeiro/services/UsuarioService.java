@@ -42,7 +42,6 @@ public class UsuarioService {
         var usuario = new UsuarioModel(usuarioRequestDto);
         String senhaCriptografada = passwordEncoder.encode(usuarioRequestDto.password());
         usuario.setPassword(senhaCriptografada);
-        usuario.setDataCadastro(LocalDate.now());
         return usuarioRepository.save(usuario);
 
     }

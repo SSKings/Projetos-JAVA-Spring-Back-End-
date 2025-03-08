@@ -10,12 +10,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("api/usuarios")
+@CrossOrigin(origins = "*", maxAge = 3600)
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
@@ -27,7 +30,15 @@ public class UsuarioController {
 
     @PostMapping("/register")
     public ResponseEntity<Object> save(@RequestBody @Valid UsuarioRequestDto usuarioRequestDto){
-        return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.save(usuarioRequestDto));
+        var novoUsuario = usuarioService.save(usuarioRequestDto);
+
+        URI location = ServletUriComponentsBuilder
+                .fromCurrentRequest()
+                .replacePath("/api/usuarios/{id}")
+                .buildAndExpand(novoUsuario.getId())
+                .toUri();
+
+        return ResponseEntity.created(location).build();
     }
 
     @GetMapping
@@ -83,4 +94,5 @@ public class UsuarioController {
         usuarioService.deleteById(id);
         return ResponseEntity.status(HttpStatus.OK).body("Usuário deletado");
     }
+    
 }

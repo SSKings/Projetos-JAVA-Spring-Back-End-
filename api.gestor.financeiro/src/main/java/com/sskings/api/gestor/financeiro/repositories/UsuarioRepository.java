@@ -1,5 +1,6 @@
 package com.sskings.api.gestor.financeiro.repositories;
 
+import com.sskings.api.gestor.financeiro.models.CartaoModel;
 import com.sskings.api.gestor.financeiro.models.UsuarioModel;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,4 +37,5 @@ public interface UsuarioRepository extends JpaRepository<UsuarioModel, UUID> {
     Optional<UsuarioModel> findByIdWithLancamentos(@Param("id") UUID id);
 
     Optional<UserDetails> findByUsername(String username);
+
 }
