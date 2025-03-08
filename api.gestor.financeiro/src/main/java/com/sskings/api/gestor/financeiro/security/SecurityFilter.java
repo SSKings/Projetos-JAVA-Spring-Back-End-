@@ -19,10 +19,12 @@ public class SecurityFilter extends OncePerRequestFilter {
 
     JwtTokenService tokenService;
     UsuarioRepository usuarioRepository;
+    TokenBlackList tokenBlackList;
 
-    public SecurityFilter(JwtTokenService tokenService, UsuarioRepository usuarioRepository) {
+    public SecurityFilter(JwtTokenService tokenService, UsuarioRepository usuarioRepository, TokenBlackList tokenBlackList) {
         this.tokenService = tokenService;
         this.usuarioRepository = usuarioRepository;
+        this.tokenBlackList = tokenBlackList;
     }
 
     @Override
@@ -30,7 +32,7 @@ public class SecurityFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         var token = recoverToken(request);
-        if (token != null) {
+        if (token != null && ! tokenBlackList.isTokenRevoked(token)) {
             var username = tokenService.validateToken(token);
             UserDetails user = usuarioRepository.findByUsername(username)
                     .orElseThrow(() -> new NotFoundException("Usuário não encontrado."));
