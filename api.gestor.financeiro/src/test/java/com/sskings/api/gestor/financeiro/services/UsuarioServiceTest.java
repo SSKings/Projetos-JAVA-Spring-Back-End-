@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -47,7 +48,7 @@ class UsuarioServiceTest {
                 encoder.encode("123"),
                 UsuarioRole.ADMIN,
                 "sergio@email.com",
-                LocalDate.now(),
+                LocalDateTime.now(),
                 null,
                 null,
                 null);
@@ -109,7 +110,7 @@ class UsuarioServiceTest {
                 encoder.encode("123"),
                 UsuarioRole.ADMIN,
                 "vera@email.com",
-                LocalDate.now(),
+                LocalDateTime.now(),
                 null,
                 null,
                 null);

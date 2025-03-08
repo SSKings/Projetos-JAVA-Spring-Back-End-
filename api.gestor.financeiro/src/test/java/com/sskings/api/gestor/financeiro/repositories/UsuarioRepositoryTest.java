@@ -11,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Set;
 
@@ -34,7 +35,7 @@ class UsuarioRepositoryTest {
                         "123",
                         UsuarioRole.ADMIN,
                         "sergio@email.com",
-                        LocalDate.now(),
+                        LocalDateTime.now(),
                         null,
                         null,
                         null);
