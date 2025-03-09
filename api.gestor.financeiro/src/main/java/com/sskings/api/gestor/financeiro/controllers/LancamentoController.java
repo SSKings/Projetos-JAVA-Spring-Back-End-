@@ -32,6 +32,30 @@ public class LancamentoController {
         return ResponseEntity.ok(lancamentoService.findAll());
     }
 
+    @GetMapping("/card/all")
+    public ResponseEntity<List<LancamentoResponseDto>> findAllCartaoLancamentosByParameters(
+            @RequestParam(name = "valor", required = false) BigDecimal valor,
+            @RequestParam(name = "data", required = false) LocalDate data
+    ){
+
+        List<LancamentoResponseDto> lancamentos = lancamentoService
+                .findAllCartaoLancamentosByParameters(valor, data);
+
+        return ResponseEntity.ok(lancamentos);
+    }
+
+    @GetMapping("/account/all")
+    public ResponseEntity<List<LancamentoResponseDto>> findAllContaLancamentosByParameters(
+            @RequestParam(name = "valor", required = false) BigDecimal valor,
+            @RequestParam(name = "data", required = false) LocalDate data
+    ){
+
+        List<LancamentoResponseDto> lancamentos = lancamentoService
+                .findAllContaLancamentosByParameters(valor, data);
+
+        return ResponseEntity.ok(lancamentos);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<List<LancamentoResponseDto>> findByUsuarioId(@PathVariable(value = "id") UUID id){
         return ResponseEntity.ok(lancamentoService.findByUsuarioId(id));

@@ -7,6 +7,8 @@ import com.sskings.api.gestor.financeiro.models.*;
 import com.sskings.api.gestor.financeiro.repositories.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Example;
+import org.springframework.data.domain.ExampleMatcher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -46,6 +48,57 @@ public class LancamentoService {
     public List<LancamentoResponseDto> findAll(){
         List<LancamentoResponseDto> lancamentos = lancamentoRepository.findAll().stream()
                 .map(this::convertToDto).toList();
+        if (lancamentos.isEmpty()) {
+            throw new NotFoundException("não há lancamentos.");
+        }
+        return lancamentos;
+    }
+
+    public List<LancamentoResponseDto> findAllCartaoLancamentosByParameters(
+            BigDecimal valor,
+            LocalDate data
+    ){
+
+        CartaoLancamentoModel model = new CartaoLancamentoModel();
+        model.setValor(valor);
+        model.setDataLancamento(data);
+
+        ExampleMatcher matcher = ExampleMatcher
+                .matching()
+                .withIgnoreNullValues()
+                .withIgnoreCase()
+                .withStringMatcher(ExampleMatcher.StringMatcher.CONTAINING);
+
+        Example<LancamentoModel> example = Example.of(model, matcher);
+
+        List<LancamentoResponseDto> lancamentos = lancamentoRepository.findAll(example).stream()
+                .map(this::convertToDto).toList();
+
+        if (lancamentos.isEmpty()) {
+            throw new NotFoundException("não há lancamentos.");
+        }
+        return lancamentos;
+    }
+
+    public List<LancamentoResponseDto> findAllContaLancamentosByParameters(
+            BigDecimal valor,
+            LocalDate data
+    ){
+        ContaLancamentoModel model = new ContaLancamentoModel();
+        model.setValor(valor);
+        model.setDataLancamento(data);
+
+        ExampleMatcher matcher = ExampleMatcher
+                .matching()
+                .withIgnoreNullValues()
+                .withIgnoreCase()
+                .withStringMatcher(ExampleMatcher.StringMatcher.CONTAINING);
+
+        Example<LancamentoModel> example = Example.of(model, matcher);
+
+        List<LancamentoResponseDto> lancamentos = lancamentoRepository.findAll(example).stream()
+                .map(this::convertToDto).toList();
+
         if (lancamentos.isEmpty()) {
             throw new NotFoundException("não há lancamentos.");
         }
