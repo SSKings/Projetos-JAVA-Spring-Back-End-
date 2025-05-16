@@ -3,8 +3,12 @@ package com.sskings.spring_ai.controller;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sskings.spring_ai.service.ChatService;
+import com.sskings.spring_ai.service.ImageService;
 import com.sskings.spring_ai.service.RecipeService;
 
+import java.util.List;
+
+import org.springframework.ai.image.ImageResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -14,10 +18,12 @@ public class GenerativeAIController {
 
     private final ChatService chatService;
     private final RecipeService recipeService;
+    private final ImageService imageService;
 
-    public GenerativeAIController(ChatService chatService, RecipeService recipeService){
+    public GenerativeAIController(ChatService chatService, RecipeService recipeService, ImageService imageService){
         this.chatService = chatService;
         this.recipeService = recipeService;
+        this.imageService = imageService;
     }
     
     @GetMapping("ask-ai")
@@ -37,5 +43,23 @@ public class GenerativeAIController {
         
             return recipeService.createRecipe(ingredients, cuisine, dietaryRestrictions);
     }
+
+    @GetMapping("generate-image")
+    public List<String> generateImages(@RequestParam String prompt,
+                                        @RequestParam(defaultValue = "hd") String quality,
+                                        @RequestParam(defaultValue = "1") Integer n,
+                                        @RequestParam(defaultValue = "1024") Integer height,
+                                        @RequestParam(defaultValue = "1024") Integer width) {
+        
+        ImageResponse imageResponse = imageService.generateImage(prompt, quality, n, height, width);
+        List<String> imageUrls = imageResponse.getResults()
+            .stream()
+                .map(result -> result.getOutput()
+                                            .getUrl()
+                    ).toList();
+
+        return imageUrls;
+    }
+    
     
 }
