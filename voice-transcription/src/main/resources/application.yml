@@ -1,0 +1,6 @@
+spring:
+    application:
+        name: voice-transcription
+    ai:
+        openai:
+            api-key: ${OPEN_AI_API_KEY}
