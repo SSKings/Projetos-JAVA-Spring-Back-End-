@@ -5,11 +5,12 @@ import com.sskings.shopping_delivery.models.StatusPedido;
 import com.sskings.shopping_delivery.services.PedidoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/pedidos")
@@ -24,8 +25,9 @@ public class PedidoController {
     }
 
     @GetMapping
-    public ResponseEntity<List<PedidoModel>> listarPedidos() {
-        return ResponseEntity.ok(pedidoService.listar());
+    public ResponseEntity<Page<PedidoModel>> listarPedidos(
+            @PageableDefault(size = 10, sort = "dataPedido") Pageable pageable) {
+        return ResponseEntity.ok(pedidoService.listar(pageable));
     }
 
     @GetMapping("/{id}")

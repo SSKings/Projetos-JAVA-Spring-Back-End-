@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -72,7 +74,7 @@ public class ItemControllerTest {
                 .andExpect(jsonPath("$.preco").value(itemModel.getPreco().doubleValue()));
     }
 
-    @DisplayName("Dado Uma Lista De Itens Quando Listar Então Retorne Uma Lista de Itens")
+    @DisplayName("Dado Uma Lista De Itens Quando Listar Então Retorne Uma Página de Itens")
     @Test
     void dadoUmaListaDeItensQuandoListarEntaoRetorneUmaListaDeItens() throws Exception {
         // Given / Arrange
@@ -83,19 +85,19 @@ public class ItemControllerTest {
         item2.setDescricao("Descrição 2");
         item2.setEstoque(50);
         item2.setPreco(new BigDecimal("19.99"));
-        
+
         List<ItemModel> itens = new ArrayList<>();
         itens.addAll(List.of(itemModel, item2));
-        given(itemService.listar()).willReturn(itens);
-        
+        given(itemService.listar(any(Pageable.class))).willReturn(new PageImpl<>(itens));
+
         // When / Act
         ResultActions response = mockMvc.perform(get("/itens"));
-        
+
         // Then / Assert
         response
                 .andExpect(status().isOk())
                 .andDo(print())
-                .andExpect(jsonPath("$.size()").value(itens.size()));
+                .andExpect(jsonPath("$.content.size()").value(itens.size()));
     }
 
     @DisplayName("Dado Um ItemId Quando BuscarPorId Deve Retornar Um Item")

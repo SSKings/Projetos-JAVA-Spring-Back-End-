@@ -7,10 +7,9 @@ import com.sskings.shopping_delivery.models.ClienteModel;
 import com.sskings.shopping_delivery.repositories.ClienteRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -29,12 +28,8 @@ public class ClienteService {
         return clienteRepository.save(clienteModel);
     }
 
-    public List<ClienteModel> listar() {
-        List<ClienteModel> clientes = clienteRepository.findAll();
-        if (clientes.isEmpty()){
-            return new ArrayList<>();
-        }
-        return clientes;
+    public Page<ClienteModel> listar(Pageable pageable) {
+        return clienteRepository.findAll(pageable);
     }
 
     public ClienteModel buscarPorId(Long id) {

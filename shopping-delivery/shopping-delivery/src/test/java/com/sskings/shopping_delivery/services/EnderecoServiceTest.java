@@ -136,13 +136,13 @@ class EnderecoServiceTest {
     @Test
     void deveAtualizarEnderecoComSucesso() {
         // Given / Arrange
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(enderecoModel.getCliente()));
         when(enderecoRepository.findById(1L)).thenReturn(Optional.of(enderecoModel));
         when(enderecoRepository.save(enderecoModel)).thenReturn(enderecoModel);
         // When / Act
         enderecoModel.setNumero("A10");
-        EnderecoModel enderecoRetornado = enderecoService.atualizar(1L ,enderecoModel);
+        EnderecoModel enderecoRetornado = enderecoService.atualizar(1L, enderecoModel);
         // Then / Assert
-
         assertNotNull(enderecoRetornado);
         assertEquals("A10", enderecoRetornado.getNumero());
         verify(enderecoRepository, times(1)).save(enderecoModel);
@@ -152,6 +152,7 @@ class EnderecoServiceTest {
     @Test
     void deveLancarExcecaoQuandoAtualizarEnderecoNaoEncontrado() {
         // Given / Arrange
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(enderecoModel.getCliente()));
         when(enderecoRepository.findById(1L)).thenReturn(Optional.empty());
         // When / Act
         enderecoModel.setNumero("A10");

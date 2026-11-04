@@ -68,17 +68,30 @@ public class ItemPedidoControllerTest {
         itemPedidoModel.setSubtotal(new BigDecimal("59.98"));
     }
 
+    // JSON gerado manualmente porque @JsonBackReference bloqueia a serialização do campo pedido
+    private String itemPedidoJson() {
+        return """
+                {
+                  "pedido": {"id": 1},
+                  "item": {"id": 1, "nome": "Produto Teste", "urlImage": "url", "descricao": "desc", "estoque": 100, "preco": 29.99},
+                  "quantidade": 2,
+                  "precoUnitario": 29.99,
+                  "subtotal": 59.98
+                }
+                """;
+    }
+
     @DisplayName("Dado ItemPedido Deve Salvar E Retornar O ItemPedido")
     @Test
     void dadoItemPedidoDeveSalvarERetornarOItemPedido() throws Exception {
         // Given / Arrange
         given(itemPedidoService.salvar(any(ItemPedidoModel.class)))
                 .willAnswer((invocation) -> invocation.getArgument(0));
-        
+
         // When / Act
         ResultActions response = mockMvc.perform(post("/itens-pedido")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(itemPedidoModel)));
+                .content(itemPedidoJson()));
 
         // Then / Assert
         response.andDo(print())
@@ -93,11 +106,11 @@ public class ItemPedidoControllerTest {
         // Given / Arrange
         given(itemPedidoService.salvar(any(ItemPedidoModel.class)))
                 .willThrow(EstoqueInsuficienteException.class);
-        
+
         // When / Act
         ResultActions response = mockMvc.perform(post("/itens-pedido")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(itemPedidoModel)));
+                .content(itemPedidoJson()));
 
         // Then / Assert
         response.andDo(print())
@@ -110,11 +123,11 @@ public class ItemPedidoControllerTest {
         // Given / Arrange
         given(itemPedidoService.salvar(any(ItemPedidoModel.class)))
                 .willThrow(ItemNaoEncontradoException.class);
-        
+
         // When / Act
         ResultActions response = mockMvc.perform(post("/itens-pedido")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(itemPedidoModel)));
+                .content(itemPedidoJson()));
 
         // Then / Assert
         response.andDo(print())
@@ -127,11 +140,11 @@ public class ItemPedidoControllerTest {
         // Given / Arrange
         given(itemPedidoService.salvar(any(ItemPedidoModel.class)))
                 .willThrow(PedidoNaoEncontradoException.class);
-        
+
         // When / Act
         ResultActions response = mockMvc.perform(post("/itens-pedido")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(itemPedidoModel)));
+                .content(itemPedidoJson()));
 
         // Then / Assert
         response.andDo(print())

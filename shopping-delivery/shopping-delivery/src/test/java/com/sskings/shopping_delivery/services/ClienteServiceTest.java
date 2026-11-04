@@ -12,6 +12,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,7 +24,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-    import static org.mockito.BDDMockito.*;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ClienteServiceTest {
@@ -94,23 +98,25 @@ class ClienteServiceTest {
 
     @Test
     void deveListarClientes() {
-        when(clienteRepository.findAll()).thenReturn(List.of(clienteModel));
+        Pageable pageable = PageRequest.of(0, 10);
+        when(clienteRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(clienteModel)));
 
-        List<ClienteModel> resultado = clienteService.listar();
+        Page<ClienteModel> resultado = clienteService.listar(pageable);
 
         assertFalse(resultado.isEmpty());
-        assertEquals(1, resultado.size());
-        verify(clienteRepository, times(1)).findAll();
+        assertEquals(1, resultado.getTotalElements());
+        verify(clienteRepository, times(1)).findAll(pageable);
     }
 
     @Test
     void deveRetornarListaVaziaQuandoNaoHaClientes() {
-        when(clienteRepository.findAll()).thenReturn(new ArrayList<>());
+        Pageable pageable = PageRequest.of(0, 10);
+        when(clienteRepository.findAll(pageable)).thenReturn(Page.empty());
 
-        List<ClienteModel> resultado = clienteService.listar();
+        Page<ClienteModel> resultado = clienteService.listar(pageable);
 
         assertTrue(resultado.isEmpty());
-        verify(clienteRepository, times(1)).findAll();
+        verify(clienteRepository, times(1)).findAll(pageable);
     }
 
     @Test

@@ -5,6 +5,8 @@ import com.sskings.shopping_delivery.exceptions.ClienteNaoEncontradoException;
 import com.sskings.shopping_delivery.exceptions.EmailExistenteException;
 import com.sskings.shopping_delivery.models.ClienteModel;
 import com.sskings.shopping_delivery.services.ClienteService;
+import com.sskings.shopping_delivery.services.EnderecoService;
+import com.sskings.shopping_delivery.services.PedidoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -20,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -39,6 +44,12 @@ public class ClienteControllerTest {
 
     @MockBean
     private ClienteService clienteService;
+
+    @MockBean
+    private EnderecoService enderecoService;
+
+    @MockBean
+    private PedidoService pedidoService;
 
     private ClienteModel clienteModel;
 
@@ -88,21 +99,21 @@ public class ClienteControllerTest {
                 .andDo(print());
     }
 
-    @DisplayName("Dado Uma Lista De Clientes Quando Listar Então Retorne Uma Lista de Clientes")
+    @DisplayName("Dado Uma Lista De Clientes Quando Listar Então Retorne Uma Página de Clientes")
     @Test
     void dadoUmaListaDeClientesQuandoListarEntaoRetorneUmaListaDeClientes() throws Exception {
         // Given / Arrange
         List<ClienteModel> clientes = new ArrayList<>();
-        ClienteModel cliente2 = new ClienteModel(2L, "Vera", "Email", "71-1111-1111", "060-606-906-60", LocalDateTime.now(), null, null );
+        ClienteModel cliente2 = new ClienteModel(2L, "Vera", "Email", "71-1111-1111", "060-606-906-60", LocalDateTime.now(), null, null);
         clientes.addAll(List.of(clienteModel, cliente2));
-        given(clienteService.listar()).willReturn(clientes);
+        given(clienteService.listar(any(Pageable.class))).willReturn(new PageImpl<>(clientes));
         // When / Act
         ResultActions response = mockMvc.perform(get("/clientes"));
         // Then / Assert
         response
                 .andExpect(status().isOk())
                 .andDo(print())
-                .andExpect(jsonPath("$.size()").value(clientes.size()));
+                .andExpect(jsonPath("$.content.size()").value(clientes.size()));
     }
 
     @DisplayName("Dado Um ClienteId Quando BuscarPorId Deve Retornar Um Cliente")

@@ -5,10 +5,9 @@ import com.sskings.shopping_delivery.models.ItemModel;
 import com.sskings.shopping_delivery.repositories.ItemRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -21,12 +20,8 @@ public class ItemService {
         return itemRepository.save(itemModel);
     }
 
-    public List<ItemModel> listar(){
-        List<ItemModel> items = itemRepository.findAll();
-        if(items.isEmpty()){
-            return new ArrayList<>();
-        }
-        return items;
+    public Page<ItemModel> listar(Pageable pageable) {
+        return itemRepository.findAll(pageable);
     }
 
     public ItemModel buscarPorId(Long id) {

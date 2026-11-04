@@ -1,5 +1,6 @@
 package com.sskings.shopping_delivery.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -47,6 +48,7 @@ public class ItemModel {
     @Column(name = "preco_unitario",nullable = false, precision = 10, scale = 2)
     private BigDecimal preco;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ItemPedidoModel> pedidos;
 

@@ -35,9 +35,8 @@ public class EnderecoModel {
     @Column(nullable = false, length = 100)
     private String bairro;
 
-    @NotBlank(message = "Complemento é obrigatório")
     @Size(max = 100, message = "Complemento deve ter no máximo 100 caracteres")
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String complemento;
 
     @Column(name = "data_cadastro", nullable = false, updatable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")

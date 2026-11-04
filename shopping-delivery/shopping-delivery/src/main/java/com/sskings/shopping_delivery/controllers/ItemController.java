@@ -4,11 +4,12 @@ import com.sskings.shopping_delivery.models.ItemModel;
 import com.sskings.shopping_delivery.services.ItemService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/itens")
@@ -23,8 +24,9 @@ public class ItemController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ItemModel>> listarItens() {
-        return ResponseEntity.ok(itemService.listar());
+    public ResponseEntity<Page<ItemModel>> listarItens(
+            @PageableDefault(size = 20, sort = "nome") Pageable pageable) {
+        return ResponseEntity.ok(itemService.listar(pageable));
     }
 
     @GetMapping("/{id}")

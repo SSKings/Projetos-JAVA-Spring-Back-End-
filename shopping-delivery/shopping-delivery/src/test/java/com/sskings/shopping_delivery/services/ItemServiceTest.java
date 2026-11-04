@@ -10,6 +10,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -60,34 +64,29 @@ class ItemServiceTest {
     @Test
     void deveListarItems() {
         // Given / Arrange
-        ItemModel item2 = new ItemModel(2L,"ItemTest2",
-                "UrlImageTest2",
-                "DescriçãoTest2",
-                20,
-                BigDecimal.valueOf(20.00),
-                List.of());
-
-        when(itemRepository.findAll()).thenReturn(List.of(itemModel, item2));
+        ItemModel item2 = new ItemModel(2L, "ItemTest2", "UrlImageTest2", "DescriçãoTest2", 20, BigDecimal.valueOf(20.00), List.of());
+        Pageable pageable = PageRequest.of(0, 20);
+        when(itemRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(itemModel, item2)));
         // When / Act
-        List<ItemModel> listaRetornada = itemService.listar();
+        Page<ItemModel> listaRetornada = itemService.listar(pageable);
         // Then / Assert
         assertNotNull(listaRetornada);
-        assertEquals(2, listaRetornada.size());
-        verify(itemRepository, times(1)).findAll();
+        assertEquals(2, listaRetornada.getTotalElements());
+        verify(itemRepository, times(1)).findAll(pageable);
     }
 
-
-    @DisplayName("Deve Retornar Uma Lista Vazia Quando Não Há Items")
+    @DisplayName("Deve Retornar Uma Página Vazia Quando Não Há Items")
     @Test
     void deveRetornarUmaListaVaziaQuandoNaoHaItems() {
         // Given / Arrange
-        when(itemRepository.findAll()).thenReturn(List.of());
+        Pageable pageable = PageRequest.of(0, 20);
+        when(itemRepository.findAll(pageable)).thenReturn(Page.empty());
         // When / Act
-        List<ItemModel> listaRetornada = itemService.listar();
+        Page<ItemModel> listaRetornada = itemService.listar(pageable);
         // Then / Assert
         assertNotNull(listaRetornada);
-        assertEquals(0, listaRetornada.size());
-        verify(itemRepository, times(1)).findAll();
+        assertEquals(0, listaRetornada.getTotalElements());
+        verify(itemRepository, times(1)).findAll(pageable);
     }
 
     @DisplayName("Deve Buscar Um Item Por ID Com Sucesso")

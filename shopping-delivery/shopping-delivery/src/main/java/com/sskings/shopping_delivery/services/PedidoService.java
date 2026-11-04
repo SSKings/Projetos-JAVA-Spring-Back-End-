@@ -13,10 +13,11 @@ import com.sskings.shopping_delivery.repositories.EnderecoRepository;
 import com.sskings.shopping_delivery.repositories.PedidoRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -53,17 +54,18 @@ public class PedidoService {
         return pedidoRepository.findById(pedidoSalvo.getId()).orElse(pedidoSalvo);
     }
 
-    public List<PedidoModel> listar() {
-        List<PedidoModel> pedidos = pedidoRepository.findAll();
-        if (pedidos.isEmpty()) {
-            return new ArrayList<>();
-        }
-        return pedidos;
+    public Page<PedidoModel> listar(Pageable pageable) {
+        return pedidoRepository.findAll(pageable);
+    }
+
+    public List<PedidoModel> listarPorClienteId(Long clienteId) {
+        return pedidoRepository.findByCliente_Id(clienteId);
     }
 
     public PedidoModel buscarPorId(long id) {
-        return pedidoRepository.findById(id)
-                .orElseThrow(() -> new PedidoNaoEncontradoException("Pedido não encontrado."));
+        return pedidoRepository.findByIdWithItens(id)
+                .orElseGet(() -> pedidoRepository.findById(id)
+                        .orElseThrow(() -> new PedidoNaoEncontradoException("Pedido não encontrado.")));
     }
 
     @Transactional

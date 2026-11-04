@@ -9,7 +9,6 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -27,11 +26,11 @@ public class EnderecoService {
     }
 
     public List<EnderecoModel> listar(){
-        List<EnderecoModel> enderecos= enderecoRepository.findAll();
-        if(enderecos.isEmpty()){
-            return new ArrayList<>();
-        }
-        return enderecos;
+        return enderecoRepository.findAll();
+    }
+
+    public List<EnderecoModel> listarPorClienteId(Long clienteId) {
+        return enderecoRepository.findByCliente_Id(clienteId);
     }
 
     public EnderecoModel buscarPorId(Long id){

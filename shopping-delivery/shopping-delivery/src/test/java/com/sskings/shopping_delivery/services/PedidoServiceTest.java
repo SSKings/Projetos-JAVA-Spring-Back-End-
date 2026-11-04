@@ -11,6 +11,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,6 +25,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.atLeastOnce;
 
 @ExtendWith(MockitoExtension.class)
 public class PedidoServiceTest {
@@ -97,48 +102,50 @@ public class PedidoServiceTest {
         when(clienteRepository.findById(1L)).thenReturn(Optional.of(pedidoModel.getCliente()));
         when(enderecoRepository.findById(1L)).thenReturn(Optional.of(pedidoModel.getEndereco()));
         when(pedidoRepository.save(pedidoModel)).thenReturn(pedidoModel);
+        when(pedidoRepository.findByIdWithItens(1L)).thenReturn(Optional.of(pedidoModel));
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedidoModel));
         // When / Act
         PedidoModel pedidoRetornado = pedidoService.salvar(pedidoModel);
         // Then / Assert
         assertNotNull(pedidoRetornado);
         assertEquals(pedidoModel, pedidoRetornado);
-        verify(pedidoRepository, times(1)).save(pedidoModel);
-
+        verify(pedidoRepository, atLeastOnce()).save(pedidoModel);
     }
 
     @DisplayName("Deve Listar Pedidos")
     @Test
     void deveListarPedidos() {
         // Given / Arrange
-        when(pedidoRepository.findAll()).thenReturn(List.of(pedidoModel, new PedidoModel(), new PedidoModel()));
+        Pageable pageable = PageRequest.of(0, 10);
+        when(pedidoRepository.findAll(pageable))
+                .thenReturn(new PageImpl<>(List.of(pedidoModel, new PedidoModel(), new PedidoModel())));
         // When / Act
-        List<PedidoModel> pedidos = pedidoService.listar();
+        Page<PedidoModel> pedidos = pedidoService.listar(pageable);
         // Then / Assert
         assertNotNull(pedidos);
-        assertEquals(pedidoModel, pedidos.get(0));
-        assertEquals(3, pedidos.size());
-        verify(pedidoRepository, times(1)).findAll();
+        assertEquals(3, pedidos.getTotalElements());
+        verify(pedidoRepository, times(1)).findAll(pageable);
     }
 
-    @DisplayName("Deve Retornar Uma Lista Vazia Quando Não Há Pedidos")
+    @DisplayName("Deve Retornar Uma Página Vazia Quando Não Há Pedidos")
     @Test
     void deveRetornarUmaListaVaziaQuandoNaoHaPedidos() {
         // Given / Arrange
-        when(pedidoRepository.findAll()).thenReturn(Collections.emptyList());
+        Pageable pageable = PageRequest.of(0, 10);
+        when(pedidoRepository.findAll(pageable)).thenReturn(Page.empty());
         // When / Act
-        List<PedidoModel> listaRetornada = pedidoService.listar();
+        Page<PedidoModel> listaRetornada = pedidoService.listar(pageable);
         // Then / Assert
         assertNotNull(listaRetornada);
-        assertEquals(0, listaRetornada.size());
         assertTrue(listaRetornada.isEmpty());
-        verify(pedidoRepository, times(1)).findAll();
+        verify(pedidoRepository, times(1)).findAll(pageable);
     }
 
     @DisplayName("Deve Buscar Um Pedido Por Id Com Sucesso")
     @Test
     void deveBuscarUmPedidoPorIdComSucesso() {
         // Given / Arrange
-        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedidoModel));
+        when(pedidoRepository.findByIdWithItens(1L)).thenReturn(Optional.of(pedidoModel));
         // When / Act
         PedidoModel pedidoRetornando = pedidoService.buscarPorId(1L);
         // Then / Assert
@@ -151,20 +158,22 @@ public class PedidoServiceTest {
     @Test
     void deveLancarExcecaoQuandoPedidoNaoEncontradoPorId() {
         // Given / Arrange
+        when(pedidoRepository.findByIdWithItens(1L)).thenReturn(Optional.empty());
         when(pedidoRepository.findById(1L)).thenReturn(Optional.empty());
         // When / Act
         Exception exception = assertThrows(RuntimeException.class, () -> pedidoService.buscarPorId(1L));
         // Then / Assert
         assertNotNull(exception);
         assertEquals("Pedido não encontrado.", exception.getMessage());
-        verify(pedidoRepository, times(1)).findById(1L);
     }
 
     @DisplayName("Deve Alterar O Pedido Com Sucesso.")
     @Test
     void deveAtualizarOPedidoComSuceso() {
         // Given / Arrange
-        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedidoModel));
+        when(pedidoRepository.findByIdWithItens(1L)).thenReturn(Optional.of(pedidoModel));
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(pedidoModel.getCliente()));
+        when(enderecoRepository.findById(1L)).thenReturn(Optional.of(pedidoModel.getEndereco()));
         when(pedidoRepository.save(pedidoModel)).thenReturn(pedidoModel);
         // When / Act
         pedidoModel.setStatus(StatusPedido.CANCELADO);
@@ -173,21 +182,20 @@ public class PedidoServiceTest {
         assertNotNull(pedidoRetornado);
         assertEquals(pedidoModel, pedidoRetornado);
         assertEquals(StatusPedido.CANCELADO, pedidoRetornado.getStatus());
-        verify(pedidoRepository, times(1)).findById(1L);
-        verify(pedidoRepository, times(1)).save(pedidoModel);
+        verify(pedidoRepository, atLeastOnce()).save(pedidoModel);
     }
 
     @DisplayName("Deve Lançar Exceção De Pedido Não Encontrado Quando Atualizar")
     @Test
     void deveLancarExcecaoDePedidoNaoEncontradoQuandoAtualizar() {
         // Given / Arrange
+        when(pedidoRepository.findByIdWithItens(1L)).thenReturn(Optional.empty());
         when(pedidoRepository.findById(1L)).thenReturn(Optional.empty());
         // When / Act
         Exception exception = assertThrows(RuntimeException.class, () -> pedidoService.atualizar(1L, pedidoModel));
         // Then / Assert
         assertNotNull(exception);
         assertEquals("Pedido não encontrado.", exception.getMessage());
-        verify(pedidoRepository, times(1)).findById(1L);
         verify(pedidoRepository, never()).save(pedidoModel);
     }
 

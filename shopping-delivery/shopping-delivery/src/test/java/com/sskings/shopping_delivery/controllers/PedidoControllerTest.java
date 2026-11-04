@@ -14,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -93,7 +95,7 @@ public class PedidoControllerTest {
                 .andExpect(jsonPath("$.status").value("PENDENTE"));
     }
 
-    @DisplayName("Dado Uma Lista De Pedidos Quando Listar Então Retorne Uma Lista de Pedidos")
+    @DisplayName("Dado Uma Lista De Pedidos Quando Listar Então Retorne Uma Página de Pedidos")
     @Test
     void dadoUmaListaDePedidosQuandoListarEntaoRetorneUmaListaDePedidos() throws Exception {
         // Given / Arrange
@@ -103,19 +105,19 @@ public class PedidoControllerTest {
         pedido2.setEndereco(enderecoModel);
         pedido2.setStatus(StatusPedido.APROVADO);
         pedido2.setTotal(new BigDecimal("200.00"));
-        
+
         List<PedidoModel> pedidos = new ArrayList<>();
         pedidos.addAll(List.of(pedidoModel, pedido2));
-        given(pedidoService.listar()).willReturn(pedidos);
-        
+        given(pedidoService.listar(any(Pageable.class))).willReturn(new PageImpl<>(pedidos));
+
         // When / Act
         ResultActions response = mockMvc.perform(get("/pedidos"));
-        
+
         // Then / Assert
         response
                 .andExpect(status().isOk())
                 .andDo(print())
-                .andExpect(jsonPath("$.size()").value(pedidos.size()));
+                .andExpect(jsonPath("$.content.size()").value(pedidos.size()));
     }
 
     @DisplayName("Dado Um PedidoId Quando BuscarPorId Deve Retornar Um Pedido")

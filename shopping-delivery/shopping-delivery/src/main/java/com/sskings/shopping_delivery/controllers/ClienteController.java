@@ -1,9 +1,16 @@
 package com.sskings.shopping_delivery.controllers;
 
 import com.sskings.shopping_delivery.models.ClienteModel;
+import com.sskings.shopping_delivery.models.EnderecoModel;
+import com.sskings.shopping_delivery.models.PedidoModel;
 import com.sskings.shopping_delivery.services.ClienteService;
+import com.sskings.shopping_delivery.services.EnderecoService;
+import com.sskings.shopping_delivery.services.PedidoService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +23,8 @@ import java.util.List;
 public class ClienteController {
 
     private ClienteService clienteService;
+    private EnderecoService enderecoService;
+    private PedidoService pedidoService;
 
     @PostMapping
     public ResponseEntity<ClienteModel> salvarCliente(@Valid @RequestBody ClienteModel cliente) {
@@ -23,21 +32,32 @@ public class ClienteController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ClienteModel>> ListarClientes(){
-        return ResponseEntity.status(HttpStatus.OK).body(clienteService.listar());
+    public ResponseEntity<Page<ClienteModel>> listarClientes(
+            @PageableDefault(size = 10, sort = "nome") Pageable pageable) {
+        return ResponseEntity.ok(clienteService.listar(pageable));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ClienteModel> buscarPorId(@PathVariable long id) {
-        ClienteModel clienteRetornado = clienteService.buscarPorId(id);
-        return ResponseEntity.ok(clienteRetornado);
+        return ResponseEntity.ok(clienteService.buscarPorId(id));
+    }
+
+    @GetMapping("/{id}/enderecos")
+    public ResponseEntity<List<EnderecoModel>> listarEnderecosPorCliente(@PathVariable Long id) {
+        clienteService.buscarPorId(id);
+        return ResponseEntity.ok(enderecoService.listarPorClienteId(id));
+    }
+
+    @GetMapping("/{id}/pedidos")
+    public ResponseEntity<List<PedidoModel>> listarPedidosPorCliente(@PathVariable Long id) {
+        clienteService.buscarPorId(id);
+        return ResponseEntity.ok(pedidoService.listarPorClienteId(id));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ClienteModel> atualizarCliente(@PathVariable long id, 
+    public ResponseEntity<ClienteModel> atualizarCliente(@PathVariable long id,
                                                           @Valid @RequestBody ClienteModel cliente) {
-        ClienteModel clienteAtualido = clienteService.atualizar(id, cliente);
-        return ResponseEntity.ok(clienteAtualido);
+        return ResponseEntity.ok(clienteService.atualizar(id, cliente));
     }
 
     @DeleteMapping("/{id}")
