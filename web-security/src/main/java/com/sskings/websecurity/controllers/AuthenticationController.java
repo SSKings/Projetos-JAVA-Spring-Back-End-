@@ -3,7 +3,7 @@ package com.sskings.websecurity.controllers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,12 +16,15 @@ import com.sskings.websecurity.repositories.UserRepository;
 
 @Controller
 public class AuthenticationController {
-	
+
 	@Autowired
 	private AuthenticationManager authenticationManager;
-	
+
 	@Autowired
 	private UserRepository userRepository;
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
 	
 	@GetMapping("/login")
 	public String getLoginPage() {
@@ -58,10 +61,8 @@ public class AuthenticationController {
 	@PostMapping("/register")
     public ModelAndView registerUser(@RequestParam("username") String username,
     		@RequestParam("password") String password) {
-		
-		String encryptedPassword = new BCryptPasswordEncoder().encode(password);
-		System.out.println("Username: " + username);
-		System.out.println("Senha criptografada: " + encryptedPassword);
+
+		String encryptedPassword = passwordEncoder.encode(password);
         User newUser = new User(username, encryptedPassword);
         userRepository.save(newUser);
         var modelAndView = new ModelAndView("/login");
