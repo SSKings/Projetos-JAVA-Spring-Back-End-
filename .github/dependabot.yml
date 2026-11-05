@@ -1,0 +1,20 @@
+# Atualizações automáticas de dependências (docs/security-review.md, A3)
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /shopping-delivery/shopping-delivery
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /shopping-delivery-frontend
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /shopping-delivery/shopping-delivery
+    schedule: { interval: weekly }
+  - package-ecosystem: docker
+    directory: /shopping-delivery-frontend
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

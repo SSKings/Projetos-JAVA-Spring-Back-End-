@@ -1,0 +1,73 @@
+# Pilha de produção: PostgreSQL + API (perfil prod) + nginx (TLS, front-end e proxy de /api).
+# Uso:  cp .env.prod.example .env.prod  → preencha  →  coloque fullchain.pem e privkey.pem em ./certs
+#       docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+name: shopeasy
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-shopeasy}
+      POSTGRES_USER: ${DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DATABASE_USERNAME}", "-d", "${DATABASE_NAME:-shopeasy}"]
+      interval: 10s
+      retries: 10
+    # sem "ports": o banco não fica exposto fora da rede interna
+
+  api:
+    build: ../shopping-delivery
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env.prod
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DATABASE_URL: jdbc:postgresql://db:5432/${DATABASE_NAME:-shopeasy}
+      ACCESS_LOG_DIR: /var/log/shopeasy
+    volumes:
+      - access-logs:/var/log/shopeasy   # Marco Civil art. 15: guardar por 6 meses (max-days: 190)
+    networks: [internal]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  web:
+    build:
+      context: ../../shopping-delivery-frontend
+      args:
+        VITE_API_BASE_URL: /
+        VITE_COMPANY_LEGAL_NAME: ${VITE_COMPANY_LEGAL_NAME:-}
+        VITE_COMPANY_TRADE_NAME: ${VITE_COMPANY_TRADE_NAME:-}
+        VITE_COMPANY_CNPJ: ${VITE_COMPANY_CNPJ:-}
+        VITE_COMPANY_ADDRESS: ${VITE_COMPANY_ADDRESS:-}
+        VITE_COMPANY_EMAIL: ${VITE_COMPANY_EMAIL:-}
+        VITE_COMPANY_PHONE: ${VITE_COMPANY_PHONE:-}
+        VITE_COMPANY_DPO_EMAIL: ${VITE_COMPANY_DPO_EMAIL:-}
+        VITE_TERMS_VERSION: ${TERMS_VERSION:-}
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "${HTTP_PORT:-80}:8080"
+      - "${HTTPS_PORT:-443}:8443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./proxy-api.inc:/etc/nginx/conf.d/proxy-api.inc:ro
+      - ./security-headers.inc:/etc/nginx/conf.d/security-headers.inc:ro
+      - ./certs:/etc/nginx/certs:ro
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  internal: {}
+
+volumes:
+  db-data: {}
+  access-logs: {}
