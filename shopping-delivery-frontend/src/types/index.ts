@@ -5,6 +5,38 @@ export interface AuthResponse {
   name: string;
   email: string;
   role: Role;
+  mfaEnabled: boolean;
+  /** Admin que precisa ativar o MFA antes de usar /api/admin/** (403 até lá). */
+  mfaSetupRequired: boolean;
+}
+
+export interface Profile {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: Role;
+  createdAt: string;
+  mfaEnabled: boolean;
+  termsVersion: string | null;
+  termsAcceptedAt: string | null;
+}
+
+export interface MfaSetup {
+  secret: string;
+  otpauthUri: string;
+}
+
+export interface AuditLog {
+  id: number;
+  createdAt: string;
+  actorId: number | null;
+  actorEmail: string | null;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  details: string | null;
+  ip: string | null;
 }
 
 export interface Product {
@@ -47,10 +79,29 @@ export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'SHIPPED' | 'DELIVERED' | 'C
 
 export interface OrderItem {
   id: number;
+  productId: number;
   productName: string;
   quantity: number;
   unitPrice: number;
   subtotal: number;
+}
+
+export type PaymentMethod = 'PIX';
+export type PaymentStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'REFUND_PENDING' | 'REFUNDED';
+
+/** Espelha PaymentResponse do back-end. */
+export interface Payment {
+  method: PaymentMethod;
+  status: PaymentStatus;
+  amount: number;
+  txid: string;
+  /** BR Code "Pix copia e cola" — só vem enquanto o pagamento está pendente. */
+  pixCopyPaste: string | null;
+  createdAt: string;
+  expiresAt: string;
+  paidAt: string | null;
+  /** Calculado no servidor; o contador não depende do relógio do navegador. */
+  expiresInSeconds: number;
 }
 
 export interface Order {
@@ -60,6 +111,14 @@ export interface Order {
   createdAt: string;
   address: Address;
   items: OrderItem[];
+  /** null em pedidos anteriores ao pagamento Pix. */
+  payment?: Payment | null;
+  deliveredAt?: string | null;
+  returnRequestedAt?: string | null;
+  /** Fim do prazo de arrependimento (7 dias da entrega, CDC art. 49). */
+  returnDeadline?: string | null;
+  canCancel?: boolean;
+  canRequestReturn?: boolean;
 }
 
 export interface Page<T> {
@@ -88,6 +147,9 @@ export interface AdminOrder extends Order {
   customerId: number;
   customerName: string;
   customerEmail: string;
+  /** Status para os quais o pedido pode ir (OrderStatus.nextStatuses no back-end). */
+  nextStatuses: OrderStatus[];
+  returnReason?: string | null;
 }
 
 export interface AdminUser {

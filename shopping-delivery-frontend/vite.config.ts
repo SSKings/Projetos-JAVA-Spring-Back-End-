@@ -4,6 +4,10 @@ import { defineConfig } from 'vitest/config'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // host: true → escuta em todas as interfaces (0.0.0.0 / ::), não só em localhost,
+  // para que outros computadores da rede acessem http://<ip-desta-máquina>:5173
+  server: { host: true, port: 5173, strictPort: true },
+  preview: { host: true, port: 4173, strictPort: true },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

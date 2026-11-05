@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingBag, Users } from 'lucide-react';
+import { LayoutDashboard, Package, ScrollText, ShoppingBag, Users } from 'lucide-react';
 
 const links = [
   { to: '/admin',          label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/products', label: 'Produtos',  icon: Package,         end: false },
   { to: '/admin/orders',   label: 'Pedidos',   icon: ShoppingBag,     end: false },
   { to: '/admin/users',    label: 'Usuários',  icon: Users,           end: false },
+  { to: '/admin/audit',    label: 'Auditoria', icon: ScrollText,      end: false },
 ];
 
 export default function AdminLayout() {

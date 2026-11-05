@@ -8,8 +8,8 @@ export default function Navbar() {
   const { cart } = useCart();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 
@@ -54,10 +54,12 @@ export default function Navbar() {
               <div className="flex items-center gap-2">
                 <Link
                   to="/orders"
-                  className="hidden sm:flex items-center gap-1.5 text-sm text-gray-600 hover:text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                  title="Minha conta: pedidos, histórico de compras e endereços"
+                  className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
                 >
                   <User size={16} />
-                  <span>{user?.name.split(' ')[0]}</span>
+                  <span className="hidden sm:inline">{user?.name.split(' ')[0]}</span>
+                  <span className="sr-only sm:hidden">Minha conta</span>
                 </Link>
                 <button
                   onClick={handleLogout}

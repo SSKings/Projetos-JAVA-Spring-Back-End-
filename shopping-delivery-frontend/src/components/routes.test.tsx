@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { AuthProvider } from '../contexts/AuthContext';
 import AdminRoute from './AdminRoute';
 import ProtectedRoute from './ProtectedRoute';
 import { loginAs, renderWithProviders } from '../test/utils';
@@ -27,6 +29,23 @@ describe('AdminRoute', () => {
     loginAs('CUSTOMER');
     renderWithProviders(<AdminRoute><div>ADMIN AREA</div></AdminRoute>);
     expect(screen.getByText('HOME PAGE')).toBeInTheDocument();
+  });
+
+  it('admin sem MFA (obrigatório) vai para a tela de segurança', () => {
+    loginAs('ADMIN');
+    localStorage.setItem('user', JSON.stringify({ name: 'A', email: 'a@x.com', role: 'ADMIN', mfaSetupRequired: true }));
+    render(
+      <MemoryRouter initialEntries={['/admin']}>
+        <AuthProvider>
+          <Routes>
+            <Route path="/admin" element={<AdminRoute><div>ADMIN AREA</div></AdminRoute>} />
+            <Route path="/security" element={<div>SECURITY PAGE</div>} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('SECURITY PAGE')).toBeInTheDocument();
+    expect(screen.queryByText('ADMIN AREA')).not.toBeInTheDocument();
   });
 
   it('libera para admin', () => {

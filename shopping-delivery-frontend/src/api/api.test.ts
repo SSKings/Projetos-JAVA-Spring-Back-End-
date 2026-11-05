@@ -7,6 +7,7 @@ import * as cart from './cart';
 import * as orders from './orders';
 import * as products from './products';
 import * as addresses from './addresses';
+import * as account from './account';
 
 let calls: InternalAxiosRequestConfig[] = [];
 let respond: (c: InternalAxiosRequestConfig) => { status: number; data: unknown } = () => ({ status: 200, data: { ok: true } });
@@ -44,7 +45,8 @@ describe('axios instance', () => {
     expect(last().headers.Authorization).toBeUndefined();
   });
 
-  it.each([401, 403])('em %i limpa a sessão e redireciona para /login', async status => {
+  it('em 401 (token expirado ou revogado) limpa a sessão e redireciona para /login', async () => {
+    const status = 401;
     const location = { href: '/admin' };
     vi.stubGlobal('location', location);
     localStorage.setItem('token', 'abc');
@@ -57,9 +59,9 @@ describe('axios instance', () => {
     expect(location.href).toBe('/login');
   });
 
-  it('em 400 mantém a sessão', async () => {
+  it.each([400, 403])('em %i mantém a sessão (403 = sem permissão, não é sessão inválida)', async status => {
     localStorage.setItem('token', 'abc');
-    respond = () => ({ status: 400, data: { message: 'bad' } });
+    respond = () => ({ status, data: { message: 'bad' } });
     await expect(api.get('/x')).rejects.toBeTruthy();
     expect(localStorage.getItem('token')).toBe('abc');
   });
@@ -67,7 +69,19 @@ describe('axios instance', () => {
 
 describe('módulos de API chamam as rotas corretas', () => {
   it.each([
-    ['auth.register',      () => auth.register({ name: 'A', email: 'a@a', password: '123456' }), 'post', '/api/auth/register'],
+    ['auth.register',      () => auth.register({ name: 'A', email: 'a@a', password: 'senha123', acceptTerms: true }), 'post', '/api/auth/register'],
+    ['auth.logout',        () => auth.logout(),                                                  'post', '/api/auth/logout'],
+    ['account.get',        () => account.getProfile(),                                           'get',  '/api/account'],
+    ['account.update',     () => account.updateProfile({ name: 'A' }),                           'put',  '/api/account'],
+    ['account.export',     () => account.exportData(),                                           'get',  '/api/account/data-export'],
+    ['account.delete',     () => account.deleteAccount('pw'),                                    'post', '/api/account/delete'],
+    ['account.mfaSetup',   () => account.setupMfa(),                                             'post', '/api/account/mfa/setup'],
+    ['account.mfaEnable',  () => account.enableMfa('123456'),                                    'post', '/api/account/mfa/enable'],
+    ['account.mfaDisable', () => account.disableMfa('pw', '123456'),                             'post', '/api/account/mfa/disable'],
+    ['orders.cancel',      () => orders.cancelOrder(2),                                          'post', '/api/orders/2/cancel'],
+    ['orders.return',      () => orders.requestReturn(2, 'motivo'),                              'post', '/api/orders/2/return'],
+    ['admin.refund',       () => admin.refundPayment(5),                                         'post', '/api/admin/orders/5/payment/refund'],
+    ['admin.audit',        () => admin.getAuditLogs(1, 'LOGIN_FAILED'),                          'get',  '/api/admin/audit'],
     ['auth.login',         () => auth.login({ email: 'a@a', password: 'x' }),                   'post', '/api/auth/login'],
     ['products.list',      () => products.getProducts(1, 12, 'tv'),                             'get',  '/api/products'],
     ['products.get',       () => products.getProduct(3),                                         'get',  '/api/products/3'],
@@ -79,6 +93,8 @@ describe('módulos de API chamam as rotas corretas', () => {
     ['orders.checkout',    () => orders.checkout(7),                                             'post', '/api/orders/checkout'],
     ['orders.list',        () => orders.getOrders(),                                             'get',  '/api/orders'],
     ['orders.get',         () => orders.getOrder(2),                                             'get',  '/api/orders/2'],
+    ['orders.payment',     () => orders.getPayment(2),                                           'get',  '/api/orders/2/payment'],
+    ['admin.confirmPix',   () => admin.confirmPayment(5),                                        'post', '/api/admin/orders/5/payment/confirm'],
     ['addresses.list',     () => addresses.getAddresses(),                                       'get',  '/api/addresses'],
     ['addresses.create',   () => addresses.createAddress({ zipCode: '1', street: 'r', number: '1', neighborhood: 'n', city: 'c', state: 'SP' }), 'post', '/api/addresses'],
     ['addresses.delete',   () => addresses.deleteAddress(4),                                     'delete', '/api/addresses/4'],
@@ -110,5 +126,21 @@ describe('módulos de API chamam as rotas corretas', () => {
 
     await cart.addToCart(4, 2);
     expect(body()).toEqual({ productId: 4, quantity: 2 });
+
+    await orders.checkout(7);
+    expect(body()).toEqual({ addressId: 7, paymentMethod: 'PIX' });
+
+    await auth.login({ email: 'a@a', password: 'p', mfaCode: '123456' });
+    expect(body()).toEqual({ email: 'a@a', password: 'p', mfaCode: '123456' });
+
+    await account.deleteAccount('pw', '');
+    expect(body()).toEqual({ password: 'pw' });          // código vazio não é enviado
+    await account.deleteAccount('pw', '654321');
+    expect(body()).toEqual({ password: 'pw', mfaCode: '654321' });
+
+    await orders.requestReturn(2);
+    expect(body()).toEqual({});
+    await admin.getAuditLogs(0, '');
+    expect(last().params).toEqual({ page: 0, size: 20, action: undefined });
   });
 });

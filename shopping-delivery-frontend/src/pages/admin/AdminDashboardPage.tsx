@@ -22,7 +22,7 @@ export default function AdminDashboardPage() {
   }
 
   const cards = [
-    { label: 'Faturamento', value: formatBRL(stats.revenue), hint: 'Pedidos não cancelados', to: '/admin/orders' },
+    { label: 'Faturamento', value: formatBRL(stats.revenue), hint: 'Pedidos pagos e não cancelados', to: '/admin/orders' },
     { label: 'Pedidos', value: stats.totalOrders, hint: `${stats.pendingOrders} pendente(s)`, to: '/admin/orders' },
     { label: 'Clientes', value: stats.totalCustomers, hint: 'Contas de compradores', to: '/admin/users' },
     { label: 'Produtos à venda', value: stats.activeProducts, hint: `${stats.totalProducts} cadastrados`, to: '/admin/products' },

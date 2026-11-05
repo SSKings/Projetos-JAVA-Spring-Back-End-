@@ -5,9 +5,10 @@ import AdminDashboardPage from './AdminDashboardPage';
 import AdminProductsPage from './AdminProductsPage';
 import AdminOrdersPage from './AdminOrdersPage';
 import AdminUsersPage from './AdminUsersPage';
+import AdminAuditPage from './AdminAuditPage';
 import * as adminApi from '../../api/admin';
 import { loginAs, page, renderWithProviders } from '../../test/utils';
-import { adminOrder, adminProduct, adminUser, order } from '../../test/fixtures';
+import { adminOrder, adminProduct, adminUser, order, payment } from '../../test/fixtures';
 
 vi.mock('../../api/admin');
 
@@ -114,39 +115,209 @@ describe('AdminProductsPage', () => {
 });
 
 describe('AdminOrdersPage', () => {
-  it('filtra por status e oferece só as transições válidas', async () => {
+  const optionsOf = (select: HTMLElement) =>
+    within(select).getAllByRole('option').map(o => ({ label: o.textContent, disabled: (o as HTMLOptionElement).disabled }));
+
+  it('mostra todos os status, com o atual marcado e só as transições do back-end habilitadas', async () => {
     vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([
-      adminOrder(), adminOrder({ id: 4, status: 'DELIVERED' }),
+      adminOrder(), adminOrder({ id: 4, status: 'SHIPPED' }), adminOrder({ id: 5, status: 'DELIVERED' }),
     ]));
     renderWithProviders(<AdminOrdersPage />);
 
-    expect(await screen.findByText('#3')).toBeInTheDocument();
+    const pending = await screen.findByRole('combobox', { name: 'Status do pedido #3' });
+    expect(pending).toHaveValue('PENDING');
+    expect(optionsOf(pending)).toEqual([
+      { label: 'Pendente (atual)', disabled: false },
+      { label: 'Confirmado', disabled: false },
+      { label: 'Enviado', disabled: false },
+      { label: 'Entregue', disabled: false },
+      { label: 'Cancelado', disabled: false },
+    ]);
+
+    const shipped = screen.getByRole('combobox', { name: 'Status do pedido #4' });
+    expect(optionsOf(shipped).filter(o => !o.disabled).map(o => o.label)).toEqual(['Enviado (atual)', 'Entregue']);
+
+    const delivered = screen.getByRole('combobox', { name: 'Status do pedido #5' });
+    expect(delivered).toBeDisabled();
     expect(screen.getByText('Finalizado')).toBeInTheDocument();
-    const select = screen.getByRole('combobox');
-    const options = within(select).getAllByRole('option').map(o => o.textContent);
-    expect(options).toEqual(['Mover para…', 'Confirmado', 'Cancelado']);
+  });
+
+  it('respeita as transições que o back-end enviar (fonte única da regra)', async () => {
+    vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder({ nextStatuses: ['CANCELLED'] })]));
+    renderWithProviders(<AdminOrdersPage />);
+    const select = await screen.findByRole('combobox', { name: 'Status do pedido #3' });
+    expect(optionsOf(select).filter(o => !o.disabled).map(o => o.label)).toEqual(['Pendente (atual)', 'Cancelado']);
+  });
+
+  it('filtra por status', async () => {
+    vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder()]));
+    renderWithProviders(<AdminOrdersPage />);
+    await screen.findByText('#3');
 
     await userEvent.click(screen.getByRole('button', { name: 'Pendente' }));
     await waitFor(() => expect(adminApi.getAdminOrders).toHaveBeenLastCalledWith(0, 'PENDING'));
+    await userEvent.click(screen.getByRole('button', { name: 'Todos' }));
+    await waitFor(() => expect(adminApi.getAdminOrders).toHaveBeenLastCalledWith(0, undefined));
   });
 
-  it('altera status e recarrega', async () => {
+  it.each([
+    ['CONFIRMED', 'Confirmado'],
+    ['SHIPPED', 'Enviado'],
+    ['DELIVERED', 'Entregue'],
+  ] as const)('altera PENDING → %s (pulando etapas), mostra confirmação e recarrega', async (next, label) => {
     vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder()]));
-    vi.mocked(adminApi.updateOrderStatus).mockResolvedValue(adminOrder({ status: 'CONFIRMED' }));
+    vi.mocked(adminApi.updateOrderStatus).mockResolvedValue(adminOrder({ status: next }));
+    const confirm = vi.spyOn(window, 'confirm');
     renderWithProviders(<AdminOrdersPage />);
 
-    await userEvent.selectOptions(await screen.findByRole('combobox'), 'CONFIRMED');
-    expect(adminApi.updateOrderStatus).toHaveBeenCalledWith(3, 'CONFIRMED');
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Status do pedido #3' }), next);
+
+    expect(adminApi.updateOrderStatus).toHaveBeenCalledWith(3, next);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(await screen.findByRole('status')).toHaveTextContent(`Pedido #3 atualizado para ${label}.`);
     await waitFor(() => expect(adminApi.getAdminOrders).toHaveBeenCalledTimes(2));
+    confirm.mockRestore();
   });
 
-  it('mostra erro de transição inválida', async () => {
+  it('cancelar pede confirmação; recusar não chama a API', async () => {
     vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder()]));
-    vi.mocked(adminApi.updateOrderStatus).mockRejectedValue(httpError('Cannot change order status'));
+    vi.mocked(adminApi.updateOrderStatus).mockResolvedValue(adminOrder({ status: 'CANCELLED' }));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    renderWithProviders(<AdminOrdersPage />);
+    const select = await screen.findByRole('combobox', { name: 'Status do pedido #3' });
+
+    await userEvent.selectOptions(select, 'CANCELLED');
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Os itens voltam ao estoque'));
+    expect(adminApi.updateOrderStatus).not.toHaveBeenCalled();
+    expect(select).toHaveValue('PENDING');
+
+    await userEvent.selectOptions(select, 'CANCELLED');
+    expect(adminApi.updateOrderStatus).toHaveBeenCalledWith(3, 'CANCELLED');
+    expect(await screen.findByRole('status')).toHaveTextContent('Pedido #3 atualizado para Cancelado.');
+    confirm.mockRestore();
+  });
+
+  it('desabilita o seletor enquanto salva (evita duplo envio)', async () => {
+    let resolve!: (o: ReturnType<typeof adminOrder>) => void;
+    vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder()]));
+    vi.mocked(adminApi.updateOrderStatus).mockReturnValue(new Promise(r => { resolve = r; }));
+    renderWithProviders(<AdminOrdersPage />);
+    const select = await screen.findByRole('combobox', { name: 'Status do pedido #3' });
+
+    await userEvent.selectOptions(select, 'CONFIRMED');
+    expect(select).toBeDisabled();
+    expect(screen.getByText('Salvando…')).toBeInTheDocument();
+
+    resolve(adminOrder({ status: 'CONFIRMED' }));
+    await waitFor(() => expect(select).toBeEnabled());
+  });
+
+  it('transição recusada pelo back-end aparece traduzida', async () => {
+    vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder()]));
+    vi.mocked(adminApi.updateOrderStatus).mockRejectedValue(httpError('Cannot change order status from PENDING to SHIPPED'));
     renderWithProviders(<AdminOrdersPage />);
 
-    await userEvent.selectOptions(await screen.findByRole('combobox'), 'CANCELLED');
-    expect(await screen.findByText('Cannot change order status')).toBeInTheDocument();
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Status do pedido #3' }), 'SHIPPED');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não é possível mudar o pedido de Pendente para Enviado.');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('falha de rede (ex.: CORS bloqueando o PATCH) mostra a mensagem de conexão', async () => {
+    vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder()]));
+    vi.mocked(adminApi.updateOrderStatus).mockRejectedValue(new Error('Network Error'));
+    renderWithProviders(<AdminOrdersPage />);
+
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Status do pedido #3' }), 'CONFIRMED');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/conectar ao servidor/);
+  });
+
+  it('pedido com Pix pendente: selo, só cancelar habilitado e confirmação manual do Pix', async () => {
+    vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([
+      adminOrder({ nextStatuses: ['CANCELLED'], payment: payment({ txid: 'TXABC' }) }),
+    ]));
+    vi.mocked(adminApi.confirmPayment).mockResolvedValue(adminOrder({ status: 'CONFIRMED', payment: payment({ status: 'PAID' }) }));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    renderWithProviders(<AdminOrdersPage />);
+
+    expect(await screen.findByText('Aguardando Pix')).toBeInTheDocument();
+    const select = screen.getByRole('combobox', { name: 'Status do pedido #3' });
+    expect(optionsOf(select).filter(o => !o.disabled).map(o => o.label)).toEqual(['Pendente (atual)', 'Cancelado']);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar Pix' }));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('TXABC'));
+    expect(adminApi.confirmPayment).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar Pix' }));
+    expect(adminApi.confirmPayment).toHaveBeenCalledWith(3);
+    expect(await screen.findByRole('status')).toHaveTextContent('Pagamento do pedido #3 confirmado');
+    await waitFor(() => expect(adminApi.getAdminOrders).toHaveBeenCalledTimes(2));
+    confirm.mockRestore();
+  });
+
+  it('erro ao confirmar Pix aparece traduzido', async () => {
+    vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder({ nextStatuses: ['CANCELLED'], payment: payment() })]));
+    vi.mocked(adminApi.confirmPayment).mockRejectedValue(httpError('Payment is not pending'));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderWithProviders(<AdminOrdersPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Confirmar Pix' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Este pagamento não está mais pendente.');
+    confirm.mockRestore();
+  });
+
+  it('detalhe mostra pagamento; estorno pendente tem aviso', async () => {
+    vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([
+      adminOrder({ status: 'CANCELLED', payment: payment({ status: 'REFUND_PENDING', txid: 'TXR', paidAt: '2026-03-15T12:05:00' }) }),
+    ]));
+    renderWithProviders(<AdminOrdersPage />);
+
+    await userEvent.click(await screen.findByText('#3'));
+    expect(screen.getAllByText(/Estorno pendente/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/identificador TXR/)).toBeInTheDocument();
+    expect(screen.getByText(/Pago em/)).toBeInTheDocument();
+    expect(screen.getByText(/devolva o valor/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirmar Pix' })).not.toBeInTheDocument();
+  });
+
+  it('devolução solicitada: selo, motivo e "Registrar estorno" com confirmação', async () => {
+    vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([
+      adminOrder({ status: 'DELIVERED', returnRequestedAt: '2026-03-16T09:00:00', returnReason: 'Não serviu', payment: payment({ status: 'PAID' }) }),
+      adminOrder({ id: 4, status: 'CANCELLED', payment: payment({ status: 'REFUND_PENDING' }) }),
+      adminOrder({ id: 5, status: 'DELIVERED', payment: payment({ status: 'PAID' }) }),
+    ]));
+    vi.mocked(adminApi.refundPayment).mockResolvedValue(adminOrder());
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValue(true);
+    renderWithProviders(<AdminOrdersPage />);
+
+    expect(await screen.findByText('Devolução solicitada')).toBeInTheDocument();
+    const refunds = screen.getAllByRole('button', { name: 'Registrar estorno' });
+    expect(refunds).toHaveLength(2);   // pedido 5 (pago, sem devolução) não tem estorno
+
+    await userEvent.click(refunds[0]);
+    expect(adminApi.refundPayment).not.toHaveBeenCalled();
+    await userEvent.click(refunds[0]);
+    expect(adminApi.refundPayment).toHaveBeenCalledWith(3);
+    expect(await screen.findByRole('status')).toHaveTextContent('Estorno do pedido #3 registrado.');
+
+    await userEvent.click(screen.getByText('#3'));
+    expect(screen.getByText('Motivo da devolução: Não serviu')).toBeInTheDocument();
+    confirm.mockRestore();
+  });
+
+  it('erro ao registrar estorno', async () => {
+    vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder({ status: 'CANCELLED', payment: payment({ status: 'REFUND_PENDING' }) })]));
+    vi.mocked(adminApi.refundPayment).mockRejectedValue(httpError('Payment cannot be refunded'));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderWithProviders(<AdminOrdersPage />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Registrar estorno' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('não pode ser estornado');
+    confirm.mockRestore();
+  });
+
+  it('erro ao carregar a lista', async () => {
+    vi.mocked(adminApi.getAdminOrders).mockRejectedValue(httpError('Falha'));
+    renderWithProviders(<AdminOrdersPage />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Falha');
   });
 
   it('expande o pedido para ver itens e endereço', async () => {
@@ -221,5 +392,34 @@ describe('AdminUsersPage', () => {
 
     await userEvent.click(screen.getAllByRole('button', { name: '2' })[0]);
     expect(screen.queryByText('#77')).not.toBeInTheDocument();
+  });
+});
+
+describe('AdminAuditPage', () => {
+  const log = (over = {}) => ({ id: 1, createdAt: '2026-03-15T12:00:00', actorId: 2, actorEmail: 'ana@a.com', action: 'LOGIN_FAILED',
+    targetType: 'USER', targetId: '2', details: 'wrong password', ip: '203.0.113.7', ...over });
+
+  it('lista eventos traduzidos, filtra por ação e pagina', async () => {
+    vi.mocked(adminApi.getAuditLogs).mockResolvedValue({ ...page([log(), log({ id: 2, actorEmail: null, action: 'NOVA_ACAO', targetType: null })]), totalPages: 2 });
+    renderWithProviders(<AdminAuditPage />);
+
+    expect(await screen.findByText('Login recusado')).toBeInTheDocument();
+    expect(screen.getAllByText('203.0.113.7')).toHaveLength(2);
+    expect(screen.getByText('USER #2')).toBeInTheDocument();
+    expect(screen.getByText('sistema')).toBeInTheDocument();       // sem ator = job/PSP
+    expect(screen.getByText('NOVA_ACAO')).toBeInTheDocument();     // ação sem tradução aparece crua
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Ação' }), 'PAYMENT_CONFIRMED');
+    await waitFor(() => expect(adminApi.getAuditLogs).toHaveBeenLastCalledWith(0, 'PAYMENT_CONFIRMED'));
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima página' }));
+    await waitFor(() => expect(adminApi.getAuditLogs).toHaveBeenLastCalledWith(1, 'PAYMENT_CONFIRMED'));
+  });
+
+  it('vazio e erro', async () => {
+    vi.mocked(adminApi.getAuditLogs).mockResolvedValueOnce(page([])).mockRejectedValueOnce(httpError('Access denied'));
+    renderWithProviders(<AdminAuditPage />);
+    expect(await screen.findByText('Nenhum registro')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Ação' }), 'LOGOUT');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Você não tem permissão');
   });
 });

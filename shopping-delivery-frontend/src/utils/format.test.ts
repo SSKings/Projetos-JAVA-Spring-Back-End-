@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatBRL, formatDate, getErrorMessage, nextOrderStatuses } from './format';
+import { ORDER_STATUSES, formatBRL, formatDate, getErrorMessage, orderStatusConfig } from './format';
 
 const axiosError = (data?: object) => ({ response: { status: 400, data } });
 
@@ -23,6 +23,16 @@ describe('getErrorMessage', () => {
   it('traduz mensagens conhecidas do back-end', () => {
     expect(getErrorMessage(axiosError({ message: 'Email already in use' }))).toBe('Este email já está em uso.');
     expect(getErrorMessage(axiosError({ message: 'Account is blocked' }))).toMatch(/bloqueada/);
+    expect(getErrorMessage(axiosError({ message: 'Address is linked to an order' }))).toMatch(/usado em um pedido/);
+    expect(getErrorMessage(axiosError({ message: 'Order payment is pending' }))).toMatch(/Pix deste pedido ainda não foi confirmado/);
+  });
+
+  it('traduz transição de status recusada pelo back-end', () => {
+    expect(getErrorMessage(axiosError({ message: 'Cannot change order status from SHIPPED to CANCELLED' })))
+      .toBe('Não é possível mudar o pedido de Enviado para Cancelado.');
+    // status desconhecido: mantém a mensagem original
+    expect(getErrorMessage(axiosError({ message: 'Cannot change order status from FOO to BAR' })))
+      .toBe('Cannot change order status from FOO to BAR');
   });
 
   it('junta erros de validação', () => {
@@ -35,11 +45,9 @@ describe('getErrorMessage', () => {
   });
 });
 
-describe('nextOrderStatuses', () => {
-  it('espelha as transições do back-end', () => {
-    expect(nextOrderStatuses.PENDING).toEqual(['CONFIRMED', 'CANCELLED']);
-    expect(nextOrderStatuses.SHIPPED).toEqual(['DELIVERED']);
-    expect(nextOrderStatuses.DELIVERED).toEqual([]);
-    expect(nextOrderStatuses.CANCELLED).toEqual([]);
+describe('ORDER_STATUSES', () => {
+  it('tem todos os status na ordem do fluxo, cada um com rótulo', () => {
+    expect(ORDER_STATUSES).toEqual(['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED']);
+    expect(ORDER_STATUSES.map(s => orderStatusConfig[s].label)).toEqual(['Pendente', 'Confirmado', 'Enviado', 'Entregue', 'Cancelado']);
   });
 });

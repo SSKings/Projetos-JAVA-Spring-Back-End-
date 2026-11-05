@@ -1,23 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ClipboardList, CheckCircle, Plus } from 'lucide-react';
+import { MapPin, ClipboardList, CheckCircle, Plus, QrCode } from 'lucide-react';
 import { getAddresses, createAddress, type AddressPayload } from '../../api/addresses';
 import { checkout } from '../../api/orders';
+import AddressForm from '../../components/AddressForm';
+import PixPayment from '../../components/PixPayment';
 import { useCart } from '../../contexts/CartContext';
 import type { Address, Order } from '../../types';
+import { getErrorMessage } from '../../utils/format';
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 
 const STEPS = [
   { step: 1, label: 'Endereço', icon: MapPin },
   { step: 2, label: 'Revisão', icon: ClipboardList },
-  { step: 3, label: 'Confirmação', icon: CheckCircle },
+  { step: 3, label: 'Pagamento', icon: QrCode },
+  { step: 4, label: 'Confirmação', icon: CheckCircle },
 ];
-
-const emptyAddress: AddressPayload = {
-  zipCode: '', street: '', number: '', complement: '',
-  neighborhood: '', city: '', state: '',
-};
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -27,14 +26,12 @@ export default function CheckoutPage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
-  const [newAddress, setNewAddress] = useState<AddressPayload>(emptyAddress);
-  const [savingAddress, setSavingAddress] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (cart.items.length === 0 && step !== 3) navigate('/cart');
+    if (cart.items.length === 0 && step === 1) navigate('/cart');
     getAddresses().then(data => {
       setAddresses(data);
       if (data.length > 0) setSelectedAddressId(data[0].id);
@@ -43,20 +40,12 @@ export default function CheckoutPage() {
 
   const selectedAddress = addresses.find(a => a.id === selectedAddressId);
 
-  const handleSaveAddress = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingAddress(true);
-    try {
-      const created = await createAddress(newAddress);
-      setAddresses(prev => [...prev, created]);
-      setSelectedAddressId(created.id);
-      setShowAddressForm(false);
-      setNewAddress(emptyAddress);
-    } catch {
-      setError('Erro ao salvar endereço.');
-    } finally {
-      setSavingAddress(false);
-    }
+  /** Erros são exibidos pelo próprio AddressForm. */
+  const handleSaveAddress = async (payload: AddressPayload) => {
+    const created = await createAddress(payload);
+    setAddresses(prev => [...prev, created]);
+    setSelectedAddressId(created.id);
+    setShowAddressForm(false);
   };
 
   const handlePlaceOrder = async () => {
@@ -64,12 +53,13 @@ export default function CheckoutPage() {
     setPlacing(true);
     setError('');
     try {
-      const created = await checkout(selectedAddressId);
+      const created = await checkout(selectedAddressId, 'PIX');
       setOrder(created);
-      await clearCart();
-      setStep(3);
-    } catch {
-      setError('Erro ao finalizar pedido. Tente novamente.');
+      await clearCart(); // o back-end já esvaziou; sincroniza o contexto
+      // Pix pendente → etapa de pagamento; sem pagamento a cobrar → confirmação direta
+      setStep(created.payment?.status === 'PENDING' ? 3 : 4);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Erro ao finalizar pedido. Tente novamente.'));
     } finally {
       setPlacing(false);
     }
@@ -136,43 +126,10 @@ export default function CheckoutPage() {
                 <Plus size={16} /> Adicionar novo endereço
               </button>
             ) : (
-              <form onSubmit={handleSaveAddress} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
-                <h3 className="font-semibold text-gray-900 text-sm">Novo endereço</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { key: 'zipCode', label: 'CEP', placeholder: '00000-000', col: 1 },
-                    { key: 'street', label: 'Rua', placeholder: 'Rua das Flores', col: 2 },
-                    { key: 'number', label: 'Número', placeholder: '123', col: 1 },
-                    { key: 'complement', label: 'Complemento', placeholder: 'Apto 4', col: 1 },
-                    { key: 'neighborhood', label: 'Bairro', placeholder: 'Centro', col: 1 },
-                    { key: 'city', label: 'Cidade', placeholder: 'São Paulo', col: 1 },
-                    { key: 'state', label: 'UF', placeholder: 'SP', col: 1 },
-                  ].map(f => (
-                    <div key={f.key} className={f.col === 2 ? 'col-span-2' : ''}>
-                      <label className="text-xs font-medium text-gray-600 block mb-1">{f.label}</label>
-                      <input
-                        type="text"
-                        value={newAddress[f.key as keyof AddressPayload] ?? ''}
-                        onChange={e => setNewAddress(a => ({ ...a, [f.key]: e.target.value }))}
-                        required={f.key !== 'complement'}
-                        placeholder={f.placeholder}
-                        maxLength={f.key === 'state' ? 2 : undefined}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <button type="button" onClick={() => setShowAddressForm(false)}
-                    className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-                    Cancelar
-                  </button>
-                  <button type="submit" disabled={savingAddress}
-                    className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
-                    {savingAddress ? 'Salvando...' : 'Salvar'}
-                  </button>
-                </div>
-              </form>
+              <AddressForm
+                onSubmit={handleSaveAddress}
+                onCancel={() => setShowAddressForm(false)}
+              />
             )}
           </div>
 
@@ -237,25 +194,68 @@ export default function CheckoutPage() {
             </div>
           </div>
 
+          {/* Forma de pagamento */}
+          <fieldset className="bg-white border border-gray-200 rounded-xl p-4">
+            <legend className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">Forma de pagamento</legend>
+            <label className="flex items-start gap-3 p-3 rounded-lg border-2 border-indigo-500 bg-indigo-50 cursor-pointer">
+              <input type="radio" name="payment" value="PIX" checked readOnly className="mt-1 accent-indigo-600" />
+              <span className="text-sm">
+                <span className="font-medium text-gray-900 flex items-center gap-1.5"><QrCode size={15} /> Pix</span>
+                <span className="text-gray-500">QR Code ou copia e cola, aprovação em instantes. Válido por tempo limitado.</span>
+              </span>
+            </label>
+          </fieldset>
+
           <button
             onClick={handlePlaceOrder}
             disabled={placing}
             className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-60"
           >
-            {placing ? 'Processando...' : 'Confirmar Pedido'}
+            {placing ? 'Gerando Pix...' : 'Confirmar e pagar com Pix'}
           </button>
         </div>
       )}
 
-      {/* Step 3: Confirmation */}
-      {step === 3 && order && (
+      {/* Step 3: Pagamento Pix */}
+      {step === 3 && order?.payment && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold text-gray-900">Pague com Pix para concluir</h2>
+          <p className="text-sm text-gray-500">
+            Pedido <span className="font-semibold text-indigo-600">#{order.id}</span> reservado. Os itens ficam separados até o
+            fim do prazo; sem pagamento, o pedido é cancelado automaticamente.
+          </p>
+          <PixPayment
+            orderId={order.id}
+            payment={order.payment}
+            onStatusChange={p => {
+              setOrder(o => (o ? { ...o, status: p.status === 'PAID' ? 'CONFIRMED' : o.status, payment: p } : o));
+              if (p.status === 'PAID') setStep(4);
+            }}
+          />
+          {order.payment.status === 'PENDING' ? (
+            <button onClick={() => navigate(`/orders/${order.id}`)}
+              className="w-full py-3 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl font-semibold">
+              Pagar depois (o Pix fica disponível em Meus pedidos)
+            </button>
+          ) : (
+            <button onClick={() => navigate('/orders')}
+              className="w-full py-3 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl font-semibold">
+              Ver Meus Pedidos
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Step 4: Confirmation */}
+      {step === 4 && order && (
         <div className="text-center py-10 space-y-4">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
             <CheckCircle size={40} className="text-green-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900">Pedido confirmado!</h2>
           <p className="text-gray-500">
-            Pedido <span className="font-semibold text-indigo-600">#{order.id}</span> criado com sucesso.
+            Pedido <span className="font-semibold text-indigo-600">#{order.id}</span>{' '}
+            {order.payment?.status === 'PAID' ? 'pago e confirmado.' : 'criado com sucesso.'}
           </p>
           <p className="text-gray-500 text-sm">
             Total:{' '}
