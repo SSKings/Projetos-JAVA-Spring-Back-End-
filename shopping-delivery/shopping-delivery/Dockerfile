@@ -1,5 +1,5 @@
 # ---------- build ----------
-FROM eclipse-temurin:17-jdk-alpine AS build
+FROM eclipse-temurin:25-jdk-alpine AS build
 WORKDIR /src
 COPY .mvn .mvn
 COPY mvnw pom.xml ./
@@ -8,7 +8,7 @@ COPY src src
 RUN ./mvnw -q -B -DskipTests package && cp target/ecommerce-*.jar /app.jar
 
 # ---------- runtime ----------
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 # usuário sem privilégios; o container não roda como root
 RUN addgroup -S app && adduser -S app -G app && mkdir -p /var/log/shopeasy && chown app:app /var/log/shopeasy
 USER app
