@@ -1,0 +1,140 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import PrivacyPage from './PrivacyPage';
+import SecurityPage from './SecurityPage';
+import * as accountApi from '../../api/account';
+import { loginAs, renderWithProviders } from '../../test/utils';
+import type { AuthResponse, Profile } from '../../types';
+
+vi.mock('../../api/account');
+
+const profile = (over: Partial<Profile> = {}): Profile => ({
+  id: 2, name: 'Ana Souza', email: 'ana@a.com', phone: '(11) 98765-4321', role: 'CUSTOMER',
+  createdAt: '2026-01-10T10:00:00', mfaEnabled: false, termsVersion: '2026-11-05', termsAcceptedAt: '2026-01-10T10:00:00', ...over,
+});
+const auth = (over: Partial<AuthResponse> = {}): AuthResponse => ({
+  token: 'new-token', name: 'Ana Souza', email: 'ana@a.com', role: 'CUSTOMER', mfaEnabled: true, mfaSetupRequired: false, ...over,
+});
+const httpError = (message: string) => ({ response: { status: 400, data: { message } } });
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  loginAs('CUSTOMER', { name: 'Ana Souza', email: 'ana@a.com' });
+});
+afterEach(() => vi.unstubAllGlobals());
+
+describe('PrivacyPage (LGPD)', () => {
+  it('mostra e corrige os dados; nome vazio não é enviado', async () => {
+    vi.mocked(accountApi.getProfile).mockResolvedValue(profile());
+    vi.mocked(accountApi.updateProfile).mockResolvedValue(profile({ name: 'Ana Lima', phone: null }));
+    renderWithProviders(<PrivacyPage />);
+
+    const name = await screen.findByDisplayValue('Ana Souza');
+    expect(screen.getByText(/termos aceitos em/)).toHaveTextContent('versão 2026-11-05');
+
+    await userEvent.clear(name);
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Informe seu nome.');
+    expect(accountApi.updateProfile).not.toHaveBeenCalled();
+
+    await userEvent.type(name, 'Ana Lima');
+    await userEvent.clear(screen.getByLabelText('Telefone'));
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(accountApi.updateProfile).toHaveBeenCalledWith({ name: 'Ana Lima', phone: undefined });
+    expect(await screen.findByRole('status')).toHaveTextContent('Dados atualizados.');
+    expect(JSON.parse(localStorage.getItem('user')!).name).toBe('Ana Lima');
+  });
+
+  it('baixa os dados em JSON', async () => {
+    vi.mocked(accountApi.getProfile).mockResolvedValue(profile());
+    vi.mocked(accountApi.exportData).mockResolvedValue({ profile: { email: 'ana@a.com' } });
+    const createObjectURL = vi.fn().mockReturnValue('blob:x');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    renderWithProviders(<PrivacyPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /Baixar meus dados/ }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Arquivo com seus dados gerado.');
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(click).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:x');
+    click.mockRestore();
+  });
+
+  it('exclusão exige senha e confirmação; com sucesso encerra a sessão local', async () => {
+    vi.mocked(accountApi.getProfile).mockResolvedValue(profile());
+    vi.mocked(accountApi.deleteAccount).mockRejectedValueOnce(httpError('Invalid password')).mockResolvedValue({} as never);
+    renderWithProviders(<PrivacyPage />);
+
+    const button = await screen.findByRole('button', { name: /Excluir minha conta/ });
+    expect(button).toBeDisabled();
+    await userEvent.type(screen.getByLabelText('Confirme sua senha'), 'errada');
+    await userEvent.click(screen.getByRole('checkbox', { name: /definitiva/ }));
+    expect(screen.queryByLabelText('Código do app')).not.toBeInTheDocument();
+    await userEvent.click(button);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Senha incorreta.');
+    expect(accountApi.deleteAccount).toHaveBeenCalledWith('errada', undefined);
+
+    await userEvent.click(button);
+    expect(await screen.findByText('HOME PAGE')).toBeInTheDocument();
+    expect(localStorage.getItem('token')).toBeNull();
+  });
+
+  it('com MFA ativo a exclusão pede o código; erro ao carregar o perfil', async () => {
+    localStorage.setItem('user', JSON.stringify({ name: 'Ana', email: 'ana@a.com', role: 'CUSTOMER', mfaEnabled: true }));
+    vi.mocked(accountApi.getProfile).mockRejectedValue(new Error('Network Error'));
+    vi.mocked(accountApi.deleteAccount).mockResolvedValue({} as never);
+    renderWithProviders(<PrivacyPage />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/conectar ao servidor/);
+    await userEvent.type(screen.getByLabelText('Confirme sua senha'), 'senha123');
+    await userEvent.type(screen.getByLabelText('Código do app'), '12a3456');
+    await userEvent.click(screen.getByRole('checkbox', { name: /definitiva/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Excluir minha conta/ }));
+    await waitFor(() => expect(accountApi.deleteAccount).toHaveBeenCalledWith('senha123', '123456'));
+  });
+});
+
+describe('SecurityPage (MFA)', () => {
+  it('ativa: mostra QR e chave, confirma o código e troca a sessão', async () => {
+    vi.mocked(accountApi.setupMfa).mockResolvedValue({ secret: 'JBSWY3DPEHPK3PXP', otpauthUri: 'otpauth://totp/ShopEasy:ana?secret=JBSWY3DPEHPK3PXP' });
+    vi.mocked(accountApi.enableMfa).mockRejectedValueOnce(httpError('Invalid MFA code')).mockResolvedValue(auth());
+    renderWithProviders(<SecurityPage />);
+
+    await userEvent.click(screen.getByRole('button', { name: /Ativar verificação/ }));
+    expect(await screen.findByRole('img', { name: /QR Code para o app/ })).toBeInTheDocument();
+    expect(screen.getByText('JBSWY3DPEHPK3PXP')).toBeInTheDocument();
+    const confirm = screen.getByRole('button', { name: 'Confirmar e ativar' });
+    expect(confirm).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText('Código do app'), '000000');
+    await userEvent.click(confirm);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Código de verificação inválido');
+
+    await userEvent.click(confirm);
+    expect(await screen.findByRole('status')).toHaveTextContent('ativada');
+    expect(localStorage.getItem('token')).toBe('new-token');
+    expect(screen.getByText(/Ativa\. Ao entrar/)).toBeInTheDocument();
+  });
+
+  it('desativa com senha e código', async () => {
+    localStorage.setItem('user', JSON.stringify({ name: 'Ana', email: 'ana@a.com', role: 'CUSTOMER', mfaEnabled: true }));
+    vi.mocked(accountApi.disableMfa).mockResolvedValue(auth({ mfaEnabled: false, token: 't3' }));
+    renderWithProviders(<SecurityPage />);
+
+    await userEvent.type(screen.getByLabelText('Senha'), 'senha123');
+    await userEvent.type(screen.getByLabelText('Código'), '654321');
+    await userEvent.click(screen.getByRole('button', { name: 'Desativar' }));
+    expect(accountApi.disableMfa).toHaveBeenCalledWith('senha123', '654321');
+    expect(await screen.findByRole('status')).toHaveTextContent('desativada');
+    expect(screen.getByRole('button', { name: /Ativar verificação/ })).toBeInTheDocument();
+  });
+
+  it('admin com MFA obrigatório vê o aviso', () => {
+    localStorage.setItem('user', JSON.stringify({ name: 'Chefe', email: 'a@x.com', role: 'ADMIN', mfaSetupRequired: true }));
+    renderWithProviders(<SecurityPage />);
+    expect(screen.getByRole('note')).toHaveTextContent('Administradores precisam ativar');
+  });
+});

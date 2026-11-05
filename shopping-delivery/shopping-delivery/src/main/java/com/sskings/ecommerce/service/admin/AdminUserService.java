@@ -23,6 +23,7 @@ public class AdminUserService {
 
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
+    private final com.sskings.ecommerce.service.AuditService auditService;
 
     @Transactional(readOnly = true)
     public Page<UserResponse> findAll(String search, Pageable pageable) {
@@ -51,11 +52,18 @@ public class AdminUserService {
         if (Objects.equals(id, currentAdminId)) {
             throw new BusinessException("You cannot change your own account");
         }
-        if (request.active() != null) {
+        StringBuilder changes = new StringBuilder();
+        if (request.active() != null && request.active() != user.isActive()) {
             user.setActive(request.active());
+            changes.append("active=").append(request.active()).append(' ');
         }
-        if (request.role() != null) {
+        if (request.role() != null && request.role() != user.getRole()) {
+            changes.append("role ").append(user.getRole()).append("->").append(request.role());
             user.setRole(request.role());
+        }
+        if (!changes.isEmpty()) {
+            user.revokeTokens();   // bloqueio ou troca de papel derrubam as sessões abertas
+            auditService.record(null, com.sskings.ecommerce.service.AuditService.USER_UPDATED, "USER", id, changes.toString().trim());
         }
         return toResponse(userRepository.save(user));
     }

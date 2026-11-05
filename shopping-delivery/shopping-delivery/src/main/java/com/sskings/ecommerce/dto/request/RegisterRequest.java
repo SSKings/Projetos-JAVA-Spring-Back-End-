@@ -1,12 +1,19 @@
 package com.sskings.ecommerce.dto.request;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 
+/**
+ * Os limites de tamanho espelham as colunas da tabela users; 72 é o máximo de bytes que o BCrypt considera.
+ * A política de senha (8+ caracteres, letras e números) é aplicada aqui — não só no front-end.
+ */
 public record RegisterRequest(
-        @NotBlank(message = "Name is required") String name,
-        @Email @NotBlank(message = "Email is required") String email,
-        @NotBlank @Size(min = 6, message = "Password must be at least 6 characters") String password,
-        String phone
+        @NotBlank(message = "Name is required") @Size(max = 100, message = "Name must have at most 100 characters") String name,
+        @Email(message = "Email is invalid") @NotBlank(message = "Email is required") @Size(max = 150, message = "Email must have at most 150 characters") String email,
+        @NotBlank(message = "Password is required")
+        @Size(min = 8, max = 72, message = "Password must be between 8 and 72 characters")
+        @Pattern(regexp = "^(?=.*\\p{L})(?=.*\\d).+$", message = "Password must contain letters and numbers")
+        String password,
+        @Size(max = 20, message = "Phone must have at most 20 characters") String phone,
+        @NotNull(message = "You must accept the terms of use and the privacy policy")
+        @AssertTrue(message = "You must accept the terms of use and the privacy policy") Boolean acceptTerms
 ) {}

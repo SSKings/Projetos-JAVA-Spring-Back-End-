@@ -2,26 +2,45 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Package } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import FormField from '../components/FormField';
+import { useValidatedForm } from '../hooks/useValidatedForm';
 import { getErrorMessage } from '../utils/format';
+import { LIMITS, maskPhone, validateRegister, type RegisterValues } from '../utils/validation';
+
+const initial: RegisterValues = { name: '', email: '', password: '', confirmPassword: '', phone: '' };
+
+const fields: {
+  key: keyof RegisterValues; label: string; type: string; placeholder: string;
+  autoComplete: string; maxLength?: number; hint?: string;
+}[] = [
+  { key: 'name', label: 'Nome completo', type: 'text', placeholder: 'João Silva', autoComplete: 'name', maxLength: LIMITS.name },
+  { key: 'email', label: 'Email', type: 'email', placeholder: 'seu@email.com', autoComplete: 'email', maxLength: LIMITS.email },
+  { key: 'password', label: 'Senha', type: 'password', placeholder: 'Mínimo 8 caracteres', autoComplete: 'new-password',
+    maxLength: LIMITS.passwordMax, hint: 'Mínimo 8 caracteres, com letras e números.' },
+  { key: 'confirmPassword', label: 'Confirmar senha', type: 'password', placeholder: 'Repita a senha', autoComplete: 'new-password',
+    maxLength: LIMITS.passwordMax },
+  { key: 'phone', label: 'Telefone (opcional)', type: 'tel', placeholder: '(11) 99999-9999', autoComplete: 'tel', maxLength: 15 },
+];
 
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-
-  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' });
+  const form = useValidatedForm(initial, validateRegister);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [termsError, setTermsError] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.password.length < 6) {
-      setError('A senha deve ter no mínimo 6 caracteres.');
-      return;
-    }
-    setLoading(true);
     setError('');
+    const formValid = form.validateAll();
+    setTermsError(!acceptTerms);
+    if (!formValid || !acceptTerms) return;
+    const { name, email, password, phone } = form.values;
+    setLoading(true);
     try {
-      await register(form.name, form.email, form.password, form.phone || undefined);
+      await register(name.trim(), email.trim().toLowerCase(), password, phone || undefined, acceptTerms);
       navigate('/');
     } catch (err) {
       setError(getErrorMessage(err, 'Erro ao cadastrar. Tente novamente.'));
@@ -44,25 +63,44 @@ export default function RegisterPage() {
             <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {[
-              { key: 'name',  label: 'Nome completo',   type: 'text',     placeholder: 'João Silva',         required: true },
-              { key: 'email', label: 'Email',            type: 'email',    placeholder: 'seu@email.com',      required: true },
-              { key: 'password', label: 'Senha',         type: 'password', placeholder: 'Mínimo 6 caracteres', required: true },
-              { key: 'phone', label: 'Telefone (opcional)', type: 'tel',  placeholder: '(11) 99999-9999',    required: false },
-            ].map(field => (
-              <div key={field.key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{field.label}</label>
-                <input
-                  type={field.type}
-                  value={form[field.key as keyof typeof form]}
-                  onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
-                  required={field.required}
-                  placeholder={field.placeholder}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+            {fields.map(f => (
+              <FormField
+                key={f.key}
+                id={`register-${f.key}`}
+                label={f.label}
+                type={f.type}
+                placeholder={f.placeholder}
+                autoComplete={f.autoComplete}
+                maxLength={f.maxLength}
+                hint={f.hint}
+                value={form.values[f.key]}
+                error={form.errorOf(f.key)}
+                onChange={e => form.setValue(f.key, f.key === 'phone' ? maskPhone(e.target.value) : e.target.value)}
+                onBlur={() => form.touch(f.key)}
+              />
             ))}
+            <div>
+              <label className="flex items-start gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={e => { setAcceptTerms(e.target.checked); setTermsError(false); }}
+                  aria-invalid={termsError || undefined}
+                  aria-describedby={termsError ? 'register-terms-error' : undefined}
+                  className="mt-0.5 accent-indigo-600"
+                />
+                <span>
+                  Li e aceito os <Link to="/termos" target="_blank" className="text-indigo-600 hover:underline">Termos de uso</Link> e
+                  a <Link to="/privacidade" target="_blank" className="text-indigo-600 hover:underline">Política de privacidade</Link>.
+                </span>
+              </label>
+              {termsError && (
+                <p id="register-terms-error" role="alert" className="text-xs text-red-600 mt-1">
+                  É preciso aceitar os termos e a política de privacidade.
+                </p>
+              )}
+            </div>
             <button
               type="submit"
               disabled={loading}

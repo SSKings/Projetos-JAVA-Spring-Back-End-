@@ -13,7 +13,13 @@ public record OrderResponse(
         BigDecimal total,
         LocalDateTime createdAt,
         AddressResponse address,
-        List<OrderItemResponse> items
+        List<OrderItemResponse> items,
+        PaymentResponse payment,
+        LocalDateTime deliveredAt,
+        LocalDateTime returnRequestedAt,
+        LocalDateTime returnDeadline,
+        boolean canCancel,
+        boolean canRequestReturn
 ) {
     public static OrderResponse from(Order o) {
         return new OrderResponse(
@@ -22,7 +28,13 @@ public record OrderResponse(
                 o.getTotal(),
                 o.getCreatedAt(),
                 AddressResponse.from(o.getAddress()),
-                o.getItems().stream().map(OrderItemResponse::from).toList()
+                o.getItems().stream().map(OrderItemResponse::from).toList(),
+                PaymentResponse.from(o.getPayment()),
+                o.getDeliveredAt(),
+                o.getReturnRequestedAt(),
+                o.returnDeadline(),
+                o.isCancellableByCustomer(),
+                o.canRequestReturn(LocalDateTime.now())
         );
     }
 }

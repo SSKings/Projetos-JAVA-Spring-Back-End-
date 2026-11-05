@@ -2,60 +2,62 @@ package com.sskings.ecommerce.security;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
-import org.junit.jupiter.api.BeforeEach;
+import com.sskings.ecommerce.model.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class JwtServiceTest {
 
-    private static final String SECRET = "test-secret";
-    private JwtService jwtService;
+    private static final String SECRET = "test-secret-with-at-least-32-characters!!";
+    private static final Instant NOW = Instant.parse("2026-11-05T12:00:00Z");
 
-    @BeforeEach
-    void setUp() {
-        jwtService = new JwtService();
-        ReflectionTestUtils.setField(jwtService, "secret", SECRET);
+    private static SecurityProperties props(String secret, long minutes) {
+        return new SecurityProperties(new SecurityProperties.Jwt(secret, minutes), "k", false,
+                new SecurityProperties.Login(5, 15), new SecurityProperties.RateLimit(true, 20, 120));
+    }
+
+    private final JwtService service = new JwtService(props(SECRET, 120), Clock.fixed(NOW, ZoneOffset.UTC));
+    private final User user = User.builder().email("ana@a.com").tokenVersion(4).build();
+
+    @Test
+    @DisplayName("Gera e valida token com email e versão")
+    void roundTrip() {
+        JwtService.TokenClaims claims = new JwtService(props(SECRET, 120), Clock.systemUTC()).validateToken(
+                new JwtService(props(SECRET, 120), Clock.systemUTC()).generateToken(user));
+        assertThat(claims).isEqualTo(new JwtService.TokenClaims("ana@a.com", 4));
     }
 
     @Test
-    @DisplayName("Token gerado é válido e devolve o email como subject")
-    void generateAndValidate_roundTrip() {
-        String token = jwtService.generateToken("ana@a.com");
-        assertThat(jwtService.validateToken(token)).isEqualTo("ana@a.com");
+    @DisplayName("Expiração configurável")
+    void expiration() {
+        var decoded = JWT.decode(service.generateToken(user));
+        assertThat(decoded.getExpiresAtAsInstant()).isEqualTo(NOW.plus(120, ChronoUnit.MINUTES));
+        assertThat(decoded.getIssuedAtAsInstant()).isEqualTo(NOW);
+        // token expirado (relógio fixo no passado) é recusado
+        assertThat(new JwtService(props(SECRET, 120), Clock.systemUTC()).validateToken(service.generateToken(user))).isNull();
     }
 
     @Test
-    @DisplayName("Token adulterado é rejeitado")
-    void validate_tamperedToken_returnsNull() {
-        String token = jwtService.generateToken("ana@a.com");
-        assertThat(jwtService.validateToken(token + "x")).isNull();
-    }
+    @DisplayName("Assinatura com outro segredo, token adulterado, sem versão ou outro issuer → null")
+    void invalidTokens() {
+        JwtService live = new JwtService(props(SECRET, 120), Clock.systemUTC());
+        String other = new JwtService(props("another-secret-with-32-characters-xx", 120), Clock.systemUTC()).generateToken(user);
+        assertThat(live.validateToken(other)).isNull();
+        assertThat(live.validateToken("not.a.jwt")).isNull();
 
-    @Test
-    @DisplayName("Token assinado com outro segredo é rejeitado")
-    void validate_wrongSecret_returnsNull() {
-        String foreign = JWT.create().withIssuer("ecommerce-api").withSubject("ana@a.com")
-                .sign(Algorithm.HMAC256("other-secret"));
-        assertThat(jwtService.validateToken(foreign)).isNull();
-    }
-
-    @Test
-    @DisplayName("Token expirado é rejeitado")
-    void validate_expiredToken_returnsNull() {
-        String expired = JWT.create().withIssuer("ecommerce-api").withSubject("ana@a.com")
-                .withExpiresAt(Instant.now().minusSeconds(60))
-                .sign(Algorithm.HMAC256(SECRET));
-        assertThat(jwtService.validateToken(expired)).isNull();
-    }
-
-    @Test
-    @DisplayName("Lixo no lugar do token é rejeitado")
-    void validate_garbage_returnsNull() {
-        assertThat(jwtService.validateToken("not-a-jwt")).isNull();
+        Algorithm alg = Algorithm.HMAC256(SECRET);
+        String noVersion = JWT.create().withIssuer("ecommerce-api").withSubject("ana@a.com")
+                .withExpiresAt(Instant.now().plusSeconds(60)).sign(alg);
+        assertThat(live.validateToken(noVersion)).isNull();
+        String otherIssuer = JWT.create().withIssuer("x").withSubject("ana@a.com").withClaim("ver", 4)
+                .withExpiresAt(Instant.now().plusSeconds(60)).sign(alg);
+        assertThat(live.validateToken(otherIssuer)).isNull();
     }
 }

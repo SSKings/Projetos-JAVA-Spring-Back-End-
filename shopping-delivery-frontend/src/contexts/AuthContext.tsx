@@ -6,32 +6,40 @@ interface AuthUser {
   name: string;
   email: string;
   role: Role;
+  mfaEnabled: boolean;
+  /** Admin precisa ativar o MFA antes de entrar na área administrativa. */
+  mfaSetupRequired: boolean;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
-  logout: () => void;
+  login: (email: string, password: string, mfaCode?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, phone: string | undefined, acceptTerms: boolean) => Promise<void>;
+  logout: () => Promise<void>;
+  /** Encerra só a sessão local (o servidor já revogou o token, ex.: conta excluída). */
+  clearSession: () => void;
+  /** Troca a sessão por uma nova (ex.: o back-end revogou a anterior ao ativar o MFA). */
+  updateSession: (resp: AuthResponse) => void;
+  updateName: (name: string) => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-function persistAuth(resp: AuthResponse) {
-  localStorage.setItem('token', resp.token);
-  localStorage.setItem('user', JSON.stringify({ name: resp.name, email: resp.email, role: resp.role }));
-}
+const toUser = (resp: AuthResponse): AuthUser => ({
+  name: resp.name, email: resp.email, role: resp.role,
+  mfaEnabled: !!resp.mfaEnabled, mfaSetupRequired: !!resp.mfaSetupRequired,
+});
 
 function readPersistedUser(): AuthUser | null {
   try {
     const raw = localStorage.getItem('user');
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Sessões salvas antes da existência de papéis são tratadas como cliente.
-    return { ...parsed, role: parsed.role ?? 'CUSTOMER' };
+    // Sessões salvas antes da existência de papéis/MFA são tratadas como cliente sem MFA.
+    return { mfaEnabled: false, mfaSetupRequired: false, ...parsed, role: parsed.role ?? 'CUSTOMER' };
   } catch {
     return null;
   }
@@ -41,31 +49,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(readPersistedUser);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
 
-  const handleAuth = (resp: AuthResponse) => {
-    persistAuth(resp);
+  const saveUser = (next: AuthUser) => {
+    localStorage.setItem('user', JSON.stringify(next));
+    setUser(next);
+  };
+
+  const updateSession = (resp: AuthResponse) => {
+    localStorage.setItem('token', resp.token);
     setToken(resp.token);
-    setUser({ name: resp.name, email: resp.email, role: resp.role });
+    saveUser(toUser(resp));
   };
 
-  const login = async (email: string, password: string) => {
-    const resp = await authApi.login({ email, password });
-    handleAuth(resp);
+  const login = async (email: string, password: string, mfaCode?: string) => {
+    updateSession(await authApi.login({ email, password, mfaCode: mfaCode || undefined }));
   };
 
-  const register = async (name: string, email: string, password: string, phone?: string) => {
-    const resp = await authApi.register({ name, email, password, phone });
-    handleAuth(resp);
+  const register = async (name: string, email: string, password: string, phone: string | undefined, acceptTerms: boolean) => {
+    updateSession(await authApi.register({ name, email, password, phone, acceptTerms }));
   };
 
-  const logout = () => {
+  const clearSession = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
   };
 
+  const logout = async () => {
+    try {
+      await authApi.logout(); // revoga o token no servidor
+    } catch {
+      // sem rede ou token já inválido: a sessão local é encerrada mesmo assim
+    }
+    clearSession();
+  };
+
+  const updateName = (name: string) => {
+    if (user) saveUser({ ...user, name });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, isAuthenticated: !!token, isAdmin: !!token && user?.role === 'ADMIN' }}>
+    <AuthContext.Provider value={{
+      user, token, login, register, logout, clearSession, updateSession, updateName,
+      isAuthenticated: !!token, isAdmin: !!token && user?.role === 'ADMIN',
+    }}>
       {children}
     </AuthContext.Provider>
   );

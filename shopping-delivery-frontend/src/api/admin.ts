@@ -1,6 +1,6 @@
 import api from './axios';
 import type {
-  AdminOrder, AdminProduct, AdminUser, DashboardStats, Order, OrderStatus, Page, ProductInput, Role,
+  AuditLog, AdminOrder, AdminProduct, AdminUser, DashboardStats, Order, OrderStatus, Page, ProductInput, Role,
 } from '../types';
 
 // Dashboard
@@ -24,6 +24,17 @@ export const deactivateProduct = (id: number) =>
 // Pedidos
 export const getAdminOrders = (page = 0, status?: OrderStatus) =>
   api.get<Page<AdminOrder>>('/api/admin/orders', { params: { page, size: 10, status } }).then(r => r.data);
+
+/** Registra que o Pix foi devolvido (estorno pendente ou arrependimento). */
+export const refundPayment = (id: number) =>
+  api.post<AdminOrder>(`/api/admin/orders/${id}/payment/refund`).then(r => r.data);
+
+export const getAuditLogs = (page = 0, action?: string) =>
+  api.get<Page<AuditLog>>('/api/admin/audit', { params: { page, size: 20, action: action || undefined } }).then(r => r.data);
+
+/** Confirmação manual do Pix, depois de conferir o extrato. */
+export const confirmPayment = (id: number) =>
+  api.post<AdminOrder>(`/api/admin/orders/${id}/payment/confirm`).then(r => r.data);
 
 export const updateOrderStatus = (id: number, status: OrderStatus) =>
   api.patch<AdminOrder>(`/api/admin/orders/${id}/status`, { status }).then(r => r.data);

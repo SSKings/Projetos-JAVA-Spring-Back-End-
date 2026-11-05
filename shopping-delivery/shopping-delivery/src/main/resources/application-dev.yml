@@ -1,0 +1,37 @@
+# Perfil de DESENVOLVIMENTO (padrão). Valores públicos e inseguros de propósito:
+# nunca use este perfil exposto à internet. Em produção: SPRING_PROFILES_ACTIVE=prod.
+spring:
+  datasource:
+    url: jdbc:h2:mem:ecommercedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+security:
+  jwt:
+    secret: dev-only-jwt-secret-not-for-production-0123456789
+  encryption-key: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=
+  require-admin-mfa: false
+
+app:
+  cors:
+    allowed-origins: "*"
+  admin:
+    email: admin@shopeasy.com
+    password: admin123
+  pix:
+    # domínio .example é reservado: a chave não existe no DICT e nenhum teste paga para terceiros
+    key: pix@shopeasy.example
+    merchant-name: ShopEasy
+    merchant-city: Sao Paulo
+    webhook-secret: dev-pix-webhook-secret-change-me

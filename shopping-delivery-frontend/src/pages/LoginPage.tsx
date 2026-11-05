@@ -10,7 +10,8 @@ export default function LoginPage() {
   const location = useLocation();
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
 
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '', mfaCode: '' });
+  const [needsMfa, setNeedsMfa] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,10 +20,15 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await login(form.email, form.password);
+      await login(form.email, form.password, needsMfa ? form.mfaCode : undefined);
       navigate(from, { replace: true });
     } catch (err) {
-      setError(getErrorMessage(err, 'Email ou senha inválidos.'));
+      const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message;
+      if (message === 'MFA code required') {
+        setNeedsMfa(true);   // senha certa: falta só o código do app
+      } else {
+        setError(getErrorMessage(err, 'Email ou senha inválidos.'));
+      }
     } finally {
       setLoading(false);
     }
@@ -44,8 +50,9 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+              <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
               <input
+                id="login-email"
                 type="email"
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
@@ -55,8 +62,9 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Senha</label>
+              <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1.5">Senha</label>
               <input
+                id="login-password"
                 type="password"
                 value={form.password}
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
@@ -65,6 +73,24 @@ export default function LoginPage() {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
+            {needsMfa && (
+              <div>
+                <label htmlFor="login-mfa" className="block text-sm font-medium text-gray-700 mb-1.5">Código de verificação</label>
+                <input
+                  id="login-mfa"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  maxLength={6}
+                  value={form.mfaCode}
+                  onChange={e => setForm(f => ({ ...f, mfaCode: e.target.value.replace(/\D/g, '') }))}
+                  required
+                  placeholder="000000"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">Abra seu app autenticador e digite o código de 6 dígitos.</p>
+              </div>
+            )}
             <button
               type="submit"
               disabled={loading}

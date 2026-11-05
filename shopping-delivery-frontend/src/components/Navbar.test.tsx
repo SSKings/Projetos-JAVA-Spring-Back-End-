@@ -7,6 +7,7 @@ import { cart } from '../test/fixtures';
 import { mockCart } from '../test/cartMock';
 
 vi.mock('../contexts/CartContext', () => ({ useCart: vi.fn() }));
+vi.mock('../api/auth', () => ({ logout: vi.fn().mockResolvedValue(undefined), login: vi.fn(), register: vi.fn() }));
 
 beforeEach(() => mockCart(cart({ itemCount: 12 })));
 
@@ -23,6 +24,9 @@ describe('Navbar', () => {
     renderWithProviders(<Navbar />);
     expect(screen.getByText('9+')).toBeInTheDocument();
     expect(screen.getByText('Ana')).toBeInTheDocument();
+    // link para a área do cliente também existe no mobile (texto acessível "Minha conta")
+    expect(screen.getByRole('link', { name: /Ana/ })).toHaveAttribute('href', '/orders');
+    expect(screen.getByText('Minha conta')).toHaveClass('sr-only');
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
   });
 
@@ -32,7 +36,7 @@ describe('Navbar', () => {
     expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
 
     await userEvent.click(screen.getByRole('button', { name: /Sair/ }));
+    expect(await screen.findByText('HOME PAGE')).toBeInTheDocument();
     expect(localStorage.getItem('token')).toBeNull();
-    expect(screen.getByText('HOME PAGE')).toBeInTheDocument();
   });
 });

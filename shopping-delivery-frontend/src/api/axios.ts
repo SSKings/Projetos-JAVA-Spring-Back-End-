@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { resolveApiBaseUrl } from './baseUrl';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8080',
+  baseURL: resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL, window.location),
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -14,7 +15,8 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   res => res,
   err => {
-    if (err.response?.status === 401 || err.response?.status === 403) {
+    // 401 = sem sessão válida (token expirado ou revogado). 403 = logado sem permissão: não derruba a sessão.
+    if (err.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';

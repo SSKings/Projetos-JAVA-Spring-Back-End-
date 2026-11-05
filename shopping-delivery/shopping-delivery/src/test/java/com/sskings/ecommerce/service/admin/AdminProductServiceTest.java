@@ -28,6 +28,7 @@ import static org.mockito.Mockito.verify;
 class AdminProductServiceTest {
 
     @Mock ProductRepository productRepository;
+    @Mock com.sskings.ecommerce.service.AuditService auditService;
     @InjectMocks AdminProductService service;
 
     private final Pageable pageable = PageRequest.of(0, 10);

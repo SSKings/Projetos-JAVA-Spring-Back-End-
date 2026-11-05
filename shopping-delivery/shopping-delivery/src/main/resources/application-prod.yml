@@ -1,0 +1,26 @@
+# Perfil de PRODUÇÃO. Todos os segredos vêm do ambiente; ProductionConfigValidator impede o startup
+# com valores ausentes, fracos ou de desenvolvimento.
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+
+server:
+  # atrás de proxy reverso (nginx) que termina o TLS
+  forward-headers-strategy: framework
+  tomcat:
+    # Marco Civil, art. 15: registros de acesso guardados por 6 meses
+    accesslog:
+      enabled: true
+      directory: ${ACCESS_LOG_DIR:/var/log/shopeasy}
+      prefix: access
+      suffix: .log
+      max-days: 190
+      pattern: '%t %{X-Forwarded-For}i %a "%r" %s %b %D'
+
+logging:
+  level:
+    root: INFO

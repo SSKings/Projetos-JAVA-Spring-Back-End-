@@ -34,6 +34,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     long countByStatus(OrderStatus status);
     long countByUserId(Long userId);
 
-    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.status <> com.sskings.ecommerce.model.enums.OrderStatus.CANCELLED")
+    boolean existsByAddressId(Long addressId);
+
+    boolean existsByUserIdAndStatusIn(Long userId, java.util.Collection<OrderStatus> statuses);
+
+    /** Faturamento: pedidos não cancelados e já pagos (pedidos antigos, sem pagamento, contam como pagos). */
+    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o LEFT JOIN o.payment p "
+            + "WHERE o.status <> com.sskings.ecommerce.model.enums.OrderStatus.CANCELLED "
+            + "AND (p IS NULL OR p.status = com.sskings.ecommerce.model.enums.PaymentStatus.PAID)")
     BigDecimal sumRevenue();
 }

@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminProductService {
 
     private final ProductRepository productRepository;
+    private final com.sskings.ecommerce.service.AuditService auditService;
 
     @Transactional(readOnly = true)
     public Page<AdminProductResponse> findAll(String search, Pageable pageable) {
@@ -34,13 +35,18 @@ public class AdminProductService {
     public AdminProductResponse create(ProductRequest request) {
         Product product = new Product();
         apply(product, request);
-        return AdminProductResponse.from(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        auditService.record(null, com.sskings.ecommerce.service.AuditService.PRODUCT_CHANGED, "PRODUCT", saved.getId(), "created");
+        return AdminProductResponse.from(saved);
     }
 
     @Transactional
     public AdminProductResponse update(Long id, ProductRequest request) {
         Product product = getProduct(id);
+        String before = "price " + product.getPrice() + ", stock " + product.getStockQuantity() + ", active " + product.isActive();
         apply(product, request);
+        auditService.record(null, com.sskings.ecommerce.service.AuditService.PRODUCT_CHANGED, "PRODUCT", id, "updated (" + before + " -> price "
+                + product.getPrice() + ", stock " + product.getStockQuantity() + ", active " + product.isActive() + ")");
         return AdminProductResponse.from(productRepository.save(product));
     }
 
@@ -50,6 +56,7 @@ public class AdminProductService {
         Product product = getProduct(id);
         product.setActive(false);
         productRepository.save(product);
+        auditService.record(null, com.sskings.ecommerce.service.AuditService.PRODUCT_CHANGED, "PRODUCT", id, "deactivated");
     }
 
     private Product getProduct(Long id) {

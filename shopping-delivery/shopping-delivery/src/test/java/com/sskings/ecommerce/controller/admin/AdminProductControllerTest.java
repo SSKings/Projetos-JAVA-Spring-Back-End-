@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(AdminProductController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class})
+@Import({SecurityConfig.class, JwtAuthFilter.class, com.sskings.ecommerce.config.WebMvcTestConfig.class})
 class AdminProductControllerTest {
 
     @Autowired MockMvc mockMvc;
@@ -43,10 +43,10 @@ class AdminProductControllerTest {
             """;
 
     @Test
-    @DisplayName("POST /api/admin/products — sem autenticação retorna 403")
-    void create_noAuth_returns403() throws Exception {
+    @DisplayName("POST /api/admin/products — sem autenticação retorna 401")
+    void create_noAuth_returns401() throws Exception {
         mockMvc.perform(post("/api/admin/products").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

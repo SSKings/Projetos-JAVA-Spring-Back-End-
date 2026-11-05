@@ -3,6 +3,8 @@ package com.sskings.ecommerce.controller;
 import com.sskings.ecommerce.config.SecurityConfig;
 import com.sskings.ecommerce.dto.response.AddressResponse;
 import com.sskings.ecommerce.dto.response.OrderResponse;
+import com.sskings.ecommerce.dto.response.OrderItemResponse;
+import com.sskings.ecommerce.exception.BusinessException;
 import com.sskings.ecommerce.exception.ResourceNotFoundException;
 import com.sskings.ecommerce.model.User;
 import com.sskings.ecommerce.model.enums.OrderStatus;
@@ -27,13 +29,14 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest({AddressController.class, OrderController.class})
-@Import({SecurityConfig.class, JwtAuthFilter.class})
+@Import({SecurityConfig.class, JwtAuthFilter.class, com.sskings.ecommerce.config.WebMvcTestConfig.class})
 class AddressAndOrderControllerTest {
 
     @Autowired MockMvc mockMvc;
@@ -46,7 +49,9 @@ class AddressAndOrderControllerTest {
     private static final AddressResponse ADDRESS =
             new AddressResponse(7L, "01000-000", "Rua A", "1", null, "Centro", "SP", "SP");
     private static final OrderResponse ORDER =
-            new OrderResponse(3L, OrderStatus.PENDING, BigDecimal.TEN, LocalDateTime.now(), ADDRESS, List.of());
+            new OrderResponse(3L, OrderStatus.PENDING, BigDecimal.TEN, LocalDateTime.now(), ADDRESS,
+                    List.of(new OrderItemResponse(1L, 10L, "Caneca", 2, new BigDecimal("5.00"), BigDecimal.TEN)), null,
+                    null, null, null, true, false);
 
     @Test
     @DisplayName("GET /api/addresses lista endereços do usuário logado")
@@ -81,6 +86,28 @@ class AddressAndOrderControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/addresses com campo maior que a coluna do banco retorna 400 (e não 500)")
+    void createAddress_tooLongField_returns400() throws Exception {
+        String street = "R".repeat(151);
+        mockMvc.perform(post("/api/addresses").with(user(ANA)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"zipCode":"01000-000","street":"%s","neighborhood":"Centro","city":"SP","state":"SP"}"""
+                                .formatted(street)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0]").value("Street must have at most 150 characters"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/addresses/{id} de endereço usado em pedido retorna 400")
+    void deleteAddress_linkedToOrder_returns400() throws Exception {
+        willThrow(new BusinessException("Address is linked to an order")).given(addressService).delete(7L, 2L);
+
+        mockMvc.perform(delete("/api/addresses/7").with(user(ANA)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Address is linked to an order"));
+    }
+
+    @Test
     @DisplayName("DELETE /api/addresses/{id} (204)")
     void deleteAddress() throws Exception {
         mockMvc.perform(delete("/api/addresses/7").with(user(ANA)))
@@ -107,7 +134,9 @@ class AddressAndOrderControllerTest {
 
         mockMvc.perform(get("/api/orders").with(user(ANA)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(3));
+                .andExpect(jsonPath("$[0].id").value(3))
+                .andExpect(jsonPath("$[0].items[0].productId").value(10))
+                .andExpect(jsonPath("$[0].items[0].productName").value("Caneca"));
         mockMvc.perform(get("/api/orders/3").with(user(ANA)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(10));
@@ -131,5 +160,31 @@ class AddressAndOrderControllerTest {
         mockMvc.perform(get("/api/orders").with(user(ANA)))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.message").value("Internal server error"));
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/cancel e /return (motivo opcional, até 500 caracteres)")
+    void cancelAndReturn() throws Exception {
+        given(orderService.cancelByCustomer(3L, 2L)).willReturn(ORDER);
+        given(orderService.requestReturn(eq(3L), eq(2L), any())).willReturn(ORDER);
+
+        mockMvc.perform(post("/api/orders/3/cancel").with(user(ANA))).andExpect(status().isOk());
+        mockMvc.perform(post("/api/orders/3/return").with(user(ANA))).andExpect(status().isOk());
+        verify(orderService).requestReturn(3L, 2L, null);
+        mockMvc.perform(post("/api/orders/3/return").with(user(ANA)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"não serviu\"}"))
+                .andExpect(status().isOk());
+        verify(orderService).requestReturn(3L, 2L, "não serviu");
+        mockMvc.perform(post("/api/orders/3/return").with(user(ANA)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"" + "x".repeat(501) + "\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Conflito de lock otimista vira 409")
+    void optimisticLock_returns409() throws Exception {
+        given(orderService.cancelByCustomer(3L, 2L)).willThrow(
+                new org.springframework.orm.ObjectOptimisticLockingFailureException(com.sskings.ecommerce.model.Order.class, 3L));
+        mockMvc.perform(post("/api/orders/3/cancel").with(user(ANA))).andExpect(status().isConflict());
     }
 }

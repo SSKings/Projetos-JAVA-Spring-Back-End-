@@ -3,11 +3,13 @@ package com.sskings.ecommerce.controller;
 import com.sskings.ecommerce.dto.request.LoginRequest;
 import com.sskings.ecommerce.dto.request.RegisterRequest;
 import com.sskings.ecommerce.dto.response.AuthResponse;
+import com.sskings.ecommerce.model.User;
 import com.sskings.ecommerce.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -25,5 +27,12 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    /** Invalida o token atual e todos os outros do usuário (tokenVersion++). */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@AuthenticationPrincipal User user) {
+        authService.logout(user.getId());
+        return ResponseEntity.noContent().build();
     }
 }
