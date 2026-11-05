@@ -73,6 +73,10 @@ jobs:
         run: npm run lint
       - name: Test and Coverage check (Vitest)
         run: npm run coverage
+      # Os testes rodam com css: false e não passam pelo PostCSS/Tailwind: só o build pega
+      # quebras de estilo/empacotamento (ex.: Tailwind 3 -> 4, ver docs/dev-workflow.md)
+      - name: Production build
+        run: npm run build
 
   spring-ai:
     name: Spring AI
