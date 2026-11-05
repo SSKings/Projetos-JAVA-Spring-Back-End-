@@ -181,7 +181,7 @@ cd web-security && ./mvnw spring-boot:run
 | JDK | 17 (projetos Java 17) ou 21 (projetos AI) |
 | Maven | 3.6+ (ou use o Maven Wrapper incluso: `./mvnw`) |
 | Docker | 20+ (apenas para `api.gestor.financeiro`) |
-| Node.js | 20+ (apenas para `shopping-delivery-frontend`) |
+| Node.js | 22.22+ (apenas para `shopping-delivery-frontend`; CI usa 24) |
 | MySQL | 8+ (para `web-api` e `web-security`) |
 | OpenAI API Key | — (para projetos `spring-ai`, `voice-transcription`, `text-to-speec`) |
 

@@ -20,6 +20,8 @@ Interface do e-commerce construída com React 19, TypeScript e Tailwind CSS: loj
 
 ## Setup
 
+Requer **Node.js 22.22+** (o CI usa Node 24).
+
 ```bash
 npm install
 npm run dev      # inicia em http://localhost:5173

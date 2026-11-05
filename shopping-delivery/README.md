@@ -35,7 +35,7 @@ Projetos-JAVA-Spring-Back-End-/
 
 - Java 17+
 - Maven 3.9+
-- Node.js 20+
+- Node.js 22.22+ (recomendado 24 — exigido pelo Vitest/jsdom)
 
 ## Rodando localmente
 
