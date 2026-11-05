@@ -15,7 +15,7 @@ jobs:
         working-directory: api.gestor.financeiro
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -37,7 +37,7 @@ jobs:
         working-directory: shopping-delivery/shopping-delivery
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -57,7 +57,7 @@ jobs:
         working-directory: shopping-delivery-frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node 24
         uses: actions/setup-node@v4
@@ -82,7 +82,7 @@ jobs:
         working-directory: spring-ai
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -102,7 +102,7 @@ jobs:
         working-directory: voice-transcription
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -122,7 +122,7 @@ jobs:
         working-directory: text-to-speec
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -142,7 +142,7 @@ jobs:
         working-directory: web-security
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
