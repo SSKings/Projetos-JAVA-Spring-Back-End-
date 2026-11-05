@@ -1,10 +1,31 @@
 spring:
-    application:
-        name: shopping-delivery
-    profiles:
-        active: dev
+  datasource:
+    url: jdbc:h2:mem:ecommercedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
+security:
+  jwt:
+    secret: ecommerce-super-secret-key-change-in-production-2024
 
+server:
+  port: 8080
 
-
-
+app:
+  admin:
+    name: ${ADMIN_NAME:Administrador}
+    email: ${ADMIN_EMAIL:admin@shopeasy.com}
+    password: ${ADMIN_PASSWORD:admin123}

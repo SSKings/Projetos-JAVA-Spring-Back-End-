@@ -1,0 +1,40 @@
+import api from './axios';
+import type {
+  AdminOrder, AdminProduct, AdminUser, DashboardStats, Order, OrderStatus, Page, ProductInput, Role,
+} from '../types';
+
+// Dashboard
+export const getDashboard = () =>
+  api.get<DashboardStats>('/api/admin/dashboard').then(r => r.data);
+
+// Produtos
+export const getAdminProducts = (page = 0, search?: string) =>
+  api.get<Page<AdminProduct>>('/api/admin/products', { params: { page, size: 10, search: search || undefined } })
+    .then(r => r.data);
+
+export const createProduct = (data: ProductInput) =>
+  api.post<AdminProduct>('/api/admin/products', data).then(r => r.data);
+
+export const updateProduct = (id: number, data: ProductInput) =>
+  api.put<AdminProduct>(`/api/admin/products/${id}`, data).then(r => r.data);
+
+export const deactivateProduct = (id: number) =>
+  api.delete(`/api/admin/products/${id}`);
+
+// Pedidos
+export const getAdminOrders = (page = 0, status?: OrderStatus) =>
+  api.get<Page<AdminOrder>>('/api/admin/orders', { params: { page, size: 10, status } }).then(r => r.data);
+
+export const updateOrderStatus = (id: number, status: OrderStatus) =>
+  api.patch<AdminOrder>(`/api/admin/orders/${id}/status`, { status }).then(r => r.data);
+
+// Usuários
+export const getAdminUsers = (page = 0, search?: string) =>
+  api.get<Page<AdminUser>>('/api/admin/users', { params: { page, size: 10, search: search || undefined } })
+    .then(r => r.data);
+
+export const updateUser = (id: number, data: { active?: boolean; role?: Role }) =>
+  api.patch<AdminUser>(`/api/admin/users/${id}`, data).then(r => r.data);
+
+export const getUserOrders = (id: number) =>
+  api.get<Order[]>(`/api/admin/users/${id}/orders`).then(r => r.data);
