@@ -59,20 +59,25 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`
 
 > `shopping-delivery/shopping-delivery/` (API) · `shopping-delivery-frontend/` (React)
 
-E-commerce full-stack (**ShopEasy**): catálogo, carrinho, checkout em 3 etapas e histórico de pedidos para
-clientes, e uma **área administrativa** para gerenciar produtos, pedidos e usuários.
+E-commerce full-stack (**ShopEasy**): catálogo, carrinho, checkout em 3 etapas e área "Minha conta" (pedidos,
+histórico de compras e endereços) para clientes, e uma **área administrativa** para gerenciar produtos, pedidos e usuários.
 
 **Destaques técnicos:**
 - Autenticação stateless com JWT e controle de acesso por papel (`CUSTOMER` / `ADMIN`) em `/api/admin/**`
 - Bloqueio de usuários com efeito imediato (login recusado e token atual invalidado)
 - Checkout atômico (`@Transactional`): valida e baixa estoque, grava snapshot de preço, limpa carrinho
-- Máquina de estados do pedido `PENDING → CONFIRMED → SHIPPED → DELIVERED`; cancelar devolve o estoque
+- Pagamento via **Pix** (BR Code/EMV do Bacen gerado no servidor, QR Code + copia e cola), webhook com HMAC-SHA256 e anti-replay, expiração automática que devolve o estoque
+- Máquina de estados do pedido `PENDING → CONFIRMED → SHIPPED → DELIVERED` (pode pular etapas); cancelar devolve o estoque
 - Exclusão lógica de produtos, preservando o histórico de pedidos
 - Migrações versionadas com Flyway e admin inicial criado no startup
-- **210 testes** com cobertura exigida no build: backend 94,8% de linhas (JaCoCo) e frontend 98,3% (Vitest)
+- Validação de cadastro e endereço no front-end (máscaras, mensagens por campo, acessível) espelhando o Bean Validation
+- Segurança revisada e corrigida: segredos fora do código com validação no startup, estoque atômico (sem venda acima do estoque), rate limit e bloqueio por tentativas, revogação de sessão, MFA (TOTP) para admin, auditoria, CSP/HSTS — ver [`security-review.md`](shopping-delivery/docs/security-review.md)
+- LGPD e CDC no produto: exportar/corrigir/excluir dados, aceite de termos, cancelamento e direito de arrependimento
+- Produção com Docker: PostgreSQL, API sem root e nginx com TLS ([`shopping-delivery/deploy/`](shopping-delivery/deploy/))
+- **497 testes** com cobertura exigida no build: backend 97,7% de linhas (JaCoCo) e frontend 99,0% (Vitest)
 - Documentação de API, arquitetura e ADRs em [`shopping-delivery/docs/`](shopping-delivery/docs/)
 
-**Stack:** Java 17 · Spring Boot 3.3.7 · Spring Security · JWT · JPA · Flyway · H2 · OpenAPI ·
+**Stack:** Java 17 · Spring Boot 3.5.16 · Spring Security · JWT · TOTP · JPA · Flyway · H2 · PostgreSQL · OpenAPI · Docker · nginx ·
 React 19 · TypeScript · Tailwind · Vitest
 
 ```bash

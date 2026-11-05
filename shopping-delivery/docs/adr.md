@@ -185,13 +185,14 @@ Com o admin alterando pedidos e produtos, era preciso evitar estados inconsisten
 **Decisão**
 - `OrderStatus.canTransitionTo()` define o fluxo `PENDING → CONFIRMED → SHIPPED → DELIVERED`;
   `CANCELLED` só a partir de `PENDING`/`CONFIRMED`. Transições inválidas → 400.
+  *(Atualizado pelo ADR-014: o pedido pode pular etapas para frente.)*
 - Cancelar devolve as quantidades ao estoque na mesma transação.
 - `DELETE /api/admin/products/{id}` apenas marca `active = false`; o produto some da vitrine,
   mas `order_items.product_id` continua válido.
 
 **Consequências**
-- O front-end espelha as transições (`nextOrderStatuses`) para mostrar apenas opções válidas,
-  mas o back-end continua sendo a fonte de verdade.
+- ~~O front-end espelha as transições (`nextOrderStatuses`)~~ — substituído pelo ADR-014: a API envia
+  `nextStatuses` e o front-end não duplica mais a regra.
 - Produtos nunca são apagados fisicamente; a listagem de admin mostra ativos e inativos.
 
 ---
@@ -213,3 +214,238 @@ O back-end tinha testes, mas sem medição; o front-end não tinha nenhum teste.
 - Testes de página usam `vi.mock` nos módulos de `src/api/` — sem servidor real.
 - A camada HTTP (`axios.ts`) é testada com um *adapter* falso, cobrindo o interceptor de token e o
   logout automático em 401/403.
+
+---
+
+## ADR-012 — Validação de formulários no front-end espelhando o Bean Validation
+
+**Status:** Aceito
+
+**Contexto**
+O cadastro só verificava o tamanho da senha e o endereço do checkout dependia de `required` do HTML.
+Valores maiores que as colunas do banco (ex.: rua com 200 caracteres) passavam pelo `@Valid` e
+quebravam no `INSERT` com erro 500.
+
+**Decisão**
+- Back-end: `@Size` em `RegisterRequest` e `AddressRequest` com os mesmos limites das colunas
+  (`users`, `addresses`); senha limitada a 72 caracteres (limite do BCrypt).
+- Front-end: funções puras `validateRegister` / `validateAddress` em `src/utils/validation.ts`, um hook
+  `useValidatedForm` (erro aparece no *blur* ou no primeiro envio) e o componente `FormField`
+  (`aria-invalid` + `aria-describedby`). Máscaras de CEP e telefone; o formulário usa `noValidate`
+  para que as mensagens sejam sempre as nossas, em português.
+- Um único `AddressForm` é usado no checkout e em **Minha conta → Endereços**.
+
+**Consequências**
+- O usuário recebe o erro no campo, antes da requisição; o back-end continua sendo a garantia final.
+- Mudou um limite no banco? Atualize a migração, o `@Size` e `LIMITS` em `validation.ts`.
+
+---
+
+## ADR-013 — Área "Minha conta" calculada a partir de `GET /api/orders`
+
+**Status:** Aceito
+
+**Contexto**
+O cliente só tinha uma lista simples de pedidos, acessível por um link escondido no mobile. Faltavam filtros,
+acompanhamento do status, visão por produto comprado e gestão de endereços.
+
+**Decisão**
+- Layout `AccountLayout` com abas **Meus pedidos** (`/orders`), **Histórico de compras** (`/purchases`) e
+  **Endereços** (`/addresses`); `/account` redireciona para `/orders`.
+- Resumo, filtros por grupo de status, busca e paginação são feitos no cliente sobre a resposta de
+  `GET /api/orders` (funções puras em `src/utils/orders.ts`). Nenhum endpoint novo.
+- `OrderItemResponse` passou a expor `productId`: o histórico de compras agrupa por produto (e não pelo
+  nome, que é snapshot e pode mudar) e linka para a página dele.
+- Total gasto e histórico de compras **ignoram pedidos cancelados**, a mesma regra do faturamento no dashboard.
+
+**Consequências**
+- Simples e sem custo extra no back-end enquanto um cliente tem poucas dezenas de pedidos.
+- Se o volume crescer, a evolução natural é paginar `GET /api/orders` no servidor (como já é feito em
+  `/api/admin/orders`) e mover o agregado por produto para uma consulta própria.
+
+---
+
+## ADR-014 — Correções na alteração de status de pedidos (CORS, etapas e `nextStatuses`)
+
+**Status:** Aceito
+
+**Contexto**
+Na área administrativa, alterar o status de um pedido mostrava "Não foi possível conectar ao servidor".
+A causa: `CorsConfig` liberava `GET, POST, PUT, DELETE, OPTIONS`, mas não `PATCH`. O navegador recusava o
+*preflight* (403) de `PATCH /api/admin/orders/{id}/status` — e de `PATCH /api/admin/users/{id}` — e o axios
+não recebia resposta. Os testes `@WebMvcTest` não simulavam o preflight, então nada falhou no CI.
+Além disso, o seletor mostrava só um passo à frente (de `PENDING` só "Confirmado" ou "Cancelado"), sem
+explicar o resto, e a regra de transições estava duplicada no front-end.
+
+**Decisão**
+- `PATCH` incluído em `CorsConfig.ALLOWED_METHODS`; novo `CorsPreflightTest` envia `OPTIONS` com
+  `Origin` e `Access-Control-Request-Method` para cada verbo usado pelo front-end (falha com 403 sem a correção).
+- O pedido pode **pular etapas para frente** (ex.: retirada na loja: `PENDING → DELIVERED`). Continua proibido
+  voltar, sair de `DELIVERED`/`CANCELLED` e cancelar depois do envio.
+- `AdminOrderResponse.nextStatuses` traz as transições permitidas (`OrderStatus.nextStatuses()`); o front-end
+  lista **todos** os status no seletor, marca o atual e desabilita os não permitidos.
+- Cancelar pede confirmação (devolve estoque e é irreversível); o seletor fica desabilitado enquanto salva;
+  sucesso e erro aparecem na tela, com a mensagem de transição recusada traduzida.
+
+**Consequências**
+- Uma única fonte da regra (o enum no back-end); mudar o fluxo não exige mexer no front-end.
+- Todo verbo HTTP novo na API precisa entrar em `ALLOWED_METHODS` — o `CorsPreflightTest` acusa a falta.
+
+---
+
+## ADR-015 — Acesso pela rede local: Vite em todas as interfaces e URL da API derivada do host
+
+**Status:** Aceito
+
+**Contexto**
+Outros computadores da rede não conseguiam usar a aplicação. Duas causas:
+1. O Vite, por padrão, escuta só em `localhost` (no Linux ficava em `[::1]:5173`) — conexões vindas da rede
+   eram recusadas.
+2. `axios.ts` tinha `baseURL: 'http://localhost:8080'` fixo. Mesmo carregando a página, o navegador do outro
+   computador chamaria a API na **própria** máquina e mostraria "Não foi possível conectar ao servidor".
+
+O back-end já escutava em todas as interfaces (sem `server.address`) e o CORS já aceitava qualquer origem.
+
+**Decisão**
+- `vite.config.ts`: `server.host: true` e `preview.host: true` (portas fixas com `strictPort`).
+- `src/api/baseUrl.ts`: `resolveApiBaseUrl()` usa `VITE_API_BASE_URL` se definida; senão
+  `<protocolo>//<host da página>:8080`. Função pura, testada em `baseUrl.test.ts`.
+- `.env.example` documenta a variável.
+
+**Alternativa considerada**
+Proxy do Vite para `/api` (uma porta só no firewall e sem CORS). Descartada por ora: só funciona com o dev
+server/preview do Vite; a derivação pelo host funciona igual em qualquer forma de servir o build.
+
+**Consequências**
+- Portas 5173 e 8080 precisam estar liberadas no firewall da máquina que roda o projeto.
+- Ambiente de dev fica visível na rede, incluindo o console H2 e o admin padrão — usar credenciais próprias
+  (`ADMIN_EMAIL`/`ADMIN_PASSWORD`) em redes compartilhadas.
+
+---
+
+## ADR-016 — Pagamento via Pix: BR Code no servidor, webhook assinado e confirmação manual
+
+**Status:** Aceito
+
+**Contexto**
+A loja não cobrava nada: o checkout só criava o pedido. Era preciso um pagamento real via Pix, com QR Code,
+"copia e cola" e o pedido avançando conforme o pagamento. Confirmar um Pix automaticamente exige um PSP
+(banco/gateway com API Pix e webhook) — e o projeto ainda não tem contrato/credenciais com nenhum.
+
+**Decisão**
+- **BR Code gerado no servidor** (`PixBrCode`), no padrão EMV QRCPS-MPM do Manual de Iniciação do Pix (Bacen):
+  chave da loja, valor = `orders.total`, nome/cidade sanitizados, `txid` aleatório (SecureRandom, 25 chars) e
+  CRC16-CCITT. Testado contra o exemplo oficial do manual (CRC `1D3D`). O app do banco paga para a chave
+  configurada em `PIX_KEY`. O front-end só desenha o QR a partir desse texto — nunca monta payload nem valor.
+- **Confirmação** por dois caminhos:
+  1. `POST /api/payments/pix/webhook` no formato que um PSP usa: assinatura `HMAC-SHA256(secret, timestamp.corpo)`,
+     janela de 5 min contra replay, comparação em tempo constante, verificação do valor exato e idempotência.
+  2. Confirmação manual pelo admin, após conferir valor e identificador no extrato (Pix estático, sem PSP).
+- **Estado do pedido ligado ao pagamento**: Pix pago → `CONFIRMED`; Pix pendente bloqueia qualquer avanço (só
+  cancelar); vencido → `EXPIRED` + pedido `CANCELLED` + estoque devolvido (`PixExpirationJob` a cada minuto e
+  também na consulta); Pix recebido para pedido cancelado → `REFUND_PENDING`.
+- Faturamento e "total gasto" passam a contar só pedidos pagos.
+- `expiresInSeconds` é calculado no servidor para o contador não depender do relógio do cliente.
+- Chave padrão de dev `pix@shopeasy.example` (domínio reservado, não cadastrável no DICT): nenhum teste paga para
+  a conta de um terceiro.
+
+**Alternativas consideradas**
+- *Integrar já um PSP específico* (Efí, Mercado Pago, Asaas…): exige conta e credenciais; o webhook genérico
+  deixa a troca isolada em um adaptador que traduz a notificação do PSP para `PixWebhookRequest`.
+- *Gerar o QR no back-end como PNG (ZXing)*: mais uma dependência e payload maior; o SVG no navegador é nítido
+  e o conteúdo continua vindo do servidor.
+
+**Consequências**
+- Funciona hoje sem PSP (confirmação manual) e fica pronto para um PSP (webhook).
+- Com Pix estático, um cliente pode pagar valor diferente digitando à mão; o webhook recusa valor divergente e o
+  admin deve conferir o valor antes de confirmar. Um QR dinâmico (cobrança `cob` via API do PSP) eliminaria isso.
+- Estorno (`REFUND_PENDING`) ainda é feito fora do sistema, pelo app do banco.
+
+---
+
+## ADR-017 — Endurecimento de segurança (correções da revisão de segurança)
+
+**Status:** Aceito
+
+**Contexto**
+A revisão (`security-review.md`) confirmou, com o sistema rodando:
+- tokens de admin forjáveis com o segredo publicado no repositório;
+- venda acima do estoque com checkouts simultâneos;
+- força bruta sem limite;
+- enumeração de usuários;
+- dependências fora de suporte.
+
+**Decisão**
+- **Configuração por perfil:** `application.yml` sem segredos, `application-dev.yml` (padrão) e `application-prod.yml`. `ProductionConfigValidator` impede o startup em `prod` com:
+  - segredo ausente, curto ou conhecido;
+  - CORS aberto;
+  - H2;
+  - MFA de admin desligado.
+- **Estoque:** baixa e devolução com `UPDATE` atômico condicionado ao estoque, em vez de ler, comparar e gravar. `@Version` em `Order` e `Payment`. A versão começa `null` para que o Spring Data use `persist` em entidades novas.
+- **Sessão:**
+  - JWT carrega `ver` = `User.tokenVersion`; logout, bloqueio, troca de papel e MFA incrementam a versão e todos os tokens antigos deixam de valer;
+  - expiração configurável;
+  - entry point devolve **401**; acesso negado devolve **403**. O front faz logout só em 401.
+- **Força bruta:**
+  - `RateLimitFilter` por IP (janela de 1 min, em memória, por instância) e `limit_req` no nginx;
+  - bloqueio da conta por 15 min após 5 falhas, persistido em `users`;
+  - BCrypt executado também para email inexistente.
+- **MFA:** TOTP (RFC 6238) implementado sem dependência, segredo cifrado com AES-256-GCM (`APP_ENCRYPTION_KEY`) e reuso de código bloqueado (`mfa_last_step`). Com `REQUIRE_ADMIN_MFA=true`, admin sem MFA perde `ROLE_ADMIN` até ativar.
+- **Auditoria:** `audit_logs`. Eventos de falha são gravados em transação própria (`REQUIRES_NEW`) para sobreviver ao rollback.
+- **Dependências:** Spring Boot 3.5.16 (linha 3.x, migração de baixo risco) e Dependabot.
+
+**Consequências**
+- O projeto não sobe mais em produção "por acidente" com configuração de dev.
+- O rate limit em memória vale por instância. Ao escalar horizontalmente, o nginx/gateway (ou Redis) é a camada de verdade.
+- O bloqueio por tentativas permite que alguém bloqueie a conta de outra pessoa por 15 min. É o equilíbrio usual; o rate limit por IP reduz o abuso.
+- A mensagem de cadastro "email já em uso" permanece até existir verificação de email.
+
+---
+
+## ADR-018 — Direitos do titular (LGPD) e do consumidor (CDC) no produto
+
+**Status:** Aceito
+
+**Contexto**
+O cliente não conseguia ver, corrigir, exportar nem excluir os próprios dados. Também não conseguia cancelar um pedido nem exercer o direito de arrependimento. Não havia aceite de termos nem identificação do fornecedor.
+
+**Decisão**
+- **`/api/account`:** perfil (GET/PUT), `data-export` (JSON com perfil, endereços, pedidos e eventos de segurança), `delete` (com senha e MFA) e MFA.
+- **Exclusão = anonimização:**
+  - nome, email, telefone e senha são substituídos e a conta desativada;
+  - carrinho e endereços sem pedido são apagados;
+  - pedidos e os endereços usados neles são mantidos sem vínculo com a pessoa (obrigação legal/fiscal e defesa; LGPD art. 16, I e art. 7º, VI);
+  - a auditoria troca o email do titular pelo anonimizado;
+  - com pedido em andamento, a exclusão é recusada.
+- **Cadastro:** exige `acceptTerms`; gravam-se `terms_version` (`TERMS_VERSION`) e `terms_accepted_at`.
+- **Pedidos:**
+  - `POST /api/orders/{id}/cancel` enquanto não enviado (estoque devolvido; Pix pendente → cancelado; Pix pago → `REFUND_PENDING`);
+  - `POST /api/orders/{id}/return` até 7 dias após `delivered_at` (gravado quando o admin marca `DELIVERED`), motivo opcional;
+  - admin registra o estorno (`REFUNDED`).
+- **Front-end:** abas *Dados e privacidade* e *Segurança*, rodapé com `VITE_COMPANY_*` e modelos de política, termos e trocas escritos a partir do que o sistema faz.
+
+**Consequências**
+- Os textos são modelos. Precisam de revisão jurídica e dos dados reais da empresa, e as páginas avisam isso enquanto houver campo sem preencher.
+- O estorno em si (devolução do Pix) continua fora do sistema até integrar um PSP.
+
+---
+
+## ADR-019 — Implantação: nginx na mesma origem, PostgreSQL e containers sem root
+
+**Status:** Aceito
+
+**Decisão**
+- `shopping-delivery/deploy/docker-compose.prod.yml`: `db` (PostgreSQL 16, sem porta exposta), `api` (perfil `prod`, read-only, sem capabilities, `no-new-privileges`) e `web` (nginx sem root).
+- O nginx termina o TLS, redireciona HTTP para HTTPS, serve o build do React e faz proxy de `/api` para a API. O front usa `VITE_API_BASE_URL=/` (mesma origem): sem CORS na prática e `connect-src 'self'` na CSP.
+- Cabeçalhos: HSTS, CSP estrita, X-Frame-Options, Referrer-Policy, Permissions-Policy (`security-headers.inc`, incluído em cada `location` porque o nginx não herda `add_header`).
+- `X-Forwarded-For` recebe `$remote_addr`: o cliente não forja o IP usado no rate limit e na auditoria.
+- Access log da API em volume próprio, com retenção de 190 dias (Marco Civil, art. 15).
+- mTLS do webhook Pix pronto (comentado) para quando houver PSP.
+
+**Consequências**
+- Para publicar, é preciso:
+  - um domínio;
+  - certificado (Let's Encrypt ou do provedor) em `deploy/certs`;
+  - um `.env.prod` preenchido (nunca versionado);
+  - backups do volume `db-data` (ou banco gerenciado).
+- Fixe as imagens por digest no pipeline de release; o Dependabot acompanha as tags.
