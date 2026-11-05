@@ -4,7 +4,11 @@ import com.sskings.ecommerce.exception.BusinessException;
 import com.sskings.ecommerce.model.*;
 import com.sskings.ecommerce.model.enums.OrderStatus;
 import com.sskings.ecommerce.repository.OrderRepository;
+import com.sskings.ecommerce.model.enums.PaymentMethod;
+import com.sskings.ecommerce.model.enums.PaymentStatus;
 import com.sskings.ecommerce.repository.ProductRepository;
+import com.sskings.ecommerce.service.PaymentService;
+import com.sskings.ecommerce.service.StockService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,13 +31,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class AdminOrderServiceTest {
 
     @Mock OrderRepository orderRepository;
     @Mock ProductRepository productRepository;
+    @Mock PaymentService paymentService;
+    @Mock com.sskings.ecommerce.service.AuditService auditService;
     @InjectMocks AdminOrderService service;
+    private static final java.time.Instant NOW = java.time.Instant.parse("2026-11-05T12:00:00Z");
 
     private Order order;
     private Product product;
@@ -49,6 +58,15 @@ class AdminOrderServiceTest {
         order.getItems().add(OrderItem.builder().id(1L).order(order).product(product)
                 .productName("Caneca").quantity(2).unitPrice(BigDecimal.TEN).subtotal(new BigDecimal("20")).build());
         lenient().when(orderRepository.findWithItemsById(1L)).thenReturn(Optional.of(order));
+        // StockService real (com o ProductRepository mockado) para verificar a devolução do estoque
+        service = new AdminOrderService(orderRepository, new StockService(productRepository), paymentService, auditService,
+                java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC));
+    }
+
+    private void withPayment(PaymentStatus status) {
+        order.setPayment(Payment.builder().order(order).method(PaymentMethod.PIX).status(status)
+                .amount(order.getTotal()).txid("TX1").pixPayload("000201")
+                .createdAt(java.time.LocalDateTime.now()).expiresAt(java.time.LocalDateTime.now().plusMinutes(30)).build());
     }
 
     @Test
@@ -59,6 +77,7 @@ class AdminOrderServiceTest {
         var resp = service.updateStatus(1L, OrderStatus.CONFIRMED);
 
         assertThat(resp.status()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(resp.nextStatuses()).containsExactly(OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.CANCELLED);
         assertThat(resp.customerEmail()).isEqualTo("ana@a.com");
     }
 
@@ -69,17 +88,79 @@ class AdminOrderServiceTest {
 
         service.updateStatus(1L, OrderStatus.CANCELLED);
 
-        assertThat(product.getStockQuantity()).isEqualTo(5);
+        verify(productRepository).incrementStock(1L, 2);   // UPDATE atômico, não read-modify-write
+        verify(paymentService).onOrderCancelled(order);
+        verify(auditService).record(null, com.sskings.ecommerce.service.AuditService.ORDER_STATUS_CHANGED, "ORDER", 1L, "PENDING -> CANCELLED");
     }
 
     @Test
-    @DisplayName("PENDING → DELIVERED é rejeitado")
+    @DisplayName("Pix pendente: pedido não pode ser confirmado/enviado/entregue, só cancelado")
+    void updateStatus_awaitingPayment() {
+        withPayment(PaymentStatus.PENDING);
+
+        assertThatThrownBy(() -> service.updateStatus(1L, OrderStatus.CONFIRMED))
+                .isInstanceOf(BusinessException.class).hasMessage("Order payment is pending");
+        assertThat(service.findById(1L).nextStatuses()).containsExactly(OrderStatus.CANCELLED);
+        assertThat(service.findById(1L).payment().status()).isEqualTo(PaymentStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("Pix pago libera o fluxo normal")
+    void updateStatus_paid() {
+        withPayment(PaymentStatus.PAID);
+        order.setStatus(OrderStatus.CONFIRMED);
+        given(orderRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        assertThat(service.updateStatus(1L, OrderStatus.SHIPPED).status()).isEqualTo(OrderStatus.SHIPPED);
+    }
+
+    @Test
+    @DisplayName("Confirmação manual do Pix delega ao PaymentService e devolve o pedido atualizado")
+    void confirmPayment() {
+        var resp = service.confirmPayment(1L);
+
+        verify(paymentService).confirmByAdmin(1L);
+        assertThat(resp.id()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("Registro de estorno delega ao PaymentService")
+    void refundPayment() {
+        assertThat(service.refundPayment(1L).id()).isEqualTo(1L);
+        verify(paymentService).refundByAdmin(1L);
+    }
+
+    @Test
+    @DisplayName("PENDING → DELIVERED (pulando etapas) é permitido e não mexe no estoque")
+    void updateStatus_skipSteps() {
+        given(orderRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        var resp = service.updateStatus(1L, OrderStatus.DELIVERED);
+
+        assertThat(resp.status()).isEqualTo(OrderStatus.DELIVERED);
+        assertThat(resp.nextStatuses()).isEmpty();
+        assertThat(resp.deliveredAt()).isEqualTo(java.time.LocalDateTime.ofInstant(NOW, java.time.ZoneOffset.UTC)); // início do prazo de arrependimento
+        verify(productRepository, never()).incrementStock(any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    @DisplayName("SHIPPED → CANCELLED é rejeitado e o estoque não muda")
     void updateStatus_invalidTransition_throws() {
-        assertThatThrownBy(() -> service.updateStatus(1L, OrderStatus.DELIVERED))
+        order.setStatus(OrderStatus.SHIPPED);
+
+        assertThatThrownBy(() -> service.updateStatus(1L, OrderStatus.CANCELLED))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Cannot change order status");
-        assertThat(product.getStockQuantity()).isEqualTo(3);
-        assertThat(List.of(order.getStatus())).containsExactly(OrderStatus.PENDING);
+                .hasMessage("Cannot change order status from SHIPPED to CANCELLED");
+        verify(productRepository, never()).incrementStock(any(), org.mockito.ArgumentMatchers.anyInt());
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.SHIPPED);
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Pedido final (DELIVERED) não pode voltar")
+    void updateStatus_fromFinalState_throws() {
+        order.setStatus(OrderStatus.DELIVERED);
+        assertThatThrownBy(() -> service.updateStatus(1L, OrderStatus.PENDING)).isInstanceOf(BusinessException.class);
     }
 
     @Test

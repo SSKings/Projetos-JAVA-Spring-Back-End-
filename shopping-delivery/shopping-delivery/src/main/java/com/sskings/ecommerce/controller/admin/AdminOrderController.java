@@ -32,6 +32,16 @@ public class AdminOrderController {
         return ResponseEntity.ok(service.findById(id));
     }
 
+    @PostMapping("/{id}/payment/confirm")
+    public ResponseEntity<AdminOrderResponse> confirmPayment(@PathVariable Long id) {
+        return ResponseEntity.ok(service.confirmPayment(id));
+    }
+
+    @PostMapping("/{id}/payment/refund")
+    public ResponseEntity<AdminOrderResponse> refundPayment(@PathVariable Long id) {
+        return ResponseEntity.ok(service.refundPayment(id));
+    }
+
     @PatchMapping("/{id}/status")
     public ResponseEntity<AdminOrderResponse> updateStatus(@PathVariable Long id,
                                                            @Valid @RequestBody UpdateOrderStatusRequest request) {

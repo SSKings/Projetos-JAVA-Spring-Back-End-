@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(CartController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class})
+@Import({SecurityConfig.class, JwtAuthFilter.class, com.sskings.ecommerce.config.WebMvcTestConfig.class})
 class CartControllerTest {
 
     @Autowired MockMvc mockMvc;
@@ -59,10 +59,10 @@ class CartControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/cart — unauthenticated returns 403")
-    void getCart_unauthenticated_returns403() throws Exception {
+    @DisplayName("GET /api/cart — unauthenticated returns 401 (front-end faz logout só em 401)")
+    void getCart_unauthenticated_returns401() throws Exception {
         mockMvc.perform(get("/api/cart"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

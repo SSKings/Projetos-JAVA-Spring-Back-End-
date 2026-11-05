@@ -24,6 +24,10 @@ public class OrderService {
     private final AddressRepository addressRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final PaymentService paymentService;
+    private final StockService stockService;
+    private final AuditService auditService;
+    private final java.time.Clock clock;
 
     @Transactional
     public OrderResponse checkout(CheckoutRequest request, Long userId) {
@@ -44,13 +48,13 @@ public class OrderService {
 
         BigDecimal total = BigDecimal.ZERO;
         for (CartItem ci : cartItems) {
-            Product product = productRepository.findById(ci.getProduct().getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
-            if (product.getStockQuantity() < ci.getQuantity()) {
+            // produto desativado depois de ir para o carrinho não pode ser comprado
+            Product product = productRepository.findByIdAndActiveTrue(ci.getProduct().getId())
+                    .orElseThrow(() -> new BusinessException("Product no longer available: " + ci.getProduct().getName()));
+            // baixa atômica no banco; 0 linhas = sem estoque (rollback de tudo o que já foi baixado)
+            if (productRepository.decrementStock(product.getId(), ci.getQuantity()) == 0) {
                 throw new BusinessException("Insufficient stock for: " + product.getName());
             }
-            product.setStockQuantity(product.getStockQuantity() - ci.getQuantity());
-            productRepository.save(product);
 
             BigDecimal subtotal = product.getPrice().multiply(BigDecimal.valueOf(ci.getQuantity()));
             order.getItems().add(OrderItem.builder()
@@ -66,6 +70,7 @@ public class OrderService {
 
         order.setTotal(total);
         Order saved = orderRepository.save(order);
+        paymentService.createPixCharge(saved); // único método hoje: CheckoutRequest.paymentMethod = PIX
         cartItemRepository.deleteAllByUserId(userId);
         return OrderResponse.from(saved);
     }
@@ -82,5 +87,35 @@ public class OrderService {
         return orderRepository.findByIdAndUserIdWithItems(id, userId)
                 .map(OrderResponse::from)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
+    }
+
+    /** Cancelamento pelo cliente antes do envio: devolve estoque; Pix pago vira estorno pendente. */
+    @Transactional
+    public OrderResponse cancelByCustomer(Long id, Long userId) {
+        Order order = orderRepository.findByIdAndUserIdWithItems(id, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
+        if (!order.isCancellableByCustomer()) {
+            throw new BusinessException("Order can no longer be cancelled");
+        }
+        stockService.restore(order);
+        paymentService.onOrderCancelled(order);
+        order.setStatus(OrderStatus.CANCELLED);
+        auditService.record(order.getUser(), AuditService.ORDER_CANCELLED_BY_CUSTOMER, "ORDER", id,
+                order.getPayment() != null ? "payment " + order.getPayment().getStatus() : null);
+        return OrderResponse.from(orderRepository.save(order));
+    }
+
+    /** Direito de arrependimento (CDC art. 49): até 7 dias após a entrega, sem precisar justificar. */
+    @Transactional
+    public OrderResponse requestReturn(Long id, Long userId, String reason) {
+        Order order = orderRepository.findByIdAndUserIdWithItems(id, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
+        if (!order.canRequestReturn(java.time.LocalDateTime.now(clock))) {
+            throw new BusinessException("Return period has expired or a return was already requested");
+        }
+        order.setReturnRequestedAt(java.time.LocalDateTime.now(clock));
+        order.setReturnReason(reason == null || reason.isBlank() ? null : reason.trim());
+        auditService.record(order.getUser(), AuditService.RETURN_REQUESTED, "ORDER", id, null);
+        return OrderResponse.from(orderRepository.save(order));
     }
 }

@@ -1,0 +1,6 @@
+# Só para testes: classpath:config/application.yml tem precedência sobre o application.yml principal.
+# O rate limit é coberto por testes próprios (RateLimitFilterTest) com limites baixos.
+security:
+  rate-limit:
+    auth-per-minute: 100000
+    webhook-per-minute: 100000

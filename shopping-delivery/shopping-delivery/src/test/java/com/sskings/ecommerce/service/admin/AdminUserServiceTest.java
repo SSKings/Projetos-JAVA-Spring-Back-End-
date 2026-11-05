@@ -30,6 +30,7 @@ class AdminUserServiceTest {
 
     @Mock UserRepository userRepository;
     @Mock OrderRepository orderRepository;
+    @Mock com.sskings.ecommerce.service.AuditService auditService;
     @InjectMocks AdminUserService service;
 
     @Test

@@ -11,8 +11,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
- * Garante que exista um administrador inicial. As credenciais vêm de
- * app.admin.* (sobrescreva com ADMIN_EMAIL / ADMIN_PASSWORD em produção).
+ * Garante que exista um administrador inicial. As credenciais vêm de app.admin.* — em produção,
+ * ADMIN_EMAIL / ADMIN_PASSWORD obrigatórios e validados (ProductionConfigValidator). O admin precisa
+ * ativar o MFA no primeiro acesso antes de usar /api/admin/**.
  */
 @Slf4j
 @Component
@@ -28,12 +29,13 @@ public class AdminSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (userRepository.existsByEmail(email)) {
+        String normalized = email.trim().toLowerCase(java.util.Locale.ROOT);
+        if (userRepository.existsByEmail(normalized)) {
             return;
         }
         userRepository.save(User.builder()
                 .name(name)
-                .email(email)
+                .email(normalized)
                 .password(passwordEncoder.encode(password))
                 .role(Role.ADMIN)
                 .build());

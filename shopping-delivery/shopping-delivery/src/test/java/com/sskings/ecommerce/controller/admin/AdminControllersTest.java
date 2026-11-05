@@ -34,16 +34,18 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest({AdminOrderController.class, AdminUserController.class, AdminDashboardController.class})
-@Import({SecurityConfig.class, JwtAuthFilter.class})
+@WebMvcTest({AdminOrderController.class, AdminUserController.class, AdminDashboardController.class, AdminAuditController.class})
+@Import({SecurityConfig.class, JwtAuthFilter.class, com.sskings.ecommerce.config.WebMvcTestConfig.class})
 class AdminControllersTest {
 
     @Autowired MockMvc mockMvc;
     @MockBean AdminOrderService orderService;
     @MockBean AdminUserService userService;
     @MockBean AdminDashboardService dashboardService;
+    @MockBean com.sskings.ecommerce.service.AuditService auditService;
     @MockBean UserRepository userRepository;
     @MockBean JwtService jwtService;
 
@@ -54,7 +56,8 @@ class AdminControllersTest {
             new AddressResponse(1L, "01000-000", "Rua A", "1", null, "Centro", "SP", "SP");
 
     private AdminOrderResponse order(OrderStatus status) {
-        return new AdminOrderResponse(5L, status, BigDecimal.TEN, LocalDateTime.now(), 2L, "Ana", "ana@a.com", ADDRESS, List.of());
+        return new AdminOrderResponse(5L, status, BigDecimal.TEN, LocalDateTime.now(), 2L, "Ana", "ana@a.com", ADDRESS, List.of(),
+                status.nextStatuses(), null, null, null, null);
     }
 
     // ---------- Autenticação real via JwtAuthFilter ----------
@@ -62,7 +65,7 @@ class AdminControllersTest {
     @Test
     @DisplayName("Token JWT válido de admin acessa o dashboard")
     void dashboard_withAdminJwt_returns200() throws Exception {
-        given(jwtService.validateToken("tok")).willReturn("admin@x.com");
+        given(jwtService.validateToken("tok")).willReturn(new JwtService.TokenClaims("admin@x.com", 0));
         given(userRepository.findByEmail("admin@x.com")).willReturn(Optional.of(ADMIN));
         given(dashboardService.getStats()).willReturn(new DashboardResponse(10, 9, 1, 30, 40, 2, new BigDecimal("100.00")));
 
@@ -76,7 +79,7 @@ class AdminControllersTest {
     @DisplayName("Token JWT de cliente recebe 403 nas rotas de admin")
     void dashboard_withCustomerJwt_returns403() throws Exception {
         User customer = User.builder().id(2L).email("ana@a.com").role(Role.CUSTOMER).build();
-        given(jwtService.validateToken("tok")).willReturn("ana@a.com");
+        given(jwtService.validateToken("tok")).willReturn(new JwtService.TokenClaims("ana@a.com", 0));
         given(userRepository.findByEmail("ana@a.com")).willReturn(Optional.of(customer));
 
         mockMvc.perform(get("/api/admin/dashboard").header("Authorization", "Bearer tok"))
@@ -87,20 +90,32 @@ class AdminControllersTest {
     @DisplayName("Token de usuário bloqueado não autentica")
     void dashboard_withBlockedUserJwt_returns403() throws Exception {
         User blocked = User.builder().id(1L).email("admin@x.com").role(Role.ADMIN).active(false).build();
-        given(jwtService.validateToken("tok")).willReturn("admin@x.com");
+        given(jwtService.validateToken("tok")).willReturn(new JwtService.TokenClaims("admin@x.com", 0));
         given(userRepository.findByEmail("admin@x.com")).willReturn(Optional.of(blocked));
 
         mockMvc.perform(get("/api/admin/dashboard").header("Authorization", "Bearer tok"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     @DisplayName("Token inválido não autentica")
-    void dashboard_withInvalidJwt_returns403() throws Exception {
+    void dashboard_withInvalidJwt_returns401() throws Exception {
         given(jwtService.validateToken("bad")).willReturn(null);
 
         mockMvc.perform(get("/api/admin/dashboard").header("Authorization", "Bearer bad"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Authentication required"));
+    }
+
+    @Test
+    @DisplayName("Token revogado (versão antiga, ex.: após logout) não autentica")
+    void dashboard_withRevokedJwt_returns401() throws Exception {
+        User admin = User.builder().id(1L).email("admin@x.com").password("h").role(Role.ADMIN).tokenVersion(3).build();
+        given(jwtService.validateToken("old")).willReturn(new JwtService.TokenClaims("admin@x.com", 2));
+        given(userRepository.findByEmail("admin@x.com")).willReturn(Optional.of(admin));
+
+        mockMvc.perform(get("/api/admin/dashboard").header("Authorization", "Bearer old"))
+                .andExpect(status().isUnauthorized());
     }
 
     // ---------- Pedidos ----------
@@ -141,7 +156,9 @@ class AdminControllersTest {
         mockMvc.perform(patch("/api/admin/orders/5/status").with(user(ADMIN))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"CONFIRMED\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.nextStatuses[0]").value("SHIPPED"))
+                .andExpect(jsonPath("$.nextStatuses.length()").value(3));
     }
 
     @Test
@@ -204,5 +221,32 @@ class AdminControllersTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"active\":false}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("You cannot change your own account"));
+    }
+
+    // ---------- Auditoria e estorno ----------
+
+    @Test
+    @DisplayName("GET /api/admin/audit lista a trilha (filtro por ação); cliente recebe 403")
+    void audit() throws Exception {
+        var log = com.sskings.ecommerce.model.AuditLog.builder().id(1L).action("LOGIN_FAILED").actorEmail("a@a.com")
+                .ip("1.2.3.4").createdAt(LocalDateTime.now()).build();
+        given(auditService.search(eq("LOGIN_FAILED"), any())).willReturn(new PageImpl<>(List.of(log)));
+
+        mockMvc.perform(get("/api/admin/audit").param("action", "LOGIN_FAILED").with(user(ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].action").value("LOGIN_FAILED"))
+                .andExpect(jsonPath("$.content[0].ip").value("1.2.3.4"));
+        mockMvc.perform(get("/api/admin/audit").with(user(User.builder().id(2L).email("c@c.com").password("h").role(Role.CUSTOMER).build())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access denied"));
+    }
+
+    @Test
+    @DisplayName("POST /api/admin/orders/{id}/payment/refund registra o estorno")
+    void refund() throws Exception {
+        given(orderService.refundPayment(5L)).willReturn(order(OrderStatus.CANCELLED));
+        mockMvc.perform(post("/api/admin/orders/5/payment/refund").with(user(ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
 }

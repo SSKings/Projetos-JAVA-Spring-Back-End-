@@ -44,6 +44,44 @@ public class User implements UserDetails {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** Incrementado em logout, troca de papel, bloqueio e MFA: invalida todos os JWT já emitidos. */
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private int tokenVersion = 0;
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    @Builder.Default
+    private int failedLoginAttempts = 0;
+
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
+    @Column(name = "mfa_enabled", nullable = false)
+    @Builder.Default
+    private boolean mfaEnabled = false;
+
+    /** Segredo TOTP cifrado com AES-GCM (CryptoService); nunca em texto puro. */
+    @Column(name = "mfa_secret")
+    private String mfaSecret;
+
+    /** Último passo TOTP aceito: impede reutilizar o mesmo código. */
+    @Column(name = "mfa_last_step")
+    private Long mfaLastStep;
+
+    @Column(name = "terms_version", length = 20)
+    private String termsVersion;
+
+    @Column(name = "terms_accepted_at")
+    private LocalDateTime termsAcceptedAt;
+
+    /** Preenchido quando o titular exclui a conta (LGPD art. 18, VI): dados pessoais anonimizados. */
+    @Column(name = "anonymized_at")
+    private LocalDateTime anonymizedAt;
+
+    public void revokeTokens() {
+        tokenVersion++;
+    }
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

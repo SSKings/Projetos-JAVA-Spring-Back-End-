@@ -1,10 +1,12 @@
 package com.sskings.ecommerce.service;
 
 import com.sskings.ecommerce.dto.request.AddressRequest;
+import com.sskings.ecommerce.exception.BusinessException;
 import com.sskings.ecommerce.exception.ResourceNotFoundException;
 import com.sskings.ecommerce.model.Address;
 import com.sskings.ecommerce.model.User;
 import com.sskings.ecommerce.repository.AddressRepository;
+import com.sskings.ecommerce.repository.OrderRepository;
 import com.sskings.ecommerce.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,7 @@ class AddressServiceTest {
 
     @Mock AddressRepository addressRepository;
     @Mock UserRepository userRepository;
+    @Mock OrderRepository orderRepository;
     @InjectMocks AddressService service;
 
     private final AddressRequest request =
@@ -84,6 +87,19 @@ class AddressServiceTest {
         given(addressRepository.findByIdAndUserId(3L, 2L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(3L, 2L)).isInstanceOf(ResourceNotFoundException.class);
+        verify(addressRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("Não exclui endereço já usado em um pedido (evita violar a FK orders.address_id)")
+    void delete_addressLinkedToOrder_throws() {
+        Address address = Address.builder().id(3L).build();
+        given(addressRepository.findByIdAndUserId(3L, 1L)).willReturn(Optional.of(address));
+        given(orderRepository.existsByAddressId(3L)).willReturn(true);
+
+        assertThatThrownBy(() -> service.delete(3L, 1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Address is linked to an order");
         verify(addressRepository, never()).delete(any());
     }
 }

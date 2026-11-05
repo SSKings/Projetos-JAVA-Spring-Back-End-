@@ -16,13 +16,23 @@ public record AdminOrderResponse(
         String customerName,
         String customerEmail,
         AddressResponse address,
-        List<OrderItemResponse> items
+        List<OrderItemResponse> items,
+        List<OrderStatus> nextStatuses,
+        PaymentResponse payment,
+        LocalDateTime deliveredAt,
+        LocalDateTime returnRequestedAt,
+        String returnReason
 ) {
     public static AdminOrderResponse from(Order o) {
         return new AdminOrderResponse(
                 o.getId(), o.getStatus(), o.getTotal(), o.getCreatedAt(),
                 o.getUser().getId(), o.getUser().getName(), o.getUser().getEmail(),
                 AddressResponse.from(o.getAddress()),
-                o.getItems().stream().map(OrderItemResponse::from).toList());
+                o.getItems().stream().map(OrderItemResponse::from).toList(),
+                o.nextStatuses(),
+                PaymentResponse.from(o.getPayment()),
+                o.getDeliveredAt(),
+                o.getReturnRequestedAt(),
+                o.getReturnReason());
     }
 }

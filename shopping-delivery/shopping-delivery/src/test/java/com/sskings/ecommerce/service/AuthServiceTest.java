@@ -4,101 +4,207 @@ import com.sskings.ecommerce.dto.request.LoginRequest;
 import com.sskings.ecommerce.dto.request.RegisterRequest;
 import com.sskings.ecommerce.dto.response.AuthResponse;
 import com.sskings.ecommerce.exception.BusinessException;
+import com.sskings.ecommerce.exception.TooManyRequestsException;
 import com.sskings.ecommerce.model.User;
+import com.sskings.ecommerce.model.enums.Role;
 import com.sskings.ecommerce.repository.UserRepository;
+import com.sskings.ecommerce.security.CryptoService;
 import com.sskings.ecommerce.security.JwtService;
+import com.sskings.ecommerce.security.SecurityProperties;
+import com.sskings.ecommerce.security.TotpService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.*;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AuthServiceTest {
 
+    private static final Instant NOW = Instant.parse("2026-11-05T12:00:00Z");
+    private static final LocalDateTime LOCAL_NOW = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
+    private static final String KEY = java.util.Base64.getEncoder().encodeToString(new byte[32]);
+
     @Mock UserRepository userRepository;
-    @Mock PasswordEncoder passwordEncoder;
     @Mock JwtService jwtService;
-    @InjectMocks AuthService authService;
+    @Mock AuditService auditService;
+
+    private final PasswordEncoder encoder = new BCryptPasswordEncoder(4);
+    private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+    private final TotpService totp = new TotpService(clock);
+    private final CryptoService crypto = new CryptoService(KEY);
+    private AuthService service;
+    private User user;
+
+    private static SecurityProperties props(boolean requireAdminMfa) {
+        return new SecurityProperties(new SecurityProperties.Jwt("s", 120), KEY, requireAdminMfa,
+                new SecurityProperties.Login(3, 15), new SecurityProperties.RateLimit(true, 20, 120));
+    }
+
+    @BeforeEach
+    void setUp() {
+        service = new AuthService(userRepository, encoder, jwtService, totp, crypto, auditService, props(true), clock, "2026-11-05");
+        user = User.builder().id(1L).name("Ana").email("ana@a.com").password(encoder.encode("senha123")).role(Role.CUSTOMER).build();
+        given(userRepository.findByEmail("ana@a.com")).willReturn(Optional.of(user));
+        given(userRepository.save(any(User.class))).willAnswer(inv -> inv.getArgument(0));
+        given(jwtService.generateToken(any())).willReturn("jwt");
+    }
+
+    private AuthResponse login(String password) {
+        return service.login(new LoginRequest("ana@a.com", password));
+    }
+
+    // ---------- cadastro ----------
 
     @Test
-    @DisplayName("register — happy path returns token")
+    @DisplayName("Cadastro normaliza o email, grava hash, versão e data do aceite dos termos")
     void register_success() {
-        given(userRepository.existsByEmail("a@a.com")).willReturn(false);
-        given(passwordEncoder.encode("secret")).willReturn("hashed");
-        given(userRepository.save(any(User.class))).willAnswer(inv -> inv.getArgument(0));
-        given(jwtService.generateToken("a@a.com")).willReturn("jwt-token");
+        given(userRepository.existsByEmail("novo@a.com")).willReturn(false);
 
-        AuthResponse resp = authService.register(
-                new RegisterRequest("Alice", "a@a.com", "secret", null));
+        AuthResponse resp = service.register(new RegisterRequest(" Bia Souza ", " Novo@A.com ", "senha123", null, true));
 
-        assertThat(resp.token()).isEqualTo("jwt-token");
-        assertThat(resp.email()).isEqualTo("a@a.com");
+        assertThat(resp.token()).isEqualTo("jwt");
+        then(userRepository).should().save(argThat(u -> u.getEmail().equals("novo@a.com")
+                && u.getName().equals("Bia Souza")
+                && encoder.matches("senha123", u.getPassword())
+                && "2026-11-05".equals(u.getTermsVersion())
+                && LOCAL_NOW.equals(u.getTermsAcceptedAt())));
+        then(auditService).should().record(any(), eq(AuditService.REGISTER), eq("USER"), any(), contains("2026-11-05"));
     }
 
     @Test
-    @DisplayName("register — duplicate email throws BusinessException")
-    void register_duplicateEmail_throws() {
-        given(userRepository.existsByEmail("a@a.com")).willReturn(true);
-
-        assertThatThrownBy(() -> authService.register(
-                new RegisterRequest("Alice", "a@a.com", "secret", null)))
-                .isInstanceOf(BusinessException.class)
+    @DisplayName("Cadastro com email existente é recusado")
+    void register_duplicate() {
+        given(userRepository.existsByEmail("ana@a.com")).willReturn(true);
+        assertThatThrownBy(() -> service.register(new RegisterRequest("Ana S", "ANA@a.com", "senha123", null, true)))
                 .hasMessage("Email already in use");
     }
 
+    // ---------- login ----------
+
     @Test
-    @DisplayName("login — happy path returns token")
+    @DisplayName("Login correto zera o contador de falhas e audita")
     void login_success() {
-        User user = User.builder().email("a@a.com").password("hashed").name("Alice").build();
-        given(userRepository.findByEmail("a@a.com")).willReturn(Optional.of(user));
-        given(passwordEncoder.matches("secret", "hashed")).willReturn(true);
-        given(jwtService.generateToken("a@a.com")).willReturn("jwt-token");
-
-        AuthResponse resp = authService.login(new LoginRequest("a@a.com", "secret"));
-
-        assertThat(resp.token()).isEqualTo("jwt-token");
+        user.setFailedLoginAttempts(2);
+        AuthResponse resp = service.login(new LoginRequest(" ANA@a.com ", "senha123"));
+        assertThat(resp.token()).isEqualTo("jwt");
+        assertThat(resp.mfaSetupRequired()).isFalse();
+        assertThat(user.getFailedLoginAttempts()).isZero();
+        then(auditService).should().record(user, AuditService.LOGIN_SUCCESS, "USER", 1L, null);
     }
 
     @Test
-    @DisplayName("login — wrong password throws BusinessException")
-    void login_wrongPassword_throws() {
-        User user = User.builder().email("a@a.com").password("hashed").build();
-        given(userRepository.findByEmail("a@a.com")).willReturn(Optional.of(user));
-        given(passwordEncoder.matches("wrong", "hashed")).willReturn(false);
-
-        assertThatThrownBy(() -> authService.login(new LoginRequest("a@a.com", "wrong")))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("Invalid credentials");
-    }
-
-    @Test
-    @DisplayName("login — blocked account throws BusinessException and issues no token")
-    void login_blockedUser_throws() {
-        User user = User.builder().email("a@a.com").password("hashed").active(false).build();
-        given(userRepository.findByEmail("a@a.com")).willReturn(Optional.of(user));
-        given(passwordEncoder.matches("secret", "hashed")).willReturn(true);
-
-        assertThatThrownBy(() -> authService.login(new LoginRequest("a@a.com", "secret")))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("Account is blocked");
-        org.mockito.Mockito.verifyNoInteractions(jwtService);
-    }
-
-    @Test
-    @DisplayName("login — user not found throws BusinessException")
-    void login_userNotFound_throws() {
+    @DisplayName("Email inexistente: mesma mensagem e BCrypt executado mesmo assim (anti-enumeração por tempo)")
+    void login_unknownEmail() {
+        PasswordEncoder spy = spy(encoder);
+        AuthService s = new AuthService(userRepository, spy, jwtService, totp, crypto, auditService, props(true), clock, "v");
         given(userRepository.findByEmail("x@x.com")).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> authService.login(new LoginRequest("x@x.com", "pass")))
-                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> s.login(new LoginRequest("x@x.com", "qualquer1")))
+                .isInstanceOf(BusinessException.class).hasMessage("Invalid credentials");
+        then(spy).should().matches(eq("qualquer1"), anyString());
+        then(auditService).should().recordIndependent(isNull(), eq(AuditService.LOGIN_FAILED), any(), any(), contains("x***@x.com"));
+    }
+
+    @Test
+    @DisplayName("Senha errada conta falha; na 3ª a conta fica bloqueada por 15 min, mesmo com a senha certa")
+    void login_lockout() {
+        assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
+        assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(2);
+        assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
+
+        assertThat(user.getLockedUntil()).isEqualTo(LOCAL_NOW.plusMinutes(15));
+        then(auditService).should().recordIndependent(eq(user), eq(AuditService.ACCOUNT_LOCKED), any(), any(), any());
+
+        assertThatThrownBy(() -> login("senha123"))
+                .isInstanceOf(TooManyRequestsException.class)
+                .satisfies(e -> assertThat(((TooManyRequestsException) e).getRetryAfterSeconds()).isEqualTo(901));
+    }
+
+    @Test
+    @DisplayName("Bloqueio vencido libera o login")
+    void login_lockExpired() {
+        user.setLockedUntil(LOCAL_NOW.minusSeconds(1));
+        assertThat(login("senha123").token()).isEqualTo("jwt");
+        assertThat(user.getLockedUntil()).isNull();
+    }
+
+    @Test
+    @DisplayName("Conta bloqueada pelo admin (depois de validar a senha)")
+    void login_blocked() {
+        user.setActive(false);
+        assertThatThrownBy(() -> login("senha123")).hasMessage("Account is blocked");
+    }
+
+    @Test
+    @DisplayName("Admin sem MFA recebe mfaSetupRequired quando o MFA é obrigatório")
+    void login_adminWithoutMfa() {
+        user.setRole(Role.ADMIN);
+        assertThat(login("senha123").mfaSetupRequired()).isTrue();
+        AuthService optional = new AuthService(userRepository, encoder, jwtService, totp, crypto, auditService, props(false), clock, "v");
+        assertThat(optional.login(new LoginRequest("ana@a.com", "senha123")).mfaSetupRequired()).isFalse();
+    }
+
+    // ---------- MFA ----------
+
+    private String enableMfa() {
+        String secret = totp.newSecret();
+        user.setMfaEnabled(true);
+        user.setMfaSecret(crypto.encrypt(secret));
+        return secret;
+    }
+
+    @Test
+    @DisplayName("MFA: sem código pede o código; código certo entra e não pode ser reutilizado")
+    void login_mfa() {
+        String secret = enableMfa();
+        assertThatThrownBy(() -> login("senha123")).hasMessage("MFA code required");
+        assertThat(user.getFailedLoginAttempts()).isZero(); // pedir o código não é falha
+
+        String code = totp.currentCode(secret);
+        AuthResponse resp = service.login(new LoginRequest("ana@a.com", "senha123", code));
+        assertThat(resp.mfaEnabled()).isTrue();
+        assertThat(user.getMfaLastStep()).isNotNull();
+
+        assertThatThrownBy(() -> service.login(new LoginRequest("ana@a.com", "senha123", code)))
+                .hasMessage("Invalid MFA code");
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("MFA: código errado conta como falha")
+    void login_mfaWrongCode() {
+        enableMfa();
+        assertThatThrownBy(() -> service.login(new LoginRequest("ana@a.com", "senha123", "000000")))
+                .hasMessage("Invalid MFA code");
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
+    }
+
+    // ---------- logout ----------
+
+    @Test
+    @DisplayName("Logout incrementa a versão do token (revoga todos os tokens)")
+    void logout() {
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        service.logout(1L);
+        assertThat(user.getTokenVersion()).isEqualTo(1);
+        then(auditService).should().record(user, AuditService.LOGOUT, "USER", 1L, null);
+
+        given(userRepository.findById(9L)).willReturn(Optional.empty());
+        service.logout(9L); // usuário inexistente: nada acontece
     }
 }

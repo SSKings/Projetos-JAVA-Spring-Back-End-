@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ProductController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class})
+@Import({SecurityConfig.class, JwtAuthFilter.class, com.sskings.ecommerce.config.WebMvcTestConfig.class})
 class ProductControllerTest {
 
     @Autowired MockMvc mockMvc;
@@ -60,9 +60,9 @@ class ProductControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/cart — protected, returns 403 without auth")
-    void getCart_noAuth_returns403() throws Exception {
+    @DisplayName("GET /api/cart — protected, returns 401 without auth")
+    void getCart_noAuth_returns401() throws Exception {
         mockMvc.perform(get("/api/cart").accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }
