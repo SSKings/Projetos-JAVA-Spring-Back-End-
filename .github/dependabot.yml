@@ -1,20 +1,46 @@
-# Atualizações automáticas de dependências (docs/security-review.md, A3)
+# Atualizações automáticas de dependências (docs/security-review.md, A3; docs/dev-workflow.md).
+#
+# - minor/patch são agrupadas: um PR por ecossistema, em vez de um PR por dependência.
+# - major é ignorada: muda API/comportamento (ex.: Tailwind 3 -> 4 quebrou o build) e exige migração planejada.
+#   Atualizações de segurança continuam chegando (são abertas pelo Dependabot security updates, à parte).
 version: 2
 updates:
   - package-ecosystem: maven
     directory: /shopping-delivery/shopping-delivery
     schedule: { interval: weekly }
-    open-pull-requests-limit: 5
+    groups:
+      maven-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: npm
     directory: /shopping-delivery-frontend
     schedule: { interval: weekly }
-    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: docker
-    directory: /shopping-delivery/shopping-delivery
+    directories: [/shopping-delivery/shopping-delivery, /shopping-delivery-frontend]
     schedule: { interval: weekly }
-  - package-ecosystem: docker
-    directory: /shopping-delivery-frontend
-    schedule: { interval: weekly }
+    groups:
+      docker-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: monthly }
+    groups:
+      actions:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
