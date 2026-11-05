@@ -1,8 +1,22 @@
+# Perfil de testes (o CI roda ./mvnw verify -Dspring.profiles.active=test).
 spring:
   datasource:
-    url: jdbc:h2:~/gestor_financeiro
+    # em memória: nada fica gravado no disco do desenvolvedor/runner entre execuções
+    url: jdbc:h2:mem:gestor_financeiro_test;DB_CLOSE_DELAY=-1
     driverClassName: org.h2.Driver
-    username: user
+    username: sa
+    password:
   jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: create-drop
+    # data.sql roda depois do Hibernate criar as tabelas (mesmo comportamento do perfil development)
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: embedded
+
+security:
+  jwt:
+    # O CI define JWT_SECRET; o valor padrão serve só para rodar os testes localmente.
+    secret: ${JWT_SECRET:test-only-jwt-secret-not-for-production}
