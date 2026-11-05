@@ -18,6 +18,7 @@ Projetos-JAVA-Spring-Back-End-/
 │       ├── api-reference.md      ← Referência completa dos endpoints
 │       ├── architecture.md       ← Modelo de domínio e decisões técnicas
 │       ├── adr.md                ← Architecture Decision Records
+│       ├── dev-workflow.md       ← Branches, worktrees e servidores locais
 │       └── security-review.md    ← Revisão de segurança, status das correções, checklist legal
 └── shopping-delivery-frontend/   ← Frontend (React + TS), na raiz do repositório
     ├── src/
@@ -55,6 +56,9 @@ npm run dev
 ```
 
 Acesse `http://localhost:5173` — a API estará em `http://localhost:8080`.
+
+> Depois de trocar de branch, **reinicie a API** (o Vite recarrega sozinho; o Spring não). Trabalho paralelo
+> vai num `git worktree`, não no checkout em uso — ver [`docs/dev-workflow.md`](docs/dev-workflow.md).
 
 O perfil padrão é **`dev`** (H2 em memória, Swagger e console H2 ligados, segredos de exemplo).
 
@@ -168,4 +172,5 @@ Relatórios HTML: `shopping-delivery/target/site/jacoco/index.html` e `shopping-
 - [Referência da API](docs/api-reference.md)
 - [Arquitetura e modelo de domínio](docs/architecture.md)
 - [Decisões de arquitetura (ADR)](docs/adr.md)
+- [Fluxo de desenvolvimento](docs/dev-workflow.md) — branches, worktrees, o aviso do `npm run dev` e como revisar PRs do Dependabot
 - [Revisão de segurança e prontidão para produção](docs/security-review.md) — vulnerabilidades encontradas, checklist técnico e legal (LGPD, CDC, Marco Civil, Pix)

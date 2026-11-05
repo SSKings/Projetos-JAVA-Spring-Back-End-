@@ -26,6 +26,7 @@ Requer **Node.js 22.22+** (o CI usa Node 24).
 ```bash
 npm install
 npm run dev      # inicia em http://localhost:5173 e no IP da rede (ex.: http://192.168.1.180:5173)
+                 # antes, scripts/dev-preflight.mjs avisa se a branch não tem commits da main
 npm run build    # build de produção
 npx tsc -b       # verificação de tipos
 npm run lint     # oxlint
@@ -33,6 +34,9 @@ npm test         # roda os testes uma vez
 npm run test:watch
 npm run coverage # testes + cobertura (falha abaixo do mínimo)
 ```
+
+> O servidor serve **a branch em checkout**. Se uma funcionalidade "sumir", confira a branch antes de tudo e
+> leia [`../shopping-delivery/docs/dev-workflow.md`](../shopping-delivery/docs/dev-workflow.md).
 
 A API deve estar rodando na porta `8080` da mesma máquina. O front-end a encontra pelo host da página:
 abrindo `http://localhost:5173` ele chama `http://localhost:8080`; abrindo `http://192.168.1.180:5173` (de outro
