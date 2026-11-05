@@ -17,6 +17,6 @@ ARG VITE_TERMS_VERSION
 RUN npm run build
 
 # ---------- runtime: nginx sem root ----------
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 COPY --from=build /src/dist /usr/share/nginx/html
 EXPOSE 8080 8443
