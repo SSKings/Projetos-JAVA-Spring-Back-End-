@@ -19,7 +19,7 @@
 | Projeto | Descrição | Stack principal |
 |---------|-----------|-----------------|
 | [API Gestor Financeiro](#1-api-gestor-financeiro) | API REST completa de finanças pessoais com JWT | Spring Security · JWT · PostgreSQL · Docker |
-| [Shopping Delivery](#2-shopping-delivery) | API de e-commerce com gestão de pedidos e estoque | Flyway · Bean Validation · H2 |
+| [Shopping Delivery](#2-shopping-delivery) | E-commerce full-stack com área administrativa | Spring Security · JWT · React · Flyway |
 | [Spring AI](#3-spring-ai) | Chat, geração de imagens e receitas via OpenAI | Spring AI · OpenAI |
 | [Voice Transcription](#4-voice-transcription) | Transcrição de áudio para texto (Whisper) | Spring AI · OpenAI Whisper |
 | [Text to Speech](#5-text-to-speech) | Síntese de voz a partir de texto | Spring AI · OpenAI TTS |
@@ -57,25 +57,30 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`
 
 ## 2. Shopping Delivery
 
-> `shopping-delivery/shopping-delivery/`
+> `shopping-delivery/shopping-delivery/` (API) · `shopping-delivery-frontend/` (React)
 
-API REST de e-commerce com ciclo completo de pedidos: clientes, endereços, catálogo de itens, pedidos e itens de pedido. Inclui validação de estoque em tempo real e cálculo automático de totais.
+E-commerce full-stack (**ShopEasy**): catálogo, carrinho, checkout em 3 etapas e histórico de pedidos para
+clientes, e uma **área administrativa** para gerenciar produtos, pedidos e usuários.
 
 **Destaques técnicos:**
-- Migrações de banco de dados versionadas com Flyway (7 migrations)
-- Validação de estoque: decrementa ao adicionar item, restaura ao remover
-- Ciclo de vida de pedido: `PENDENTE → APROVADO → ENTREGUE` (ou `CANCELADO`)
-- Exceções de negócio tipadas (`EstoqueInsuficienteException`, `CpfExistenteException`, etc.)
-- Cobertura de testes com 10+ classes de testes (controllers, services, repository)
+- Autenticação stateless com JWT e controle de acesso por papel (`CUSTOMER` / `ADMIN`) em `/api/admin/**`
+- Bloqueio de usuários com efeito imediato (login recusado e token atual invalidado)
+- Checkout atômico (`@Transactional`): valida e baixa estoque, grava snapshot de preço, limpa carrinho
+- Máquina de estados do pedido `PENDING → CONFIRMED → SHIPPED → DELIVERED`; cancelar devolve o estoque
+- Exclusão lógica de produtos, preservando o histórico de pedidos
+- Migrações versionadas com Flyway e admin inicial criado no startup
+- **210 testes** com cobertura exigida no build: backend 94,8% de linhas (JaCoCo) e frontend 98,3% (Vitest)
+- Documentação de API, arquitetura e ADRs em [`shopping-delivery/docs/`](shopping-delivery/docs/)
 
-**Stack:** Java 17 · Spring Boot 3.3.7 · JPA · Flyway · Bean Validation · H2 · OpenAPI
+**Stack:** Java 17 · Spring Boot 3.3.7 · Spring Security · JWT · JPA · Flyway · H2 · OpenAPI ·
+React 19 · TypeScript · Tailwind · Vitest
 
 ```bash
-cd shopping-delivery/shopping-delivery
-./mvnw spring-boot:run
+cd shopping-delivery/shopping-delivery && ./mvnw spring-boot:run   # API em :8080
+cd shopping-delivery-frontend && npm install && npm run dev         # UI em :5173
 ```
 
-Swagger UI: `http://localhost:8080/swagger-ui.html`
+Admin (dev): `admin@shopeasy.com` / `admin123` · Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 
 ---
 
@@ -176,6 +181,7 @@ cd web-security && ./mvnw spring-boot:run
 | JDK | 17 (projetos Java 17) ou 21 (projetos AI) |
 | Maven | 3.6+ (ou use o Maven Wrapper incluso: `./mvnw`) |
 | Docker | 20+ (apenas para `api.gestor.financeiro`) |
+| Node.js | 20+ (apenas para `shopping-delivery-frontend`) |
 | MySQL | 8+ (para `web-api` e `web-security`) |
 | OpenAI API Key | — (para projetos `spring-ai`, `voice-transcription`, `text-to-speec`) |
 
@@ -189,7 +195,8 @@ Projetos-JAVA-Spring-Back-End-/
 │   └── workflows/
 │       └── ci.yml               # CI: build e testes automáticos
 ├── api.gestor.financeiro/        # Finanças pessoais (JWT + Docker)
-├── shopping-delivery/            # E-commerce (Flyway + testes completos)
+├── shopping-delivery/            # E-commerce: API + docs (JWT, admin, Flyway, JaCoCo)
+├── shopping-delivery-frontend/   # E-commerce: SPA React + TypeScript (Vitest)
 ├── spring-ai/                    # Chat + imagens com OpenAI
 ├── voice-transcription/          # Transcrição de áudio (Whisper)
 ├── text-to-speec/                # Síntese de voz (TTS)
@@ -197,7 +204,7 @@ Projetos-JAVA-Spring-Back-End-/
 └── web-security/                 # Auth com Spring Security
 ```
 
-Cada projeto é **independente** e possui seu próprio `pom.xml`, podendo ser executado separadamente.
+Cada projeto é **independente** e possui seu próprio `pom.xml` (ou `package.json`, no caso do frontend), podendo ser executado separadamente.
 
 ---
 

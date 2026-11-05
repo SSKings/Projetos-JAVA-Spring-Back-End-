@@ -46,8 +46,33 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Test
+      - name: Build, Test and Coverage check (JaCoCo)
         run: ./mvnw clean verify
+
+  shopping-delivery-frontend:
+    name: Shopping Delivery Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shopping-delivery-frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: shopping-delivery-frontend/package-lock.json
+
+      - run: npm ci
+      - name: Type check
+        run: npx tsc -b
+      - name: Lint
+        run: npm run lint
+      - name: Test and Coverage check (Vitest)
+        run: npm run coverage
 
   spring-ai:
     name: Spring AI
