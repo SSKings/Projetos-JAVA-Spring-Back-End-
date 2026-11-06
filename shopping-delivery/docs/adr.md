@@ -477,3 +477,35 @@ Dois incidentes no mesmo dia (`dev-workflow.md`):
   quando alguém decide migrar; revise a lista periodicamente.
 - Quebra de build do front aparece no PR, não depois do merge.
 - Depois de cada `git pull`, rode `npm ci`: o `node_modules` local não acompanha o `package-lock.json` sozinho.
+
+---
+
+## ADR-021 — Revisão de segurança 2: CVEs de dependências transitivas, dev sem segredos públicos e respostas uniformes
+
+**Status:** Aceito
+
+**Contexto**
+Uma segunda revisão (`security-review.md`, seção 6) encontrou:
+- CVEs em dependências que o Spring Boot gerencia (Tomcat, Jackson, driver PostgreSQL), que o Dependabot não vê;
+- o ambiente de dev (perfil padrão, acessível pela rede) com segredo JWT e senha de admin públicos;
+- o bloqueio por tentativas revelando contas;
+- reautenticação sem limite;
+- corpo de requisição sem limite;
+- erros comuns respondendo 500 com stack trace.
+
+**Decisão**
+- **Versões gerenciadas:** sobrescritas por propriedade no `pom.xml` enquanto o Spring Boot não traz a correção.
+  `scripts/check-dependency-cves.py` (OSV) e `npm audit` rodam no CI; exceções só com motivo em `cve-allowlist.txt`.
+- **Dev:** segredo JWT aleatório a cada start e senha do admin gerada e mostrada no log. Nada que dê acesso fica
+  versionado, nem mesmo no perfil de desenvolvimento.
+- **Bloqueio:** mesma regra (5 falhas / 15 min) para emails inexistentes, e a reautenticação conta como tentativa de login.
+- **Corpo:** limite de 64 KB na API (`RequestSizeLimitFilter`), além do 1 MB do nginx.
+- **Erros de requisição:** códigos próprios (404, 405, 415, 400, 413) sem log de erro; o handler genérico fica para
+  bugs de verdade.
+
+**Consequências**
+- O CI passa a depender da API do OSV, que exige rede; uma CVE nova pode quebrar um PR sem relação com ela. É
+  intencional: a correção é atualizar ou justificar.
+- Em dev é preciso ler a senha do admin no log a cada start (ou definir `ADMIN_PASSWORD`).
+- O bloqueio de email inexistente fica em memória e vale por instância; com várias réplicas, use a borda ou um
+  store compartilhado.

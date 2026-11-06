@@ -249,10 +249,12 @@ Preço e nome do produto são copiados no momento da compra. Se o administrador 
 |--------|-----------|
 | Configuração | Perfis `dev`/`prod`; `ProductionConfigValidator` impede startup inseguro |
 | Borda | nginx: TLS, HSTS, CSP, `limit_req`; API sem porta pública (ADR-019) |
-| Autenticação | BCrypt; JWT com `ver` (revogação via `User.tokenVersion`); bloqueio após 5 falhas; MFA TOTP com segredo AES-256-GCM |
+| Autenticação | BCrypt; JWT com `ver` (revogação via `User.tokenVersion`); bloqueio após 5 falhas, idêntico para email inexistente e contando a reautenticação; MFA TOTP com segredo AES-256-GCM |
 | Autorização | URL (`/api/admin/**` → `ROLE_ADMIN`); consultas sempre filtradas pelo usuário (`findByIdAndUserId`) |
 | Dados | Estoque com `UPDATE` atômico; `@Version` em `Order`/`Payment`; validação de entrada espelhando as colunas |
 | Rastreabilidade | `audit_logs` + access log do Tomcat (190 dias) |
+| Entrada | Corpo ≤ 64 KB (`RequestSizeLimitFilter`, 413); erros de requisição com código próprio e sem stack trace (ADR-021) |
+| Dependências | Versões do BOM sobrescritas quando há CVE; `check-dependency-cves.py` (OSV) e `npm audit` no CI (ADR-021) |
 
 ```
 audit_logs (V5): id, created_at, actor_id, actor_email, action, target_type, target_id, details, ip
