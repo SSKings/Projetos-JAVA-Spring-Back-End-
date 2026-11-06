@@ -57,4 +57,25 @@ class AdminSeederTest {
 
         verify(userRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("Sem ADMIN_PASSWORD (dev), gera senha aleatória forte em vez de usar um valor público")
+    void run_withoutPassword_generatesRandom() {
+        ReflectionTestUtils.setField(seeder, "password", " ");
+        given(userRepository.existsByEmail("admin@x.com")).willReturn(false);
+        ArgumentCaptor<String> raw = ArgumentCaptor.forClass(String.class);
+        given(passwordEncoder.encode(raw.capture())).willReturn("hashed");
+
+        seeder.run();
+
+        assertThat(raw.getValue()).hasSize(16).matches(".*\\p{L}.*").matches(".*\\d.*").isNotEqualTo("admin123");
+        verify(userRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("Senhas geradas não se repetem")
+    void generatePassword_unique() {
+        assertThat(java.util.stream.IntStream.range(0, 100).mapToObj(i -> AdminSeeder.generatePassword()).distinct())
+                .hasSize(100);
+    }
 }

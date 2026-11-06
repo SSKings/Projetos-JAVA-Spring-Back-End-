@@ -1,6 +1,7 @@
 # ShopEasy — Revisão de segurança e prontidão para produção
 
 Data: 2026-11-05 · Escopo: `shopping-delivery/shopping-delivery` (API) e `shopping-delivery-frontend` (SPA).
+**Revisão 2: 2026-11-06** (sobre o código já corrigido) — ver [seção 6](#6-revisão-2--2026-11-06).
 
 **Método**
 - Revisão do código: autenticação, autorização, validação, pagamento e configuração.
@@ -300,3 +301,47 @@ Além do mTLS (A4), aplicar o lock de C2 em `Payment` para que webhook e job nã
 1. **Bloqueadores (antes de qualquer cliente real):** C1, C2, A1, A2, A5 (TLS + PostgreSQL + perfil prod), M2–M5.
 2. **Antes de cobrar de verdade:** A4 (PSP com Pix dinâmico + mTLS), M6, M7, política de privacidade, termos, dados da empresa, arrependimento com estorno, NF-e.
 3. **Antes de crescer:** A3 contínuo, M1, pentest externo, direitos do titular automatizados, auditoria de acessibilidade.
+
+---
+
+## 6. Revisão 2 — 2026-11-06
+
+Feita sobre a `main` já com as correções da revisão 1 (`6c30cc6`), para achar o que sobrou ou surgiu depois.
+
+**Método**
+- Dependências: as 88 de runtime consultadas no banco OSV; `npm audit` no front.
+- Testes dinâmicos contra a API e o Vite rodando em `dev`, inclusive pela rede local.
+- Revisão do código.
+
+### Achados
+
+| # | Severidade | Achado | Evidência (antes) | Correção | Teste |
+|---|------------|--------|-------------------|----------|-------|
+| R1 | Alta | Dependências com CVEs corrigidos: Jackson 2.21.4 (DoS no parsing de JSON, rotas públicas), Tomcat 10.1.55 (7 CVEs; 2 de autorização genérica), PostgreSQL JDBC 42.7.11, log4j-api 2.24.3, commons-lang3 3.17.0. O Dependabot não via porque vêm do BOM do Spring Boot | OSV: 21 vulnerabilidades sem justificativa | Versões sobrescritas no `pom.xml` (Tomcat 10.1.61, Jackson 2.21.8, PostgreSQL 42.7.14, log4j 2.25.5, commons-lang3 3.18.0); `scripts/check-dependency-cves.py` no CI falha com CVE sem justificativa; `npm audit` no CI do front | OSV depois: **0** sem justificativa; `test_check_dependency_cves.py` (4 testes) |
+| R2 | Alta | Dev entregava admin a qualquer um na rede: segredo JWT de dev público e versão de sessão adivinhável (`ver=1`); senha `admin123` pública. `dev` é o perfil padrão | Token forjado pela rede → **200** em `/api/admin/users` | JWT de dev = `${random.value}` a cada start; senha do admin gerada a cada start e exibida no log (ou `ADMIN_PASSWORD`) | `SecurityReview2IntegrationTest.devJwtSecretIsNotPublic`, `AdminSeederTest` |
+| R3 | Média | O bloqueio por tentativas revelava quem tem conta: 6ª tentativa → 429 só para email cadastrado | `400×5, 429` × `400×6` | Mesmo bloqueio (5 falhas / 15 min) para emails inexistentes, em memória | `lockoutDoesNotRevealAccounts`, `AuthServiceTest` (R3) |
+| R4 | Média | Reautenticação sem limite (`/api/account/delete`, `/mfa/disable`): token roubado permitia descobrir a senha | 30 senhas erradas sem bloqueio; no código antigo a conta **foi excluída** após 5 erros | Falhas na reautenticação contam para o bloqueio do login; conta bloqueada → 429 | `reauthenticationIsRateLimited`, `AccountServiceTest` (R4) |
+| R5 | Média | Corpo sem limite: o webhook público lia 20 MB na memória antes de recusar a assinatura (DoS com a API exposta sem nginx) | 20 MB aceitos | `RequestSizeLimitFilter`: > 64 KB → 413 (Content-Length ou leitura chunked) | `requestBodyIsLimited`, `RequestSizeLimitFilterTest` |
+| R6 | Média | 404/405/415/`?sort=` inválido viravam 500 com stack trace ERROR; `GET /api/products?sort=x` é anônimo e sem rate limit → inundação de log | 4 de 5 casos → 500 | Handlers específicos no `GlobalExceptionHandler` (404, 405 + `Allow`, 415, 400) | `commonErrorsAreNotServerErrors` (verifica também que não há "Unhandled exception" no log) |
+
+Os 5 testes de `SecurityReview2IntegrationTest` foram executados contra o código anterior e **falharam todos**
+(um por achado); com as correções, passam.
+
+### Testado e sem problema
+- Overflow de `int` na quantidade do carrinho: recusado pela checagem de estoque antes da soma.
+- Vite pela rede: leitura de arquivos fora do projeto → 403, inclusive com os bypasses `?raw??`. `/.env` era o fallback do SPA.
+- `X-Forwarded-For` forjado em dev: ignorado (o rate limit usa o IP real).
+- Front: sem `dangerouslySetInnerHTML`, `eval` ou redirecionamento aberto; `npm audit` = 0.
+
+### Aceito / pendente
+- **Webhook de dev:** o segredo continua o de exemplo, porque o `simulate-pix-payment.sh` precisa dele. Em dev, alguém na rede pode marcar pedidos de teste como pagos. Em `prod` o segredo é obrigatório e forte.
+- **CVEs do spring-webmvc 6.2.x** (SSE com fragmentos, `XsltView`): recursos não usados e correção só no Spring 7. Ficam na `scripts/cve-allowlist.txt` com o motivo.
+- **Bloqueio de email inexistente em memória:** vale por instância. Com várias réplicas, use um store compartilhado ou a borda (nginx/WAF).
+- **Continuam da revisão 1:**
+  - troca e recuperação de senha (dependem de SMTP);
+  - token em `localStorage`;
+  - bloqueio de conta por terceiros (15 min);
+  - mensagem "email já em uso" no cadastro;
+  - rate limit por IPv6 /128;
+  - `server_name _` no nginx;
+  - premissa de que a API nunca fica exposta sem o nginx.

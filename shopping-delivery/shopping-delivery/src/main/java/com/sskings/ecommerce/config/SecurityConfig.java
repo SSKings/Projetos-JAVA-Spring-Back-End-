@@ -2,6 +2,7 @@ package com.sskings.ecommerce.config;
 
 import com.sskings.ecommerce.security.JwtAuthFilter;
 import com.sskings.ecommerce.security.RateLimitFilter;
+import com.sskings.ecommerce.security.RequestSizeLimitFilter;
 import com.sskings.ecommerce.security.SecurityProperties;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,10 @@ public class SecurityConfig {
     @Value("${springdoc.api-docs.enabled:false}")
     private boolean apiDocsEnabled;
 
+    /** Tamanho máximo do corpo das requisições (a API só recebe JSON pequeno). */
+    @Value("${security.max-request-bytes:65536}")
+    private long maxRequestBytes;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
@@ -66,6 +71,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
+                .addFilterBefore(new RequestSizeLimitFilter(maxRequestBytes), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new RateLimitFilter(securityProperties.rateLimit(), clock), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();

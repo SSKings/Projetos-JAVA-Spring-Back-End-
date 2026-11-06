@@ -74,7 +74,7 @@ Três arquivos em `src/main/resources/` (ADR-017):
 | Arquivo | Quando | O que tem |
 |---------|--------|-----------|
 | `application.yml` | sempre | Configuração comum. **Nenhum segredo com valor padrão** (`${JWT_SECRET}` etc.) |
-| `application-dev.yml` | perfil padrão (`./mvnw spring-boot:run`) | H2 em memória, Swagger e console H2 ligados, segredos e admin de dev **públicos e inseguros de propósito**, CORS `*`, MFA de admin opcional |
+| `application-dev.yml` | perfil padrão (`./mvnw spring-boot:run`) | H2 em memória, Swagger e console H2 ligados, CORS `*`, MFA de admin opcional. **Segredo JWT e senha do admin aleatórios a cada start** (a senha aparece no log; `ADMIN_PASSWORD` fixa). O segredo do webhook continua o de exemplo, para o script de simulação |
 | `application-prod.yml` | `SPRING_PROFILES_ACTIVE=prod` | PostgreSQL, `forward-headers-strategy`, access log com 190 dias. Swagger e H2 desligados |
 
 Em `prod`, o `ProductionConfigValidator` **impede o startup** com segredo ausente, curto ou conhecido (inclusive os
@@ -94,6 +94,19 @@ de dev e o que vazou no histórico do repositório), CORS aberto, banco H2 ou MF
 
 Modelo pronto em [`../deploy/.env.prod.example`](../deploy/.env.prod.example).
 
+Outras propriedades de segurança: `security.max-request-bytes` (padrão 65536: corpo maior → 413).
+
+### Dependências e CVEs
+
+O Spring Boot gerencia Tomcat, Jackson, driver PostgreSQL etc. Quando eles têm CVE corrigido antes de sair um
+Spring Boot novo, a versão é sobrescrita nas propriedades do `pom.xml` (cada linha diz o CVE e quando remover).
+O CI roda `../scripts/check-dependency-cves.py`, que consulta o banco OSV e **falha** se houver vulnerabilidade
+sem justificativa em `../scripts/cve-allowlist.txt`. Para rodar localmente:
+
+```bash
+python3 ../scripts/check-dependency-cves.py
+```
+
 ### Pagamento Pix (`app.pix.*`)
 
 | Variável                 | Padrão (dev)                         | O que é |
@@ -107,7 +120,8 @@ Modelo pronto em [`../deploy/.env.prod.example`](../deploy/.env.prod.example).
 
 A configuração é validada no startup (`PixProperties`): a aplicação não sobe com chave Pix inválida.
 
-> Em desenvolvimento o admin padrão é `admin@shopeasy.com` / `admin123` (só no perfil `dev`).
+> Em desenvolvimento o admin é `admin@shopeasy.com` com senha **gerada a cada start e exibida no log** (defina
+> `ADMIN_PASSWORD` para fixar). Antes era `admin123`, público: com a API na rede, qualquer um entrava (revisão 2).
 
 ## Rotas disponíveis
 
@@ -179,7 +193,7 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 - **Pedidos**: usuário acessa apenas seus próprios pedidos (filtro por `user_id` em todas as queries).
 - **Papéis**: `CUSTOMER` (padrão no cadastro) e `ADMIN`. Rotas `/api/admin/**` exigem `ROLE_ADMIN`.
   Um admin inicial é criado na inicialização (`AdminSeeder`) com `ADMIN_EMAIL` / `ADMIN_PASSWORD`
-  (padrão em dev: `admin@shopeasy.com` / `admin123` — troque em produção).
+  (em dev: `admin@shopeasy.com` com senha aleatória exibida no log; em produção, obrigatórias e validadas).
 - **Admin — produtos**: CRUD completo; `DELETE` é exclusão lógica (`active = false`), preservando pedidos antigos.
 - **Admin — pedidos**: fluxo `PENDING → CONFIRMED → SHIPPED → DELIVERED`, podendo pular etapas; a resposta traz
   `nextStatuses` (transições permitidas); cancelamento só antes do envio
@@ -194,24 +208,26 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 ./mvnw verify    # idem + falha se a cobertura ficar abaixo do mínimo (85% linhas / 80% branches)
 ```
 
-**221 testes**, todos verdes. Cobertura (JaCoCo):
+**236 testes**, todos verdes. Cobertura (JaCoCo):
 
 | Métrica   | Cobertura |
 |-----------|-----------|
-| Linhas    | **97,7%** (1028/1052) |
-| Branches  | **93,4%** (395/423)   |
-| Métodos   | 96,2% (308/320)       |
+| Linhas    | **97,3%** (1110/1141) |
+| Branches  | **92,7%** (429/463)   |
+| Métodos   | 95,7% (331/346)       |
 
 | Suite                          | Tipo              | Cenários cobertos |
 |--------------------------------|-------------------|-------------------|
-| `AuthServiceTest`              | Unit (Mockito)    | Registro (email normalizado, aceite de termos), duplicado, login, BCrypt também para email inexistente, bloqueio após N falhas (429 + Retry-After), bloqueio vencido, conta bloqueada, MFA (pedir código, código certo, reuso, errado), logout revoga |
+| `AuthServiceTest`              | Unit (Mockito)    | Registro (email normalizado, aceite de termos), duplicado, login, BCrypt também para email inexistente, bloqueio após N falhas (429 + Retry-After), bloqueio vencido, conta bloqueada, MFA (pedir código, código certo, reuso, errado), logout revoga; **revisão 2:** bloqueio idêntico para email inexistente (sem oráculo 429), vencimento do bloqueio |
 | `ProductServiceTest`           | Unit (Mockito)    | Busca geral, filtro por nome, por id, produto inativo |
 | `CartServiceTest`              | Unit (Mockito)    | Listar, adicionar, produto inexistente, sem estoque, remover, atualizar |
 | `OrderServiceTest`             | Unit (Mockito)    | Carrinho vazio, estoque insuficiente (UPDATE atômico recusado), produto desativado, sucesso (cria cobrança Pix), cancelamento pelo cliente, arrependimento (prazo de 7 dias, repetido, antes da entrega) |
-| `AccountServiceTest`           | Unit (Mockito)    | Perfil, exportação, exclusão/anonimização (endereços com pedido mantidos), senha/MFA na reautenticação, pedidos em andamento, MFA setup/enable/disable |
+| `AccountServiceTest`           | Unit (Mockito)    | Perfil, exportação, exclusão/anonimização (endereços com pedido mantidos), senha/MFA na reautenticação, pedidos em andamento, MFA setup/enable/disable; **revisão 2:** senha/código errado na reautenticação conta para o bloqueio, 429 quando bloqueado |
 | `AuditServiceTest`             | Unit              | Ator explícito/implícito, IP, truncamento, busca, máscara de email |
 | `TotpServiceTest`              | Unit              | Vetores oficiais da RFC 6238, Base32, janela ±1 passo, reuso, URI otpauth |
 | `CryptoServiceTest`            | Unit              | AES-GCM ida e volta, IV aleatório, chave errada, texto adulterado, chave inválida |
+| `RequestSizeLimitFilterTest`   | Unit              | Content-Length acima do limite → 413, corpo dentro do limite, chunked interrompido no limite |
+| `SecurityReview2IntegrationTest` | @SpringBootTest | **Revisão 2** (falha no código antigo, passa no novo): segredo JWT de dev não é mais público; respostas idênticas para email cadastrado/inexistente; reautenticação bloqueia após 5 falhas; corpo > 64 KB → 413; 404/405/415/sort inválido sem 500 nem stack trace |
 | `RateLimitFilterTest`          | Unit              | Limite por IP e por balde, 429 + Retry-After, nova janela, rotas não limitadas, limpeza |
 | `ProductionConfigValidatorTest`| Unit              | Configuração forte passa; valores de dev/vazados, CORS aberto, H2, senha fraca são recusados sem expor valores |
 | `IpAllowlistTest`              | Unit              | IP exato, CIDR IPv4/IPv6, entradas inválidas |
@@ -230,7 +246,7 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 | `JwtServiceTest`               | Unit              | Round-trip com versão, expiração configurável, outro segredo, sem versão, outro issuer, lixo |
 | `OrderStatusTest`              | Unit parametrizado| Todas as transições de status e `nextStatuses()` |
 | `UserTest`                     | Unit              | Papéis → authorities, conta bloqueada |
-| `AdminSeederTest`              | Unit (Mockito)    | Cria admin, não duplica |
+| `AdminSeederTest`              | Unit (Mockito)    | Cria admin, não duplica, gera senha aleatória forte quando `ADMIN_PASSWORD` está vazio (dev) |
 | `AuthControllerTest`           | @WebMvcTest       | Register 201, login 200, credenciais inválidas, body inválido, campos longos, senha fraca e termos não aceitos, 429, logout |
 | `AccountControllerTest`        | @WebMvcTest       | Rotas de conta exigem login (401), perfil, exportação como anexo, exclusão, MFA |
 | `JwtAuthFilterTest`            | Unit              | Admin sem MFA perde ROLE_ADMIN quando obrigatório |
@@ -295,5 +311,7 @@ Armadilhas que já aconteceram neste projeto:
   o `CorsPreflightTest` acusa.
 - **Ação sensível:** registre na auditoria (`AuditService.record`; use `recordIndependent` para falhas que dão
   rollback).
+- **Dependência nova ou atualizada:** rode `python3 ../scripts/check-dependency-cves.py`; só use a allowlist
+  quando o recurso vulnerável não for usado, e escreva o motivo.
 - **Configuração nova obrigatória em produção:** sem valor padrão no `application.yml`, valor de exemplo no
   `application-dev.yml`, verificação no `ProductionConfigValidator` e linha no `../deploy/.env.prod.example`.

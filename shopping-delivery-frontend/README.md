@@ -169,7 +169,7 @@ npm run coverage
 ```
 
 **279 testes** em 22 arquivos. Cobertura: **99,0% linhas · 95,8% branches · 96,7% funções**.
-O CI roda, nesta ordem: `npm ci`, `tsc -b`, `lint`, `coverage` e `npm run build`. Os testes usam `css: false`,
+O CI roda, nesta ordem: `npm ci`, `npm audit --omit=dev --audit-level=high`, `tsc -b`, `lint`, `coverage` e `npm run build`. Os testes usam `css: false`,
 então só o build valida Tailwind/PostCSS.
 
 | Arquivo                               | O que cobre |
@@ -316,8 +316,9 @@ O Vite escuta em todas as interfaces (`server.host: true` em `vite.config.ts`) e
    sudo ufw allow 8080/tcp   # API
    ```
 
-> ⚠️ Em rede compartilhada, lembre que o ambiente de dev expõe o console H2 (`/h2-console`) e o admin
-> padrão `admin@shopeasy.com` / `admin123`. Defina `ADMIN_EMAIL`/`ADMIN_PASSWORD` se outras pessoas usarem a rede.
+> ⚠️ Em rede compartilhada, o ambiente de dev fica visível para as outras máquinas. O segredo JWT e a senha
+> do admin são aleatórios a cada start (revisão de segurança 2), mas o Swagger e o webhook de dev (segredo
+> público, para o script de simulação) continuam abertos. Não use o perfil `dev` em rede pública.
 
 ## Variáveis de ambiente
 

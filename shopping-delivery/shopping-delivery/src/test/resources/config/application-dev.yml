@@ -1,0 +1,5 @@
+# Só para testes. Precisa ser específico do perfil: o application-dev.yml principal tem precedência sobre um
+# config/application.yml genérico. Em dev de verdade o admin tem senha aleatória a cada start (revisão 2, R2).
+app:
+  admin:
+    password: admin123

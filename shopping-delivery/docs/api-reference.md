@@ -16,9 +16,14 @@ Authorization: Bearer <token>
 **401 × 403.** 401 = sem login, token expirado ou **revogado**: o front-end encerra a sessão. 403 = logado sem
 permissão: a sessão continua. Corpo: `{"status":401,"message":"Authentication required"}` / `{"status":403,"message":"Access denied"}`.
 
-**Limites.** Login e cadastro: 20 requisições/min por IP (`429 Too many requests` + `Retry-After`). Após 5 senhas
-erradas a conta fica bloqueada por 15 min (`429 Too many failed attempts. Try again later`). Webhook: 120/min por IP.
-Conflito de edição simultânea (lock otimista) → `409`.
+**Limites.**
+- Login e cadastro: 20 requisições/min por IP (`429 Too many requests` + `Retry-After`).
+- Após 5 senhas erradas, o email fica bloqueado por 15 min (`429 Too many failed attempts. Try again later`).
+  Vale **igualmente para emails não cadastrados**, para que a resposta não revele quem tem conta.
+- A reautenticação (`/api/account/delete`, `/api/account/mfa/disable`) conta para esse mesmo bloqueio.
+- Webhook: 120/min por IP.
+- Corpo da requisição: no máximo 64 KB (`security.max-request-bytes`) → acima disso, `413 Request body too large`.
+- Conflito de edição simultânea (lock otimista) → `409`.
 
 > O navegador envia um *preflight* `OPTIONS` antes de requisições com JSON. O CORS precisa estar
 > habilitado **também na cadeia do Spring Security** (`.cors(Customizer.withDefaults())`), senão o
@@ -111,7 +116,7 @@ O front-end usa `role` para exibir (ou não) a área administrativa. `mfaSetupRe
 | 400    | `Invalid credentials` — email ou senha incorretos (mesma resposta e mesmo tempo para email inexistente) |
 | 400    | `Account is blocked` — conta bloqueada por um admin |
 | 400    | `MFA code required` — senha correta, falta o código · `Invalid MFA code` — errado ou já usado |
-| 429    | `Too many failed attempts. Try again later` (`Retry-After`) · `Too many requests` |
+| 429    | `Too many failed attempts. Try again later` (`Retry-After`), também para email não cadastrado · `Too many requests` |
 
 ### POST /api/auth/logout
 
@@ -126,7 +131,7 @@ Revoga **todos** os tokens do usuário (este e os de outros dispositivos). **204
 | GET    | `/api/account` | Perfil: nome, email, telefone, papel, MFA, versão e data do aceite dos termos |
 | PUT    | `/api/account` | Correção (art. 18, III): `{ "name": "...", "phone": "..." }` |
 | GET    | `/api/account/data-export` | Acesso/portabilidade (art. 18, II e V): JSON com perfil, endereços, pedidos e eventos de segurança (`Content-Disposition: attachment`) |
-| POST   | `/api/account/delete` | Eliminação (art. 18, VI): `{ "password": "...", "mfaCode": "..." }` → **204**. Anonimiza a conta; pedidos ficam sem vínculo pessoal. `400 Account has orders in progress` / `Invalid password` / `Invalid MFA code` |
+| POST   | `/api/account/delete` | Eliminação (art. 18, VI): `{ "password": "...", "mfaCode": "..." }` → **204**. Anonimiza a conta; pedidos ficam sem vínculo pessoal. `400 Account has orders in progress` / `Invalid password` / `Invalid MFA code` · `429` após 5 falhas (mesmo bloqueio do login) |
 | POST   | `/api/account/mfa/setup` | Gera o segredo TOTP: `{ "secret": "BASE32", "otpauthUri": "otpauth://totp/ShopEasy:..." }` (QR Code) |
 | POST   | `/api/account/mfa/enable` | `{ "code": "123456" }` → ativa, revoga sessões antigas e devolve um **novo** `AuthResponse` |
 | POST   | `/api/account/mfa/disable` | `{ "password": "...", "mfaCode": "123456" }` → devolve novo `AuthResponse` |
@@ -642,6 +647,19 @@ Todos os erros retornam o seguinte payload:
   "timestamp": "2024-06-15T14:32:00"
 }
 ```
+
+Erros de requisição têm código próprio e **não** geram stack trace no log:
+
+| Situação | Código | `message` |
+|----------|--------|-----------|
+| Rota inexistente (com login) | 404 | `Resource not found` |
+| Método HTTP não suportado | 405 (+ cabeçalho `Allow`) | `Method not allowed` |
+| `Content-Type` não suportado | 415 | `Unsupported media type` |
+| Parâmetro ou cabeçalho obrigatório ausente | 400 | `Missing required parameter` |
+| `?sort=` com campo inexistente | 400 | `Invalid sort property` |
+| Corpo acima de 64 KB | 413 | `Request body too large` |
+| JSON malformado ou tipo errado | 400 | `Malformed request or invalid value` |
+| Erro inesperado | 500 | `Internal server error` (detalhe só no log do servidor) |
 
 ---
 

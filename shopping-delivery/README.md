@@ -63,7 +63,9 @@ Acesse `http://localhost:5173` — a API estará em `http://localhost:8080`.
 
 O perfil padrão é **`dev`** (H2 em memória, Swagger e console H2 ligados, segredos de exemplo).
 
-**Login de administrador (dev):** `admin@shopeasy.com` / `admin123` → link **Admin** na barra superior.
+**Login de administrador (dev):** `admin@shopeasy.com` e a **senha mostrada no log da API** ao subir
+(bloco "Senha do admin de desenvolvimento"). Ela muda a cada start; para fixar, defina `ADMIN_PASSWORD`
+(ex.: `ADMIN_PASSWORD=MinhaSenha123 ./mvnw spring-boot:run`). Depois, link **Admin** na barra superior.
 Em produção o admin vem de `ADMIN_EMAIL`/`ADMIN_PASSWORD` e precisa ativar a verificação em duas etapas
 (**Minha conta → Segurança**) antes de usar a área administrativa.
 
@@ -85,8 +87,9 @@ O Vite escuta em todas as interfaces (`server.host: true` em `vite.config.ts`) e
    sudo ufw allow 8080/tcp   # API
    ```
 
-> ⚠️ Em rede compartilhada, lembre que o ambiente de dev expõe o console H2 (`/h2-console`) e o admin
-> padrão `admin@shopeasy.com` / `admin123`. Defina `ADMIN_EMAIL`/`ADMIN_PASSWORD` se outras pessoas usarem a rede.
+> ⚠️ Em rede compartilhada, o ambiente de dev fica visível para as outras máquinas. O segredo JWT e a senha
+> do admin são aleatórios a cada start (revisão de segurança 2), mas o Swagger e o webhook de dev (segredo
+> público, para o script de simulação) continuam abertos. Não use o perfil `dev` em rede pública.
 
 ## Pagamento via Pix
 
@@ -168,12 +171,14 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 221    | 97,7%  | 93,4%    |
+| Backend   | `./mvnw verify`         | 236    | 97,3%  | 92,7%    |
 | Frontend  | `npm run coverage`      | 279    | 99,0%  | 95,8%    |
 
 Os dois comandos **falham se a cobertura cair** abaixo do mínimo (backend 85% linhas / 80% branches;
 frontend 90% linhas / 85% branches) e rodam no CI a cada push. No front, o CI também roda `tsc -b`, `lint` e
 **`npm run build`**: os testes não processam CSS, então só o build pega quebras de Tailwind/PostCSS (ADR-020).
+O CI também verifica vulnerabilidades conhecidas nas dependências: `scripts/check-dependency-cves.py` (backend, banco
+OSV, inclui o que vem do BOM do Spring Boot) e `npm audit --omit=dev --audit-level=high` (front) — ADR-021.
 Relatórios HTML: `shopping-delivery/target/site/jacoco/index.html` e `shopping-delivery-frontend/coverage/index.html`.
 
 ## Documentação

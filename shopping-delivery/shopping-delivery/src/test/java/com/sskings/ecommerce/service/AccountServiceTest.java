@@ -163,4 +163,35 @@ class AccountServiceTest {
         assertThat(user.getMfaSecret()).isNull();
         then(auditService).should().record(user, AuditService.MFA_DISABLED, "USER", 1L, null);
     }
+
+    // ---------- revisão 2: reautenticação conta para o bloqueio (R4) ----------
+
+    @Test
+    @DisplayName("R4: senha errada na reautenticação registra falha; conta bloqueada recebe 429; sucesso zera")
+    void reauthentication_countsFailures() {
+        assertThatThrownBy(() -> service.deleteAccount(1L, new PasswordConfirmationRequest("errada", null)))
+                .hasMessage("Invalid password");
+        then(authService).should().ensureNotLocked(user);
+        then(authService).should().registerFailure(user, "reauthentication: wrong password");
+
+        willThrow(new com.sskings.ecommerce.exception.TooManyRequestsException("Too many failed attempts. Try again later", 60))
+                .given(authService).ensureNotLocked(user);
+        assertThatThrownBy(() -> service.deleteAccount(1L, new PasswordConfirmationRequest("senha123", null)))
+                .isInstanceOf(com.sskings.ecommerce.exception.TooManyRequestsException.class);
+        assertThat(user.getEmail()).isEqualTo("ana@a.com");   // nada foi apagado
+
+        willDoNothing().given(authService).ensureNotLocked(user);
+        service.deleteAccount(1L, new PasswordConfirmationRequest("senha123", null));
+        then(authService).should().clearFailures(user);
+    }
+
+    @Test
+    @DisplayName("R4: código MFA errado na reautenticação também conta como falha")
+    void reauthentication_mfaFailureCounts() {
+        user.setMfaEnabled(true);
+        user.setMfaSecret(crypto.encrypt(totp.newSecret()));
+        assertThatThrownBy(() -> service.disableMfa(1L, new PasswordConfirmationRequest("senha123", "000000")))
+                .hasMessage("Invalid MFA code");
+        then(authService).should().registerFailure(user, "reauthentication: invalid MFA code");
+    }
 }

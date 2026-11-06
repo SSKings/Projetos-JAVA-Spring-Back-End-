@@ -48,6 +48,9 @@ const backendMessages: Record<string, string> = {
   'Order can no longer be cancelled': 'Este pedido já foi enviado e não pode mais ser cancelado.',
   'Return period has expired or a return was already requested': 'O prazo de 7 dias terminou ou a devolução já foi solicitada.',
   'Access denied': 'Você não tem permissão para esta ação.',
+  'Request body too large': 'Os dados enviados são grandes demais.',
+  'Resource not found': 'Recurso não encontrado.',
+  'Invalid sort property': 'Ordenação inválida.',
   'The resource was modified concurrently. Reload and try again': 'O pedido foi alterado ao mesmo tempo por outra ação. Recarregue a página e tente de novo.',
 };
 

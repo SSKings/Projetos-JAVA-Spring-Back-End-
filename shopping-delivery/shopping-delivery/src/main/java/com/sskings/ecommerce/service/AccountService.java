@@ -74,8 +74,11 @@ public class AccountService {
                 events);
     }
 
-    /** Exclusão da conta = anonimização irreversível. Exige senha (e código MFA, se ativo). */
-    @Transactional
+    /**
+     * Exclusão da conta = anonimização irreversível. Exige senha (e código MFA, se ativo).
+     * noRollbackFor: a falha de reautenticação precisa ser gravada (contador de tentativas).
+     */
+    @Transactional(noRollbackFor = {BusinessException.class, com.sskings.ecommerce.exception.TooManyRequestsException.class})
     public void deleteAccount(Long userId, PasswordConfirmationRequest request) {
         User user = load(userId);
         reauthenticate(user, request);
@@ -129,7 +132,7 @@ public class AccountService {
         return authService.response(user);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = {BusinessException.class, com.sskings.ecommerce.exception.TooManyRequestsException.class})
     public AuthResponse disableMfa(Long userId, PasswordConfirmationRequest request) {
         User user = load(userId);
         if (!user.isMfaEnabled()) throw new BusinessException("MFA is not enabled");
@@ -143,16 +146,26 @@ public class AccountService {
         return authService.response(user);
     }
 
+    /**
+     * Reautenticação com as mesmas regras do login: conta bloqueada → 429; senha ou código errado conta para o
+     * bloqueio. Sem isso, um token roubado permitia testar senhas sem limite (revisão 2, R4).
+     */
     private void reauthenticate(User user, PasswordConfirmationRequest request) {
+        authService.ensureNotLocked(user);
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+            authService.registerFailure(user, "reauthentication: wrong password");
             throw new BusinessException("Invalid password");
         }
         if (user.isMfaEnabled()) {
             var step = request.mfaCode() == null ? java.util.OptionalLong.empty()
                     : totpService.verify(cryptoService.decrypt(user.getMfaSecret()), request.mfaCode(), user.getMfaLastStep());
-            if (step.isEmpty()) throw new BusinessException("Invalid MFA code");
+            if (step.isEmpty()) {
+                authService.registerFailure(user, "reauthentication: invalid MFA code");
+                throw new BusinessException("Invalid MFA code");
+            }
             user.setMfaLastStep(step.getAsLong());
         }
+        authService.clearFailures(user);
     }
 
     private User load(Long userId) {

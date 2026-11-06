@@ -37,6 +37,15 @@ public class AuthService {
     private final String termsVersion;
     /** Hash usado quando o email não existe: o login leva o mesmo tempo nos dois casos (anti-enumeração). */
     private final String dummyHash;
+    /**
+     * Tentativas para emails que NÃO existem, com a mesma regra de bloqueio das contas reais. Sem isso, a 6ª
+     * tentativa respondia 429 só para emails cadastrados e revelava quem tem conta (revisão 2, R3).
+     * Em memória (por instância), limitada a MAX_TRACKED_UNKNOWN entradas.
+     */
+    private final java.util.Map<String, UnknownEmailAttempts> unknownEmails = new java.util.concurrent.ConcurrentHashMap<>();
+    static final int MAX_TRACKED_UNKNOWN = 10_000;
+
+    private record UnknownEmailAttempts(int failures, LocalDateTime lockedUntil, LocalDateTime lastAttempt) {}
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService,
                        TotpService totpService, CryptoService cryptoService, AuditService auditService,
@@ -80,18 +89,13 @@ public class AuthService {
     @Transactional(noRollbackFor = {BusinessException.class, TooManyRequestsException.class})
     public AuthResponse login(LoginRequest request) {
         LocalDateTime now = now();
-        Optional<User> found = userRepository.findByEmail(normalizeEmail(request.email()));
+        String email = normalizeEmail(request.email());
+        Optional<User> found = userRepository.findByEmail(email);
         if (found.isEmpty()) {
-            passwordEncoder.matches(request.password(), dummyHash);
-            auditService.recordIndependent(null, AuditService.LOGIN_FAILED, "USER", null,
-                    "unknown email " + AuditService.maskEmail(request.email()));
-            throw new BusinessException("Invalid credentials");
+            failUnknownEmail(email, request.password(), now);
         }
         User user = found.get();
-        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(now)) {
-            throw new TooManyRequestsException("Too many failed attempts. Try again later",
-                    Duration.between(now, user.getLockedUntil()).toSeconds() + 1);
-        }
+        ensureNotLocked(user);
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
             registerFailure(user, now, "wrong password");
             throw new BusinessException("Invalid credentials");
@@ -129,6 +133,51 @@ public class AuthService {
 
     public AuthResponse response(User user) {
         return AuthResponse.of(jwtService.generateToken(user), user, props.requireAdminMfa());
+    }
+
+    /** Conta bloqueada por tentativas → 429 com Retry-After. Usado no login e na reautenticação. */
+    public void ensureNotLocked(User user) {
+        LocalDateTime now = now();
+        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(now)) {
+            throw lockedException(now, user.getLockedUntil());
+        }
+    }
+
+    /** Senha/código errado no login ou na reautenticação: conta para o bloqueio e fica na auditoria. */
+    public void registerFailure(User user, String reason) {
+        registerFailure(user, now(), reason);
+    }
+
+    /** Reautenticação bem-sucedida também zera o contador, como o login. */
+    public void clearFailures(User user) {
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+    }
+
+    private static TooManyRequestsException lockedException(LocalDateTime now, LocalDateTime until) {
+        return new TooManyRequestsException("Too many failed attempts. Try again later",
+                Duration.between(now, until).toSeconds() + 1);
+    }
+
+    /** Mesmo custo (BCrypt), mesmas respostas e mesmo bloqueio de uma conta real. Sempre lança exceção. */
+    private void failUnknownEmail(String email, String password, LocalDateTime now) {
+        UnknownEmailAttempts current = unknownEmails.get(email);
+        if (current != null && current.lockedUntil() != null && current.lockedUntil().isAfter(now)) {
+            throw lockedException(now, current.lockedUntil());
+        }
+        passwordEncoder.matches(password, dummyHash);
+        int failures = (current == null || current.lockedUntil() != null ? 0 : current.failures()) + 1;
+        UnknownEmailAttempts next = failures >= props.login().maxFailedAttempts()
+                ? new UnknownEmailAttempts(0, now.plusMinutes(props.login().lockMinutes()), now)
+                : new UnknownEmailAttempts(failures, null, now);
+        if (unknownEmails.size() >= MAX_TRACKED_UNKNOWN) {
+            LocalDateTime staleBefore = now.minusMinutes(props.login().lockMinutes());
+            unknownEmails.entrySet().removeIf(e -> e.getValue().lastAttempt().isBefore(staleBefore));
+        }
+        unknownEmails.put(email, next);
+        auditService.recordIndependent(null, AuditService.LOGIN_FAILED, "USER", null,
+                "unknown email " + AuditService.maskEmail(email));
+        throw new BusinessException("Invalid credentials");
     }
 
     private void registerFailure(User user, LocalDateTime now, String reason) {
