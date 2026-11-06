@@ -27,7 +27,20 @@ cd ../shopping-delivery-frontend
 VITE_OTEL_ENABLED=true npm run dev        # ou coloque VITE_OTEL_ENABLED=true no .env.local
 ```
 
-Use a loja em `http://localhost:5173` e abra o **Grafana em `http://localhost:3000`** (sem login, ver abaixo):
+Use a loja em `http://localhost:5173` e abra o **Grafana em `http://localhost:3000`** (sem login, ver abaixo).
+
+### Dashboards (pasta **ShopEasy**, provisionados de `dashboards/`)
+
+| Dashboard | Para quê |
+|---|---|
+| **ShopEasy API — Visão geral** (home) | A API está saudável? Tem requisições/s, % de erros, latência p50/p95/p99 por rota, tabela de rotas, recusas de segurança (401/403/413/429), login, JVM (heap, CPU, GC, threads), pool do banco, logs de erro e traces lentos ou com erro. Filtre pela variável **Rota** |
+| **ShopEasy — Negócio e segurança** | O que está acontecendo na loja? Pedidos criados e recusados, Pix confirmados e recusados no webhook, cadastros, logins recusados ou bloqueados, cancelamentos, devoluções, estornos, ações e acessos negados no admin |
+
+- Clicar num trace das tabelas abre a árvore da requisição; num log, o link *TraceID* faz o mesmo.
+- Alterações feitas no Grafana não ficam salvas: exporte o JSON para `dashboards/` e faça commit. As regras estão
+  na seção 4.6 do [guia](../docs/instrunctions-cloud-impl-observability.md).
+
+### Explorar livremente
 
 - **Explore → Tempo → Search**: os traces começam no `frontend-react` (requisição XHR do axios) e continuam no
   `backend-spring` (`GET /api/products` → repositório → SQL), tudo no mesmo trace.
