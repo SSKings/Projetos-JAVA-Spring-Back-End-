@@ -55,6 +55,8 @@ no build do Docker). Os testes ficam em `scripts/dev-preflight.test.mjs`.
 
 ## Atualizações de dependências (Dependabot)
 
+Decisão registrada na ADR-020.
+
 ### O que aconteceu (2026-11-05)
 
 Em um dia o Dependabot abriu 14 PRs, um por dependência. Entre os mergeados estava o **Tailwind CSS 3 → 4**

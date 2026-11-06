@@ -49,6 +49,9 @@ jobs:
       - name: Build, Test and Coverage check (JaCoCo)
         run: ./mvnw clean verify
 
+      - name: Test Pix webhook simulation script
+        run: ../scripts/simulate-pix-payment.test.sh
+
   shopping-delivery-frontend:
     name: Shopping Delivery Frontend
     runs-on: ubuntu-latest

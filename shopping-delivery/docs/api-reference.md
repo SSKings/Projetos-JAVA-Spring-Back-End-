@@ -527,7 +527,8 @@ devolve 200 sem alterar nada.
 Toda rejeição fica registrada na auditoria (`WEBHOOK_REJECTED`), mesmo com rollback da transação.
 | 404    | `Payment not found` (txid desconhecido) |
 
-Simulação em dev: `shopping-delivery/scripts/simulate-pix-payment.sh <txid> <valor>`.
+Simulação em dev: `shopping-delivery/scripts/simulate-pix-payment.sh '<pix copia e cola>'` (txid e valor lidos do
+BR Code) ou `<txid> <valor>`; `--dry-run` mostra o corpo sem enviar.
 
 ### Status do pagamento
 
