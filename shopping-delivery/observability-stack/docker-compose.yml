@@ -1,0 +1,73 @@
+# Stack de observabilidade (LGTM + OpenTelemetry) para desenvolvimento.
+# Baseada em docs/instrunctions-cloud-impl-observability.md, com as correções descritas em README.md desta pasta.
+#
+#   docker compose up -d        (dentro de shopping-delivery/observability-stack/)
+#
+# Todas as portas ficam presas a 127.0.0.1: traces e logs carregam URLs e dados de uso, e o Grafana roda com
+# admin anônimo para facilitar o uso local. Nada disso deve ficar acessível pela rede.
+name: shopeasy-observability
+
+services:
+  # OpenTelemetry Collector: recebe OTLP do backend (agente Java) e do front (via proxy do Vite) e distribui
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.163.2
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector/config.yaml"]
+    volumes:
+      - ./otel-config.yaml:/etc/otel-collector/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"   # OTLP gRPC
+      - "127.0.0.1:4318:4318"   # OTLP HTTP (agente Java e proxy /otlp do Vite)
+    networks: [obs-network]
+    depends_on: [tempo, loki]
+
+  # Prometheus (métricas): coleta o exporter Prometheus do collector
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks: [obs-network]
+
+  # Grafana Tempo (traces)
+  tempo:
+    image: grafana/tempo:2.10.10
+    container_name: tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml:ro
+    ports:
+      - "127.0.0.1:3200:3200"
+    networks: [obs-network]
+
+  # Grafana Loki (logs) — recebe OTLP nativo em /otlp (Loki 3.x)
+  loki:
+    image: grafana/loki:3.7.9
+    container_name: loki
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports:
+      - "127.0.0.1:3100:3100"
+    networks: [obs-network]
+
+  # Grafana (visualização) com os três datasources já correlacionados
+  grafana:
+    image: grafana/grafana:12.4.13
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      # anônimo como Admin só porque a porta está presa a 127.0.0.1 (uso local, sem login)
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+    volumes:
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [obs-network]
+    depends_on: [prometheus, tempo, loki]
+
+networks:
+  obs-network:
+    driver: bridge
