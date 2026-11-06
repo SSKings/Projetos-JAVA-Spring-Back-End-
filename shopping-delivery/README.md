@@ -13,7 +13,7 @@ Projetos-JAVA-Spring-Back-End-/
 │   │   ├── Dockerfile            ← imagem da API (sem root)
 │   │   └── pom.xml
 │   ├── deploy/                   ← produção: docker-compose, nginx (TLS/CSP), .env.prod.example
-│   ├── scripts/                  ← simulate-pix-payment.sh (dev)
+│   ├── scripts/                  ← simulate-pix-payment.sh (dev) + teste (.test.sh, roda no CI)
 │   └── docs/
 │       ├── api-reference.md      ← Referência completa dos endpoints
 │       ├── architecture.md       ← Modelo de domínio e decisões técnicas
@@ -39,20 +39,21 @@ Projetos-JAVA-Spring-Back-End-/
 ## Pré-requisitos
 
 - Java 17+
-- Maven 3.9+
+- Maven: não é preciso instalar, o projeto usa o wrapper `./mvnw` (Maven 3.10.0)
 - Node.js 22.22+ (recomendado 24 — exigido pelo Vitest/jsdom)
+- Docker: só para a pilha de produção (`deploy/`)
 
 ## Rodando localmente
 
 ```bash
 # 1. Backend (porta 8080)
 cd shopping-delivery/shopping-delivery
-mvn spring-boot:run
+./mvnw spring-boot:run
 
 # 2. Frontend (porta 5173) — a partir da raiz do repositório
 cd shopping-delivery-frontend
-npm install
-npm run dev
+npm ci          # instala exatamente o package-lock.json (rode de novo após cada git pull)
+npm run dev     # antes de subir, avisa se a branch não tem commits da main
 ```
 
 Acesse `http://localhost:5173` — a API estará em `http://localhost:8080`.
@@ -110,9 +111,16 @@ a chave da loja e um identificador (`txid`) único. O cliente paga no app do ban
 Para **simular** o PSP em desenvolvimento:
 
 ```bash
-# txid e valor aparecem na tela de pagamento ("Identificador") e no admin
-./scripts/simulate-pix-payment.sh <txid> 59.80
+# Cole o "Pix copia e cola" da tela de pagamento ENTRE ASPAS (ele tem espaços); txid e valor são lidos do código
+./scripts/simulate-pix-payment.sh '00020101021226...6304F71A'
+
+./scripts/simulate-pix-payment.sh '<copia e cola>' 1.00   # força outro valor (a API recusa: valor divergente)
+./scripts/simulate-pix-payment.sh <txid> 49.90             # ou txid ("Identificador" na tela) + valor
+./scripts/simulate-pix-payment.sh --dry-run '<copia e cola>'  # só mostra o que seria enviado
 ```
+
+O script confere o CRC do código (detecta cópia incompleta) e valida txid e valor antes de enviar. Testes:
+`./scripts/simulate-pix-payment.test.sh` (também rodam no CI).
 
 > Para receber de verdade, defina `PIX_KEY` com a chave real da loja. Sem PSP, use a confirmação manual.
 
@@ -161,10 +169,11 @@ Administrador (/admin, MFA obrigatório em produção)
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
 | Backend   | `./mvnw verify`         | 221    | 97,7%  | 93,4%    |
-| Frontend  | `npm run coverage`      | 276    | 99,0%  | 95,8%    |
+| Frontend  | `npm run coverage`      | 279    | 99,0%  | 95,8%    |
 
 Os dois comandos **falham se a cobertura cair** abaixo do mínimo (backend 85% linhas / 80% branches;
-frontend 90% linhas / 85% branches) e rodam no CI a cada push.
+frontend 90% linhas / 85% branches) e rodam no CI a cada push. No front, o CI também roda `tsc -b`, `lint` e
+**`npm run build`**: os testes não processam CSS, então só o build pega quebras de Tailwind/PostCSS (ADR-020).
 Relatórios HTML: `shopping-delivery/target/site/jacoco/index.html` e `shopping-delivery-frontend/coverage/index.html`.
 
 ## Documentação

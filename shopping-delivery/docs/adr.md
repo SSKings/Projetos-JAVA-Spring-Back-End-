@@ -448,4 +448,32 @@ O cliente não conseguia ver, corrigir, exportar nem excluir os próprios dados.
   - certificado (Let's Encrypt ou do provedor) em `deploy/certs`;
   - um `.env.prod` preenchido (nunca versionado);
   - backups do volume `db-data` (ou banco gerenciado).
-- Fixe as imagens por digest no pipeline de release; o Dependabot acompanha as tags.
+- Fixe as imagens por digest no pipeline de release; o Dependabot acompanha as tags (minor/patch, ver ADR-020).
+
+---
+
+## ADR-020 — Política de atualização de dependências e verificações obrigatórias no CI
+
+**Status:** Aceito
+
+**Contexto**
+Dois incidentes no mesmo dia (`dev-workflow.md`):
+1. O Dependabot abriu 14 PRs, um por dependência. Entre os mergeados estava o **Tailwind 3 → 4** (major), que
+   quebrou `npm run build` e o CSS do `npm run dev`. O CI ficou verde: os testes usam `css: false` e o job do
+   front não fazia build.
+2. As validações dos formulários "sumiram" localmente porque o checkout estava numa branch criada antes do
+   merge que as trouxe. O código estava certo e nada avisava.
+
+**Decisão**
+- **Dependabot:** atualizações minor/patch **agrupadas** (um PR por ecossistema: Maven, npm, Docker, Actions) e
+  **majors ignoradas**. Major é migração e entra num PR próprio, com revisão.
+- **CI do front:** `npm ci` → `tsc -b` → `lint` → `coverage` → **`npm run build`**.
+- **Tailwind mantido na v3** (`^3.4.19`) até uma migração planejada (`npx @tailwindcss/upgrade` + revisão visual).
+- **`npm run dev`** roda antes `scripts/dev-preflight.mjs`, que avisa quando a branch não tem commits de
+  `origin/main` ou está atrás do upstream. Trabalho paralelo é feito em `git worktree`.
+
+**Consequências**
+- Menos PRs, cada um com risco menor. Majors (Spring Boot 4, Java 25, Node 26, Tailwind 4…) ficam visíveis só
+  quando alguém decide migrar; revise a lista periodicamente.
+- Quebra de build do front aparece no PR, não depois do merge.
+- Depois de cada `git pull`, rode `npm ci`: o `node_modules` local não acompanha o `package-lock.json` sozinho.

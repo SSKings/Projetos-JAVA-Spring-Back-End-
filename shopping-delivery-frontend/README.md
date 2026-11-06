@@ -12,7 +12,7 @@ Interface do e-commerce construída com React 19, TypeScript e Tailwind CSS: loj
 | Vite                  | 8        | Build tool e dev server com HMR                  |
 | React Router DOM      | 7        | Roteamento client-side                           |
 | Axios                 | 1.x      | HTTP client com interceptors de auth             |
-| Tailwind CSS          | 3        | Utilitários CSS, design responsivo               |
+| Tailwind CSS          | 3        | Utilitários CSS, design responsivo (mantido na v3: a v4 exige migração, ver ADR-020) |
 | lucide-react          | 1.x      | Ícones                                           |
 | qrcode                | 1.5      | Desenha o QR Code (SVG) a partir do Pix copia e cola do back-end |
 | Vitest                | 5        | Testes unitários e de componentes                |
@@ -24,7 +24,7 @@ Interface do e-commerce construída com React 19, TypeScript e Tailwind CSS: loj
 Requer **Node.js 22.22+** (o CI usa Node 24).
 
 ```bash
-npm install
+npm ci           # instala exatamente o package-lock.json (rode de novo após cada git pull)
 npm run dev      # inicia em http://localhost:5173 e no IP da rede (ex.: http://192.168.1.180:5173)
                  # antes, scripts/dev-preflight.mjs avisa se a branch não tem commits da main
 npm run build    # build de produção
@@ -118,6 +118,9 @@ src/
 │
 ├── App.tsx        # Roteamento principal, composição de Providers
 └── main.tsx       # Ponto de entrada React
+
+scripts/
+└── dev-preflight.mjs  # roda antes do `npm run dev` (predev): avisa se a branch está desatualizada
 ```
 
 ## Fluxo de autenticação
@@ -165,11 +168,14 @@ Cancelar pede confirmação, o seletor fica bloqueado enquanto salva e o resulta
 npm run coverage
 ```
 
-**276 testes** em 21 arquivos. Cobertura: **99,0% linhas · 95,8% branches · 96,7% funções**.
+**279 testes** em 22 arquivos. Cobertura: **99,0% linhas · 95,8% branches · 96,7% funções**.
+O CI roda, nesta ordem: `npm ci`, `tsc -b`, `lint`, `coverage` e `npm run build`. Os testes usam `css: false`,
+então só o build valida Tailwind/PostCSS.
 
 | Arquivo                               | O que cobre |
 |---------------------------------------|-------------|
 | `utils/format.test.ts`                | Formatação, tradução de erros (inclusive transição recusada), lista de status |
+| `scripts/dev-preflight.test.mjs`      | Aviso do `npm run dev`: branch atualizada, sem commits da main, atrás do upstream, HEAD destacado |
 | `utils/validation.test.ts`            | Cada regra de cadastro/endereço, máscaras, normalização do payload |
 | `utils/orders.test.ts`                | Filtros, resumo e histórico só com pedidos pagos, agregado por `productId`, ordenação |
 | `components/PixPayment.test.tsx`      | QR Code do copia e cola, valor, contador (fake timers), copiar / fallback manual, polling até pago sem consultas sobrepostas, resposta após desmontar ignorada, falha de rede ignorada, mensagens de expirado/cancelado/estorno |
@@ -293,7 +299,7 @@ type OrderStatus = 'PENDING' | 'CONFIRMED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLE
 3. Adicione o tipo correspondente em `src/types/index.ts`.
 4. Registre a rota em `src/App.tsx` (envolva com `<ProtectedRoute>` ou, para admin, adicione-a
    como filha de `/admin`, que já usa `<AdminRoute>`).
-5. Crie o teste `NomeDaPagina.test.tsx` ao lado e rode `npm run coverage`.
+5. Crie o teste `NomeDaPagina.test.tsx` ao lado e rode `npm run coverage` e `npm run build`.
 
 ## Acessando de outros computadores na rede
 
