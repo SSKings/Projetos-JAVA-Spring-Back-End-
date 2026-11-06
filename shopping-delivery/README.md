@@ -13,7 +13,8 @@ Projetos-JAVA-Spring-Back-End-/
 │   │   ├── Dockerfile            ← imagem da API (sem root)
 │   │   └── pom.xml
 │   ├── deploy/                   ← produção: docker-compose, nginx (TLS/CSP), .env.prod.example
-│   ├── scripts/                  ← simulate-pix-payment.sh (dev) + teste (.test.sh, roda no CI)
+│   ├── observability-stack/      ← OpenTelemetry Collector + Grafana/Tempo/Loki/Prometheus (dev, ADR-022)
+│   ├── scripts/                  ← simulate-pix-payment.sh (dev) + teste; run-backend.sh (API com agente OTel)
 │   └── docs/
 │       ├── api-reference.md      ← Referência completa dos endpoints
 │       ├── architecture.md       ← Modelo de domínio e decisões técnicas
@@ -35,13 +36,14 @@ Projetos-JAVA-Spring-Back-End-/
 | HTTP client  | Axios (com interceptors de auth e 401 redirect)     |
 | Testes BE    | JUnit 5, Mockito, `@WebMvcTest`, JaCoCo             |
 | Testes FE    | Vitest, Testing Library, `@vitest/coverage-v8`      |
+| Observabilidade | OpenTelemetry (agente Java 2.33 + SDK web), Collector, Grafana, Tempo, Loki, Prometheus |
 
 ## Pré-requisitos
 
 - Java 17+
 - Maven: não é preciso instalar, o projeto usa o wrapper `./mvnw` (Maven 3.10.0)
 - Node.js 22.22+ (recomendado 24 — exigido pelo Vitest/jsdom)
-- Docker: só para a pilha de produção (`deploy/`)
+- Docker: só para a pilha de produção (`deploy/`) e para a observabilidade (`observability-stack/`)
 
 ## Rodando localmente
 
@@ -57,6 +59,18 @@ npm run dev     # antes de subir, avisa se a branch não tem commits da main
 ```
 
 Acesse `http://localhost:5173` — a API estará em `http://localhost:8080`.
+
+## Observabilidade (traces, métricas e logs)
+
+Opcional, para desenvolvimento. Mostra cada clique do front até o SQL no Grafana:
+
+```bash
+cd shopping-delivery/observability-stack && docker compose up -d   # Grafana em http://localhost:3000
+cd .. && ./scripts/run-backend.sh                                 # API com o agente OpenTelemetry
+cd ../shopping-delivery-frontend && VITE_OTEL_ENABLED=true npm run dev
+```
+
+Detalhes, correções em relação à especificação e cuidados de segurança: [observability-stack/README.md](observability-stack/README.md).
 
 > Depois de trocar de branch, **reinicie a API** (o Vite recarrega sozinho; o Spring não). Trabalho paralelo
 > vai num `git worktree`, não no checkout em uso — ver [`docs/dev-workflow.md`](docs/dev-workflow.md).
@@ -171,8 +185,8 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 236    | 97,3%  | 92,7%    |
-| Frontend  | `npm run coverage`      | 279    | 99,0%  | 95,8%    |
+| Backend   | `./mvnw verify`         | 250    | 97,3%  | 92,7%    |
+| Frontend  | `npm run coverage`      | 295    | 99,0%  | 95,9%    |
 
 Os dois comandos **falham se a cobertura cair** abaixo do mínimo (backend 85% linhas / 80% branches;
 frontend 90% linhas / 85% branches) e rodam no CI a cada push. No front, o CI também roda `tsc -b`, `lint` e
@@ -186,5 +200,6 @@ Relatórios HTML: `shopping-delivery/target/site/jacoco/index.html` e `shopping-
 - [Referência da API](docs/api-reference.md)
 - [Arquitetura e modelo de domínio](docs/architecture.md)
 - [Decisões de arquitetura (ADR)](docs/adr.md)
+- [Observabilidade](observability-stack/README.md) — OpenTelemetry + Grafana (ADR-022)
 - [Fluxo de desenvolvimento](docs/dev-workflow.md) — branches, worktrees, o aviso do `npm run dev` e como revisar PRs do Dependabot
 - [Revisão de segurança e prontidão para produção](docs/security-review.md) — vulnerabilidades encontradas, checklist técnico e legal (LGPD, CDC, Marco Civil, Pix)

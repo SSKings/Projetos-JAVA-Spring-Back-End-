@@ -74,11 +74,12 @@ histórico de compras e endereços) para clientes, e uma **área administrativa*
 - Segurança revisada e corrigida: segredos fora do código com validação no startup, estoque atômico (sem venda acima do estoque), rate limit e bloqueio por tentativas, revogação de sessão, MFA (TOTP) para admin, auditoria, CSP/HSTS — ver [`security-review.md`](shopping-delivery/docs/security-review.md)
 - LGPD e CDC no produto: exportar/corrigir/excluir dados, aceite de termos, cancelamento e direito de arrependimento
 - Produção com Docker: PostgreSQL, API sem root e nginx com TLS ([`shopping-delivery/deploy/`](shopping-delivery/deploy/))
-- **515 testes** com cobertura exigida no build: backend 97,3% de linhas (JaCoCo) e frontend 99,0% (Vitest); CI com build de produção do front, verificação de CVEs (OSV + `npm audit`) e Dependabot agrupado
+- Observabilidade com **OpenTelemetry**: um clique no front vira um trace até o SQL no Grafana (Tempo), com logs (Loki) e métricas (Prometheus) correlacionados ([`observability-stack/`](shopping-delivery/observability-stack/README.md))
+- **545 testes** com cobertura exigida no build: backend 97,3% de linhas (JaCoCo) e frontend 99,0% (Vitest); CI com build de produção do front, verificação de CVEs (OSV + `npm audit`) e Dependabot agrupado
 - Documentação de API, arquitetura e ADRs em [`shopping-delivery/docs/`](shopping-delivery/docs/)
 
 **Stack:** Java 17 · Spring Boot 3.5.16 · Spring Security · JWT · TOTP · JPA · Flyway · H2 · PostgreSQL · OpenAPI · Docker · nginx ·
-React 19 · TypeScript · Tailwind · Vitest
+React 19 · TypeScript · Tailwind · Vitest · OpenTelemetry · Grafana (Tempo, Loki, Prometheus)
 
 ```bash
 cd shopping-delivery/shopping-delivery && ./mvnw spring-boot:run   # API em :8080

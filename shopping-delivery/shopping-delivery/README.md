@@ -6,7 +6,7 @@ API REST para e-commerce simples construída com Spring Boot 3.5.16 e Java 17.
 
 | Dependência                     | Versão    | Uso                                      |
 |---------------------------------|-----------|------------------------------------------|
-| Spring Boot (parent/BOM)        | 3.5.16    | Spring Framework 6.2.19, Spring Security 6.5.11, Tomcat 10.1.55 |
+| Spring Boot (parent/BOM)        | 3.5.16    | Spring Framework 6.2.19, Spring Security 6.5.11, Tomcat 10.1.61 (sobrescrito no pom, ADR-021) |
 | Spring Boot Starter Web         | 3.5.16    | Camada HTTP, serialização JSON           |
 | Spring Boot Starter Security    | 3.5.16    | Filtro JWT, controle de acesso           |
 | Spring Boot Starter Data JPA    | 3.5.16    | Repositórios, gerenciamento de entidades |
@@ -16,9 +16,12 @@ API REST para e-commerce simples construída com Spring Boot 3.5.16 e Java 17.
 | H2 Database                     | 2.3.232   | Banco em memória (perfil `dev` e testes) |
 | Lombok                          | 1.18.46   | Geração de boilerplate (getters, builders)|
 | Springdoc OpenAPI               | 2.8.17    | Swagger UI (só no perfil `dev`)          |
-| PostgreSQL JDBC                 | 42.7.11   | Banco do perfil `prod` (+ `flyway-database-postgresql` 11.7.2) |
+| PostgreSQL JDBC                 | 42.7.14   | Banco do perfil `prod` (+ `flyway-database-postgresql` 11.7.2) |
 | Spring Boot Starter Test        | 3.5.16    | JUnit 5, Mockito, MockMvc                |
 | Spring Security Test            | 3.5.16    | `SecurityMockMvcRequestPostProcessors`   |
+| Spring Boot Starter Actuator    | 3.5.16    | `/actuator/health`, `metrics`, `prometheus` (ADR-022) |
+| Micrometer Registry Prometheus  | (BOM)     | Métricas no formato Prometheus em `/actuator/prometheus` (só ADMIN) |
+| Agente Java OpenTelemetry       | 2.33.0    | Traces, métricas e logs via OTLP — só em `../scripts/run-backend.sh`, fora do jar (`otel-javaagent.version`) |
 | JaCoCo                          | 0.8.16    | Relatório e mínimo de cobertura de testes |
 | Maven Wrapper (`./mvnw`)        | 3.10.0    | Não é preciso instalar o Maven            |
 
@@ -95,6 +98,17 @@ de dev e o que vazou no histórico do repositório), CORS aberto, banco H2 ou MF
 Modelo pronto em [`../deploy/.env.prod.example`](../deploy/.env.prod.example).
 
 Outras propriedades de segurança: `security.max-request-bytes` (padrão 65536: corpo maior → 413).
+
+### Observabilidade (ADR-022)
+
+- **Actuator** (`management.*` em `application.yml`): `GET /actuator/health` é público e responde só
+  `{"status":"UP"}`. Detalhes, `/actuator/metrics` e `/actuator/prometheus` exigem ADMIN. Os outros endpoints não
+  são expostos. Em produção o nginx só repassa `/api/`.
+- **Traces, métricas e logs:** `../scripts/run-backend.sh` sobe a API com o agente OpenTelemetry, que envia para o
+  collector de [`../observability-stack/`](../observability-stack/README.md) em `http://localhost:4318`. Variáveis
+  `OTEL_*` podem ser sobrescritas, e argumentos extras vão para a aplicação (`--server.port=8081`).
+- **Logs:** o padrão inclui `[trace_id=… span_id=…]`. Os campos ficam vazios quando a API roda sem o agente.
+- **CORS:** aceita `traceparent`/`tracestate`, enviados pelo front com a instrumentação ligada.
 
 ### Dependências e CVEs
 
@@ -208,11 +222,11 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 ./mvnw verify    # idem + falha se a cobertura ficar abaixo do mínimo (85% linhas / 80% branches)
 ```
 
-**236 testes**, todos verdes. Cobertura (JaCoCo):
+**250 testes**, todos verdes. Cobertura (JaCoCo):
 
 | Métrica   | Cobertura |
 |-----------|-----------|
-| Linhas    | **97,3%** (1110/1141) |
+| Linhas    | **97,3%** (1113/1144) |
 | Branches  | **92,7%** (429/463)   |
 | Métodos   | 95,7% (331/346)       |
 
@@ -255,7 +269,8 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 | `AddressAndOrderControllerTest`| @WebMvcTest       | CRUD de endereço, UF inválida, campo longo demais, exclusão de endereço em uso, checkout, pedidos, cancelar/devolver, 409 de lock otimista, 404, 500 genérico |
 | `AdminProductControllerTest`   | @WebMvcTest       | 403 sem auth e para cliente, 201 para admin, validação, 204 |
 | `AdminControllersTest`         | @WebMvcTest       | JWT real (admin/cliente/bloqueado/inválido/revogado → 401/403), pedidos (com `nextStatuses`), estorno, auditoria, usuários, dashboard |
-| `CorsPreflightTest`            | @WebMvcTest       | Preflight `OPTIONS` para PATCH (admin), GET, PUT, DELETE, POST; método desconhecido recusado |
+| `CorsPreflightTest`            | @WebMvcTest       | Preflight `OPTIONS` para PATCH (admin), GET, PUT, DELETE, POST; `traceparent`/`tracestate` aceitos; método e cabeçalho desconhecidos recusados |
+| `ActuatorSecurityIntegrationTest` | @SpringBootTest | `health` público sem detalhes, detalhes para ADMIN; `metrics`/`prometheus` → 401 anônimo, 403 cliente, 200 ADMIN; `env`/`beans`/`heapdump`/`loggers` → 404 |
 
 Lacunas conhecidas: em `CartService`, adicionar um produto que já está no carrinho (soma de
 quantidades), atualizar para uma quantidade acima do estoque e `clearCart`; o `DELETE /api/cart`

@@ -252,7 +252,7 @@ Além do mTLS (A4), aplicar o lock de C2 em `Payment` para que webhook e job nã
 - [ ] Auditoria e retenção de logs (M6).
 
 **Operação**
-- [ ] Logs estruturados sem senhas e sem dados pessoais desnecessários; métricas; alertas para picos de 401/429/5xx, webhooks recusados e `REFUND_PENDING`.
+- [ ] Logs estruturados sem senhas e sem dados pessoais desnecessários; métricas; alertas para picos de 401/429/5xx, webhooks recusados e `REFUND_PENDING`. Em dev já há traces/métricas/logs com OpenTelemetry (ADR-022, `observability-stack/`); falta um backend de telemetria **autenticado** para produção (a stack local é aberta a quem acessa `127.0.0.1`).
 - [ ] Monitoramento de disponibilidade.
 - [ ] **Plano de resposta a incidentes** (quem decide, como comunicar; ver LGPD art. 48).
 - [ ] Pentest externo antes do lançamento e após mudanças grandes.
@@ -345,3 +345,19 @@ Os 5 testes de `SecurityReview2IntegrationTest` foram executados contra o códig
   - rate limit por IPv6 /128;
   - `server_name _` no nginx;
   - premissa de que a API nunca fica exposta sem o nginx.
+
+---
+
+## 7. Observabilidade — 2026-11-06 (ADR-022)
+
+A especificação de observabilidade foi implementada com estes controles. Os itens marcados com ✅ estão cobertos
+por teste ou foram verificados com a stack rodando.
+
+| Risco | Controle | Verificação |
+|---|---|---|
+| Actuator expondo detalhes (banco, disco) e métricas (rotas, volumes, versões) | `health` sem detalhes para anônimos; `metrics`/`prometheus` só ADMIN; `env`, `beans`, `heapdump`, `loggers` não expostos; nginx só repassa `/api/` | ✅ `ActuatorSecurityIntegrationTest` (anônimo 401, cliente 403, admin 200, sensíveis 404) |
+| Agente/imagens `latest` (cadeia de suprimentos) | Versões fixas; agente via Maven Central com `--strict-checksums` | ✅ download verificado em `run-backend.sh` |
+| Grafana anônimo Admin e stack aberta na rede | Portas presas a `127.0.0.1` | ✅ `ss -ltn` mostra só `127.0.0.1` |
+| `traceparent` vazando para terceiros | Propagação só para a API da aplicação, regex com âncora | ✅ `config.test.ts`, `instrumentation.test.ts` |
+| CORS liberando cabeçalhos demais | Só `traceparent`/`tracestate` foram adicionados; cabeçalho desconhecido continua → 403 | ✅ `CorsPreflightTest` |
+| ⏳ Dados pessoais e a senha de admin de dev nos logs enviados ao Loki | Stack só para dev; antes de produção, revisar o que é logado (LGPD) e usar backend autenticado | Documentado em `observability-stack/README.md` |

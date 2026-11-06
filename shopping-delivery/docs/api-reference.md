@@ -12,6 +12,7 @@ Authorization: Bearer <token>
 | Público  | `POST /api/auth/login`, `POST /api/auth/register`, `GET /api/products/**`, `POST /api/payments/pix/webhook` (assinatura HMAC) | — |
 | Cliente  | `/api/cart/**`, `/api/addresses/**`, `/api/orders/**`, `/api/account/**`, `POST /api/auth/logout` | **401** sem token válido |
 | Admin    | `/api/admin/**` (exige `ROLE_ADMIN`; em produção, também MFA ativo) | **403** para quem não é admin |
+| Actuator | `GET /actuator/health` público (só `{"status":"UP"}`); detalhes, `/actuator/metrics/**` e `/actuator/prometheus` só ADMIN; demais endpoints → 404 (ADR-022) | **401** / **403** |
 
 **401 × 403.** 401 = sem login, token expirado ou **revogado**: o front-end encerra a sessão. 403 = logado sem
 permissão: a sessão continua. Corpo: `{"status":401,"message":"Authentication required"}` / `{"status":403,"message":"Access denied"}`.
@@ -32,6 +33,9 @@ permissão: a sessão continua. Corpo: `{"status":401,"message":"Authentication 
 > `CorsConfig.ALLOWED_METHODS` precisa listar **todos** os verbos da API: `GET, POST, PUT, PATCH, DELETE, OPTIONS`.
 > Sem `PATCH`, alterar status de pedido e bloquear/promover usuário no admin falhava no navegador com
 > "Não foi possível conectar ao servidor" (o axios não recebe resposta). Coberto por `CorsPreflightTest`.
+>
+> Cabeçalhos aceitos: `Authorization`, `Content-Type`, `X-Pix-Timestamp`, `X-Pix-Signature`, `traceparent`,
+> `tracestate`. Os dois últimos (W3C Trace Context) vêm da instrumentação OpenTelemetry do front (ADR-022).
 
 ---
 
