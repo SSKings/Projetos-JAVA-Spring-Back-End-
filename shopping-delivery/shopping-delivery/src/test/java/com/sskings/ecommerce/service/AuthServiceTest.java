@@ -207,4 +207,68 @@ class AuthServiceTest {
         given(userRepository.findById(9L)).willReturn(Optional.empty());
         service.logout(9L); // usuário inexistente: nada acontece
     }
+
+    // ---------- revisão 2: bloqueio não pode revelar quem tem conta (R3) ----------
+
+    private java.util.List<String> attempts(String email, int n) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            try {
+                service.login(new LoginRequest(email, "errada" + i));
+                out.add("200");
+            } catch (TooManyRequestsException e) {
+                out.add("429");
+            } catch (BusinessException e) {
+                out.add("400:" + e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    @Test
+    @DisplayName("R3: email inexistente recebe exatamente as mesmas respostas (inclusive o 429) que uma conta real")
+    void lockout_isSymmetricForUnknownEmails() {
+        given(userRepository.findByEmail("fantasma@a.com")).willReturn(Optional.empty());
+
+        java.util.List<String> existing = attempts("ana@a.com", 4);      // limite de teste = 3 falhas
+        java.util.List<String> unknown = attempts("fantasma@a.com", 4);
+
+        assertThat(unknown).isEqualTo(existing)
+                .containsExactly("400:Invalid credentials", "400:Invalid credentials", "400:Invalid credentials", "429");
+        assertThatThrownBy(() -> service.login(new LoginRequest(" FANTASMA@a.com ", "x")))   // normalizado
+                .isInstanceOf(TooManyRequestsException.class)
+                .satisfies(e -> assertThat(((TooManyRequestsException) e).getRetryAfterSeconds()).isEqualTo(901));
+    }
+
+    @Test
+    @DisplayName("R3: bloqueio de email inexistente vence em 15 min e a contagem recomeça do zero")
+    void lockout_unknownEmailExpiresAndResets() {
+        java.util.concurrent.atomic.AtomicReference<Instant> now = new java.util.concurrent.atomic.AtomicReference<>(NOW);
+        Clock moving = new Clock() {
+            public ZoneId getZone() { return ZoneOffset.UTC; }
+            public Clock withZone(ZoneId zone) { return this; }
+            public Instant instant() { return now.get(); }
+        };
+        service = new AuthService(userRepository, encoder, jwtService, totp, crypto, auditService, props(true), moving, "v");
+        given(userRepository.findByEmail(anyString())).willReturn(Optional.empty());
+
+        assertThat(attempts("x@a.com", 4)).last().isEqualTo("429");
+        now.set(NOW.plusSeconds(15 * 60 + 1));                       // bloqueio venceu
+        assertThat(attempts("x@a.com", 3)).containsExactly(
+                "400:Invalid credentials", "400:Invalid credentials", "400:Invalid credentials");  // 3ª bloqueia de novo
+        assertThat(attempts("x@a.com", 1)).containsExactly("429");
+        assertThat(attempts("y@a.com", 1)).containsExactly("400:Invalid credentials");   // outro email não é afetado
+    }
+
+    @Test
+    @DisplayName("R4: API pública de bloqueio usada pela reautenticação")
+    void reauthHelpers() {
+        user.setLockedUntil(LOCAL_NOW.plusMinutes(1));
+        assertThatThrownBy(() -> service.ensureNotLocked(user)).isInstanceOf(TooManyRequestsException.class);
+        service.clearFailures(user);
+        service.ensureNotLocked(user);   // não lança
+        service.registerFailure(user, "reauthentication: wrong password");
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
+        then(auditService).should().recordIndependent(user, AuditService.LOGIN_FAILED, "USER", 1L, "reauthentication: wrong password");
+    }
 }

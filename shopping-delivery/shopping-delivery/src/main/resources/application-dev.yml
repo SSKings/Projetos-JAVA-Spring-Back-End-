@@ -1,5 +1,9 @@
-# Perfil de DESENVOLVIMENTO (padrão). Valores públicos e inseguros de propósito:
-# nunca use este perfil exposto à internet. Em produção: SPRING_PROFILES_ACTIVE=prod.
+# Perfil de DESENVOLVIMENTO (padrão). Nunca use exposto à internet. Em produção: SPRING_PROFILES_ACTIVE=prod.
+#
+# Segredos que dão acesso (JWT e senha do admin) NÃO são fixos: com a API acessível pela rede local, um valor
+# público aqui permitia forjar token de admin ou entrar com admin123 (docs/security-review.md, revisão 2, R2).
+# - JWT: aleatório a cada start (o H2 é em memória, então as sessões já não sobreviviam ao restart).
+# - Senha do admin: gerada a cada start e mostrada no log, a menos que ADMIN_PASSWORD esteja definida.
 spring:
   datasource:
     url: jdbc:h2:mem:ecommercedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000
@@ -19,7 +23,7 @@ springdoc:
 
 security:
   jwt:
-    secret: dev-only-jwt-secret-not-for-production-0123456789
+    secret: ${JWT_SECRET:${random.value}}
   encryption-key: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=
   require-admin-mfa: false
 
@@ -28,7 +32,8 @@ app:
     allowed-origins: "*"
   admin:
     email: admin@shopeasy.com
-    password: admin123
+    # vazio = gerada pelo AdminSeeder e exibida no log da API ("Senha do admin de desenvolvimento")
+    password: ${ADMIN_PASSWORD:}
   pix:
     # domínio .example é reservado: a chave não existe no DICT e nenhum teste paga para terceiros
     key: pix@shopeasy.example

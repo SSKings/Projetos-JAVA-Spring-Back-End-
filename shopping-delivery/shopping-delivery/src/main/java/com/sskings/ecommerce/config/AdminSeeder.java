@@ -33,12 +33,34 @@ public class AdminSeeder implements CommandLineRunner {
         if (userRepository.existsByEmail(normalized)) {
             return;
         }
+        String effectivePassword = password;
+        if (effectivePassword == null || effectivePassword.isBlank()) {
+            // Só acontece fora de produção: em prod o ProductionConfigValidator exige ADMIN_PASSWORD forte.
+            effectivePassword = generatePassword();
+            log.warn("\n==========================================================\n"
+                    + " Senha do admin de desenvolvimento ({}): {}\n"
+                    + " Gerada neste start; defina ADMIN_PASSWORD para fixar.\n"
+                    + "==========================================================", normalized, effectivePassword);
+        }
         userRepository.save(User.builder()
                 .name(name)
                 .email(normalized)
-                .password(passwordEncoder.encode(password))
+                .password(passwordEncoder.encode(effectivePassword))
                 .role(Role.ADMIN)
                 .build());
         log.info("Admin user created: {}", email);
+    }
+
+    /** 16 caracteres de letras e números (SecureRandom), sempre com os dois tipos. */
+    static String generatePassword() {
+        String letters = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
+        String digits = "23456789";
+        String all = letters + digits;
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        StringBuilder sb = new StringBuilder();
+        sb.append(letters.charAt(random.nextInt(letters.length())));
+        sb.append(digits.charAt(random.nextInt(digits.length())));
+        for (int i = 2; i < 16; i++) sb.append(all.charAt(random.nextInt(all.length())));
+        return sb.toString();
     }
 }

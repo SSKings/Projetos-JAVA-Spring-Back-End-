@@ -25,6 +25,10 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage(axiosError({ message: 'Account is blocked' }))).toMatch(/bloqueada/);
     expect(getErrorMessage(axiosError({ message: 'Address is linked to an order' }))).toMatch(/usado em um pedido/);
     expect(getErrorMessage(axiosError({ message: 'Order payment is pending' }))).toMatch(/Pix deste pedido ainda não foi confirmado/);
+    // respostas novas da revisão de segurança 2 (413, 404 de rota, sort inválido)
+    expect(getErrorMessage(axiosError({ message: 'Request body too large' }))).toBe('Os dados enviados são grandes demais.');
+    expect(getErrorMessage(axiosError({ message: 'Resource not found' }))).toBe('Recurso não encontrado.');
+    expect(getErrorMessage(axiosError({ message: 'Invalid sort property' }))).toBe('Ordenação inválida.');
   });
 
   it('traduz transição de status recusada pelo back-end', () => {
