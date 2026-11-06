@@ -52,6 +52,12 @@ jobs:
       - name: Test Pix webhook simulation script
         run: ../scripts/simulate-pix-payment.test.sh
 
+      # Dependências de runtime x banco OSV (Tomcat, Jackson etc. vêm do BOM e o Dependabot não as vê)
+      - name: Test CVE check script
+        run: python3 -m unittest discover -s ../scripts -p 'test_check_dependency_cves.py'
+      - name: Check dependency CVEs (OSV)
+        run: python3 ../scripts/check-dependency-cves.py
+
   shopping-delivery-frontend:
     name: Shopping Delivery Frontend
     runs-on: ubuntu-latest
@@ -70,6 +76,8 @@ jobs:
           cache-dependency-path: shopping-delivery-frontend/package-lock.json
 
       - run: npm ci
+      - name: Dependency audit (npm)
+        run: npm audit --omit=dev --audit-level=high
       - name: Type check
         run: npx tsc -b
       - name: Lint
