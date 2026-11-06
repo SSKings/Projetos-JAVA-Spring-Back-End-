@@ -1,0 +1,16 @@
+apiVersion: 1
+
+# Dashboards versionados em ./dashboards (montada em /var/lib/grafana/dashboards). Ficam na pasta "ShopEasy".
+# Editou no Grafana? Use Share/Export → "Export for sharing externally" desligado → salve o JSON por cima do arquivo
+# e faça commit: alterações feitas só na interface somem quando o container é recriado.
+providers:
+  - name: shopeasy
+    folder: ShopEasy
+    folderUid: shopeasy
+    type: file
+    disableDeletion: true
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
