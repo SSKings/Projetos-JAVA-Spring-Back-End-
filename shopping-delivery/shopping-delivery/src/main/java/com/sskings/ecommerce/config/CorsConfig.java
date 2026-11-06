@@ -17,6 +17,13 @@ public class CorsConfig implements WebMvcConfigurer {
      */
     static final String[] ALLOWED_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"};
 
+    /**
+     * Cabeçalhos que o front pode enviar. traceparent/tracestate (W3C Trace Context) são adicionados pela
+     * instrumentação OpenTelemetry do front (ADR-022): sem eles o preflight falha e as chamadas param.
+     */
+    static final String[] ALLOWED_HEADERS = {
+            "Authorization", "Content-Type", "X-Pix-Timestamp", "X-Pix-Signature", "traceparent", "tracestate"};
+
     private final CorsProperties cors;
 
     @Override
@@ -28,7 +35,7 @@ public class CorsConfig implements WebMvcConfigurer {
             mapping.allowedOrigins(cors.allowedOrigins().toArray(String[]::new));
         }
         mapping.allowedMethods(ALLOWED_METHODS)
-                .allowedHeaders("Authorization", "Content-Type", "X-Pix-Timestamp", "X-Pix-Signature")
+                .allowedHeaders(ALLOWED_HEADERS)
                 .exposedHeaders("Retry-After")
                 .allowCredentials(false)
                 .maxAge(3600);
