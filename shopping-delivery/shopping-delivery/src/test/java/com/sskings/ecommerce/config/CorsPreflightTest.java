@@ -67,6 +67,28 @@ class CorsPreflightTest {
     }
 
     @Test
+    @DisplayName("Preflight aceita os cabeçalhos W3C Trace Context enviados pela instrumentação do front (ADR-022)")
+    void preflight_acceptsTraceContextHeaders() throws Exception {
+        mockMvc.perform(options("/api/cart/items")
+                        .header("Origin", FRONT)
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "authorization,content-type,traceparent,tracestate"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Headers", containsString("traceparent")))
+                .andExpect(header().string("Access-Control-Allow-Headers", containsString("tracestate")));
+    }
+
+    @Test
+    @DisplayName("Cabeçalho fora da lista continua bloqueado no preflight")
+    void preflight_unknownHeader_isRejected() throws Exception {
+        mockMvc.perform(options("/api/cart/items")
+                        .header("Origin", FRONT)
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "x-forwarded-user"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("Método fora da lista continua bloqueado no preflight")
     void preflight_unknownMethod_isRejected() throws Exception {
         mockMvc.perform(options("/api/admin/orders/1/status")

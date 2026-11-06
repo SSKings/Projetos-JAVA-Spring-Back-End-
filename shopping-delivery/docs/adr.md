@@ -509,3 +509,39 @@ Uma segunda revisão (`security-review.md`, seção 6) encontrou:
 - Em dev é preciso ler a senha do admin no log a cada start (ou definir `ADMIN_PASSWORD`).
 - O bloqueio de email inexistente fica em memória e vale por instância; com várias réplicas, use a borda ou um
   store compartilhado.
+
+---
+
+## ADR-022 — Observabilidade com OpenTelemetry e Grafana LGTM
+
+**Status:** Aceito
+
+**Contexto**
+Não havia como seguir uma requisição do navegador até o SQL, nem métricas além do access log. A especificação
+`docs/instrunctions-cloud-impl-observability.md` propõe OpenTelemetry no front e no back, um Collector e a stack
+Grafana (Tempo, Loki, Prometheus). Seguida ao pé da letra, ela não funcionava: Tempo com chave inválida, logs sem
+pipeline, agente na porta errada, front sem instrumentação de XHR (o axios usa XHR), CORS da API recusando o
+`traceparent`. Também abria riscos: imagens e agente `latest` sem verificação, portas abertas para a rede com
+Grafana anônimo, Actuator com detalhes públicos.
+
+**Decisão**
+- **Arquitetura da especificação**, em `observability-stack/` (Collector → Tempo, Loki por OTLP, Prometheus;
+  Grafana com datasources de uid fixo e correlação trace ↔ log). Versões fixas e portas presas a `127.0.0.1`.
+- **Backend:** agente Java OpenTelemetry (`scripts/run-backend.sh`). A versão fica em `pom.xml`
+  (`otel-javaagent.version`) e o agente é baixado pelo Maven com checksum obrigatório (`-C`). O código não depende
+  do agente: sem ele a API roda igual. O padrão de log inclui `trace_id`/`span_id`.
+- **Actuator:** `health` público, só com UP/DOWN. Detalhes, `metrics` e `prometheus` exigem ADMIN (e MFA quando
+  exigido, porque o `JwtAuthFilter` não dá `ROLE_ADMIN` sem ele). Os demais endpoints não são expostos.
+- **CORS:** `traceparent` e `tracestate` em `CorsConfig.ALLOWED_HEADERS`.
+- **Frontend:** instrumentação XHR + fetch com `BatchSpanProcessor`, **opt-in** (`VITE_OTEL_ENABLED=true`). O SDK é
+  carregado por import dinâmico (chunk separado) antes do render. Os spans vão para `/otlp` (proxy do Vite, mesma
+  origem). O `traceparent` só vai para a API desta aplicação (`resolveApiBaseUrl`), nunca para terceiros.
+
+**Consequências**
+- Um clique no front mostra o trace inteiro no Grafana, até a consulta SQL; as linhas de log apontam para o trace.
+- Cobertura: `ActuatorSecurityIntegrationTest`, `CorsPreflightTest` (trace headers) e
+  `src/observability/*.test.ts` (configuração e propagação do `traceparent` em XHR).
+- É uma stack de **desenvolvimento**: em dev, os logs (inclusive a senha de admin gerada, ADR-021) vão para o Loki.
+  Produção pede um collector atrás do nginx e um backend com autenticação. A CSP atual (`connect-src 'self'`) já
+  impede enviar telemetria a outra origem.
+- O bundle principal não muda com a instrumentação desligada. Ligada, carrega mais ~25 KB gzip.

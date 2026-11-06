@@ -69,6 +69,9 @@ public class SecurityConfig {
                         // PSP não envia JWT; o webhook é autenticado pela assinatura HMAC (PaymentService)
                         .requestMatchers(HttpMethod.POST, "/api/payments/pix/webhook").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // Observabilidade (ADR-022): health é público e sem detalhes; métricas só para ADMIN
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(new RequestSizeLimitFilter(maxRequestBytes), UsernamePasswordAuthenticationFilter.class)

@@ -21,6 +21,23 @@ springdoc:
   swagger-ui:
     enabled: false
 
+# Observabilidade (ADR-022). /actuator/health é público (só UP/DOWN); metrics e prometheus exigem ADMIN
+# (SecurityConfig). Em produção o nginx só repassa /api/, então /actuator nem chega da internet.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      roles: ADMIN
+
+logging:
+  pattern:
+    # trace_id/span_id são colocados no MDC pelo agente OpenTelemetry: cada linha de log aponta para o trace
+    level: "%5p [trace_id=%X{trace_id:-} span_id=%X{span_id:-}]"
+
 server:
   port: 8080
   error:

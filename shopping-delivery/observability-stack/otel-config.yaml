@@ -1,0 +1,53 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        # O front envia pelo proxy /otlp do Vite (mesma origem). CORS fica para quem apontar o exporter direto.
+        cors:
+          allowed_origins:
+            - "http://localhost:5173"
+            - "http://127.0.0.1:5173"
+
+processors:
+  # evita que um pico derrube o collector
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 400
+    spike_limit_mib: 100
+  batch:
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    resource_to_telemetry_conversion:
+      enabled: true          # service.name etc. viram labels nas métricas
+
+  otlp/tempo:
+    endpoint: "tempo:4317"
+    tls:
+      insecure: true
+
+  # Loki 3.x recebe OTLP nativo por HTTP em /otlp (a especificação original declarava otlp/loki em gRPC
+  # sem pipeline de logs: os logs nunca chegavam ao Loki)
+  otlphttp/loki:
+    endpoint: "http://loki:3100/otlp"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/loki]

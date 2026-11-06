@@ -1,0 +1,44 @@
+apiVersion: 1
+
+# uid fixo em cada datasource: as correlações (trace → logs, log → trace) apontam por uid. Sem isso o Grafana
+# gera uids aleatórios e os links da especificação original ('Loki', 'Tempo') não resolviam.
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      httpMethod: GET
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        tags: [{ key: 'service.name', value: 'service_name' }]
+        filterByTraceId: true
+        filterBySpanId: false
+      tracesToMetrics:
+        datasourceUid: prometheus
+      serviceMap:
+        datasourceUid: prometheus
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      # Logs via OTLP guardam trace_id como "structured metadata" (não no texto da linha): match por label
+      derivedFields:
+        - name: TraceID
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: tempo
+          url: '$${__value.raw}'

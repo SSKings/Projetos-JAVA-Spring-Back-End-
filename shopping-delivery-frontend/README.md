@@ -18,6 +18,7 @@ Interface do e-commerce construída com React 19, TypeScript e Tailwind CSS: loj
 | Vitest                | 5        | Testes unitários e de componentes                |
 | Testing Library       | 16       | Renderização e interação nos testes (`@testing-library/react`, `user-event`, `jest-dom`) |
 | @vitest/coverage-v8   | 5        | Relatório e mínimo de cobertura                  |
+| OpenTelemetry (SDK web 2.12, instrumentações 0.223) | fixas | Traces do navegador (XHR/fetch) com `traceparent` para a API — opcional, ADR-022 |
 
 ## Setup
 
@@ -57,6 +58,10 @@ src/
 │   ├── addresses.ts    # getAddresses, createAddress, deleteAddress
 │   ├── orders.ts       # checkout(addressId, 'PIX'), getOrders, getOrder, getPayment (polling)
 │   └── admin.ts        # dashboard, CRUD de produtos, pedidos (status, confirmPayment), usuários
+│
+├── observability/      # OpenTelemetry (ADR-022), só com VITE_OTEL_ENABLED=true
+│   ├── config.ts       # resolveObservabilityConfig(): liga/desliga, exporter (/otlp), para onde vai o traceparent
+│   └── instrumentation.ts # initObservability(): WebTracerProvider + XHR/fetch; import dinâmico em main.tsx
 │
 ├── contexts/
 │   ├── AuthContext.tsx  # user (com role), token, login(), register(), logout(),
@@ -168,7 +173,7 @@ Cancelar pede confirmação, o seletor fica bloqueado enquanto salva e o resulta
 npm run coverage
 ```
 
-**279 testes** em 22 arquivos. Cobertura: **99,0% linhas · 95,8% branches · 96,7% funções**.
+**295 testes** em 24 arquivos. Cobertura: **99,0% linhas · 95,9% branches · 96,7% funções**.
 O CI roda, nesta ordem: `npm ci`, `npm audit --omit=dev --audit-level=high`, `tsc -b`, `lint`, `coverage` e `npm run build`. Os testes usam `css: false`,
 então só o build valida Tailwind/PostCSS.
 
@@ -195,6 +200,8 @@ então só o build valida Tailwind/PostCSS.
 | `pages/cart-checkout.test.tsx`        | Carrinho; checkout endereço → revisão → Pix → pago → confirmação; pagar depois; Pix vencido; sem cobrança; erros |
 | `pages/account/account.test.tsx`      | Abas, pedidos (resumo, filtros, busca, paginação, retry, selo Aguardando Pix), detalhe (linha do tempo, cancelado, Pix pendente → pago, selos de pagamento, cancelar pedido, arrependimento com prazo e motivo), histórico de compras, endereços |
 | `pages/admin/admin.test.tsx`          | Dashboard, produtos (CRUD/modal), pedidos (todos os status, `nextStatuses`, pular etapas, confirmação ao cancelar, salvando, erro traduzido, falha de rede, Pix pendente/confirmar Pix, devolução solicitada e registrar estorno), usuários (bloqueio/papel), auditoria (filtro, paginação, vazio, erro) |
+| `observability/config.test.ts`        | Opt-in, exporter na mesma origem, `traceparent` só para a API (IP da rede, mesma origem, outro domínio; hosts parecidos recusados), envio de spans não instrumentado |
+| `observability/instrumentation.test.ts` | Provider com `service.name`, XHR para a API recebe `traceparent` W3C, XHR para terceiros não |
 | `App.test.tsx`                        | Rotas: home, `/admin` para admin, cliente barrado em `/admin`, `/account` → `/orders`, visitante barrado em `/purchases` |
 
 Padrão usado nos testes de página:
@@ -329,6 +336,10 @@ Copie `.env.example` para `.env.local` (dev) ou passe como `--build-arg` no `Doc
 | `VITE_API_BASE_URL` | `/` = mesma origem (produção atrás do nginx, recomendado) · vazio = `<host da página>:8080` (dev) · URL = API em outro domínio |
 | `VITE_COMPANY_*` | Identificação do fornecedor e email do encarregado (LGPD) |
 | `VITE_TERMS_VERSION` | Igual a `TERMS_VERSION` do back-end |
+| `VITE_OTEL_ENABLED` | `true` liga o OpenTelemetry (dev; ver [observability-stack](../shopping-delivery/observability-stack/README.md)). Desligado por padrão |
+| `VITE_OTEL_SERVICE_NAME` | Nome do serviço nos traces (padrão `frontend-react`) |
+| `VITE_OTEL_EXPORTER_URL` | Para onde vão os spans (padrão `/otlp/v1/traces`, proxy do Vite → collector) |
+| `OTEL_COLLECTOR_URL` | Variável do **processo** do Vite (sem `VITE_`): destino do proxy `/otlp` (padrão `http://localhost:4318`) |
 
 `resolveApiBaseUrl()` em `src/api/baseUrl.ts` aplica essas regras. Nada de segredo em `VITE_*`: vai para o bundle.
 

@@ -255,6 +255,15 @@ Preço e nome do produto são copiados no momento da compra. Se o administrador 
 | Rastreabilidade | `audit_logs` + access log do Tomcat (190 dias) |
 | Entrada | Corpo ≤ 64 KB (`RequestSizeLimitFilter`, 413); erros de requisição com código próprio e sem stack trace (ADR-021) |
 | Dependências | Versões do BOM sobrescritas quando há CVE; `check-dependency-cves.py` (OSV) e `npm audit` no CI (ADR-021) |
+| Observabilidade | Actuator: `health` público sem detalhes; `metrics`/`prometheus` só ADMIN; resto não exposto (ADR-022) |
+
+### Observabilidade (ADR-022)
+Traces, métricas e logs com OpenTelemetry, opcionais e sem dependência no código de negócio:
+- **Back:** agente Java (`scripts/run-backend.sh`) instrumenta HTTP, Spring Data, Hibernate e JDBC, e coloca
+  `trace_id`/`span_id` no MDC (padrão de log em `application.yml`).
+- **Front:** `src/observability/` liga, se `VITE_OTEL_ENABLED=true`, as instrumentações XHR (axios) e fetch, que
+  enviam o `traceparent` W3C à API. Por isso o trace começa no navegador.
+- **Stack:** `observability-stack/` (Collector → Tempo/Loki/Prometheus → Grafana). Ver o README dessa pasta.
 
 ```
 audit_logs (V5): id, created_at, actor_id, actor_email, action, target_type, target_id, details, ip
