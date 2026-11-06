@@ -13,7 +13,7 @@ Projetos-JAVA-Spring-Back-End-/
 │   │   ├── Dockerfile            ← imagem da API (sem root)
 │   │   └── pom.xml
 │   ├── deploy/                   ← produção: docker-compose, nginx (TLS/CSP), .env.prod.example
-│   ├── observability-stack/      ← OpenTelemetry Collector + Grafana/Tempo/Loki/Prometheus (dev, ADR-022)
+│   ├── observability-stack/      ← OpenTelemetry Collector + Grafana/Tempo/Loki/Prometheus + dashboards (dev, ADR-022)
 │   ├── scripts/                  ← simulate-pix-payment.sh (dev) + teste; run-backend.sh (API com agente OTel)
 │   └── docs/
 │       ├── api-reference.md      ← Referência completa dos endpoints
@@ -70,6 +70,7 @@ cd .. && ./scripts/run-backend.sh                                 # API com o ag
 cd ../shopping-delivery-frontend && VITE_OTEL_ENABLED=true npm run dev
 ```
 
+Dashboards prontos na pasta **ShopEasy** do Grafana: "ShopEasy API — Visão geral" (home) e "ShopEasy — Negócio e segurança".
 Detalhes, correções em relação à especificação e cuidados de segurança: [observability-stack/README.md](observability-stack/README.md).
 
 > Depois de trocar de branch, **reinicie a API** (o Vite recarrega sozinho; o Spring não). Trabalho paralelo

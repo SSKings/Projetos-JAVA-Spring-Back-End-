@@ -58,6 +58,10 @@ jobs:
       - name: Check dependency CVEs (OSV)
         run: python3 ../scripts/check-dependency-cves.py
 
+      # Dashboards do Grafana (observability-stack/dashboards): JSON, datasources, grade e rotas citadas nas consultas
+      - name: Validate Grafana dashboards
+        run: python3 -m unittest discover -s ../scripts -p 'test_grafana_dashboards.py'
+
   shopping-delivery-frontend:
     name: Shopping Delivery Frontend
     runs-on: ubuntu-latest

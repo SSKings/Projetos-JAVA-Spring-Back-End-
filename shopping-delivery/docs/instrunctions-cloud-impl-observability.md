@@ -21,7 +21,7 @@ Seguir uma ação do usuário do navegador até a consulta SQL, num único trace
 **Fora do escopo (por enquanto):**
 - produção, que tem pendências na seção 10;
 - métricas e logs do navegador: o front envia só traces;
-- dashboards e alertas prontos.
+- alertas (os dashboards existem; ver seção 4.6).
 
 ---
 
@@ -68,6 +68,9 @@ API Spring Boot (backend-spring) + agente Java OpenTelemetry   │
 | `shopping-delivery/observability-stack/prometheus.yml` | Scrape do collector (`otel-collector:8889`) |
 | `shopping-delivery/observability-stack/tempo-config.yaml` | Tempo local (retenção de 1h) |
 | `shopping-delivery/observability-stack/grafana-datasources.yaml` | Datasources e correlações (trace ↔ log, trace → métricas) |
+| `shopping-delivery/observability-stack/grafana-dashboards.yaml` | Provider que carrega `dashboards/` na pasta "ShopEasy" do Grafana |
+| `shopping-delivery/observability-stack/dashboards/*.json` | Dashboards versionados: `shopeasy-api.json` (home) e `shopeasy-business.json` |
+| `shopping-delivery/scripts/test_grafana_dashboards.py` | Validação dos dashboards no CI (seção 8.1) |
 | `shopping-delivery/observability-stack/README.md` | Uso do dia a dia e tabela de desvios desta especificação |
 | `shopping-delivery/scripts/run-backend.sh` | Baixa o agente (versão do pom, checksum verificado), gera o jar e sobe a API com o agente |
 | `shopping-delivery/shopping-delivery/pom.xml` | `spring-boot-starter-actuator`, `micrometer-registry-prometheus`, propriedade `otel-javaagent.version` |
@@ -128,6 +131,50 @@ API Spring Boot (backend-spring) + agente Java OpenTelemetry   │
 ### 4.5 `prometheus.yml`
 - Um único job, que faz scrape do collector. O Prometheus **não** lê o `/actuator/prometheus` da API: as métricas
   da API chegam por OTLP pelo agente. O `/actuator/prometheus` existe para consulta pontual de um ADMIN (seção 5.2).
+
+### 4.6 Dashboards (`grafana-dashboards.yaml` + `dashboards/`)
+
+Os dashboards são provisionados a partir de arquivos (pasta **ShopEasy** no Grafana). O "Visão geral" é a home
+(`GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH`).
+
+**`shopeasy-api` — ShopEasy API — Visão geral.** Tem a variável **Rota** para filtrar uma ou várias rotas.
+
+| Seção | Painéis | Métricas / fonte |
+|---|---|---|
+| Visão geral | API reportando, req/s, % 5xx, % 4xx, latência p95, conexões em uso | `target_info`, `http_server_request_duration_seconds_*`, `db_client_connections_usage` |
+| Tráfego (RED) | req/s por rota, respostas por status, latência p50/p95/p99, p95 por rota, tabela de rotas do período | `http_server_request_duration_seconds_*` |
+| Segurança | Recusas 401/403/413/429 por rota; login por resultado | idem, filtrado por status / `/api/auth/login` |
+| JVM | heap por pool + committed, non-heap, CPU, GC, threads, classes | `jvm_*` |
+| Banco (HikariCP) | conexões used/idle/máximo, fila, espera/uso p95 | `db_client_connections_*` |
+| Logs e traces | logs error/warn (Loki); traces lentos (> 500 ms) e com erro (Tempo, TraceQL) | Loki, Tempo |
+
+**`shopeasy-business` — ShopEasy — Negócio e segurança.** São indicadores derivados das métricas HTTP, sem
+código novo no backend:
+- totais do período: pedidos criados, checkouts recusados, Pix confirmados e recusados no webhook, cadastros,
+  logins recusados ou bloqueados;
+- por minuto: checkouts, webhook Pix, polling de pagamento, cancelamentos, devoluções e estornos, login por
+  resultado, cadastros e carrinho;
+- área admin: ações do admin e acessos negados.
+
+**Regras:**
+- **A fonte é o JSON.** Dashboards provisionados podem ser editados no Grafana (`allowUiUpdates: true`), mas a
+  edição some quando o container é recriado. Para manter uma alteração:
+  1. no Grafana, use **Export → Export as JSON** com *Export for sharing externally* desligado;
+  2. salve o JSON por cima do arquivo em `dashboards/`, mantendo `uid` e `id`;
+  3. rode o teste da seção 8.1 e faça o commit.
+- **Datasources sempre por uid** (`prometheus`, `tempo`, `loki`), nunca pelo nome.
+- **Contrato das rotas:** `http_route` é o *template* da rota no Spring (`/api/orders/{id}/payment`), não a URL.
+  Renomear um endpoint zera os painéis que o citam. O teste da seção 8.1 compara as rotas citadas com os
+  controllers e falha nesse caso.
+- **Status de login:** senha errada, conta desativada e MFA respondem **400** (`BusinessException`), não 401;
+  bloqueio por tentativas ou rate limit responde **429**. Os painéis de login usam essa semântica. Se o
+  `AuthService` mudar, ajuste os painéis.
+- **Webhook Pix:** 401 = assinatura inválida ou replay; 403 = IP fora da allowlist; 400 = payload ou valor inválido;
+  429 = rate limit.
+- **"Requisições com erro" (Tempo)** usa `status = error`. Pela convenção do OpenTelemetry, só 5xx e exceções marcam
+  o span do servidor como erro. Os 4xx aparecem nos painéis de segurança.
+- Painéis vazios são normais quando o evento não aconteceu no período (nenhum 5xx, nenhum estorno). "SEM DADOS" em
+  *API reportando* indica API fora do ar ou rodando sem o agente.
 
 ---
 
@@ -264,10 +311,12 @@ os `@opentelemetry/*` no mesmo PR (seção 9.2).
 | `CorsPreflightTest` (back) | Preflight com `traceparent`/`tracestate` → 200; cabeçalho desconhecido → 403 |
 | `src/observability/config.test.ts` (front) | Opt-in, URL do exporter, propagação só para a API (IP da rede, mesma origem, outro domínio, hosts parecidos recusados), `ignoreUrls` |
 | `src/observability/instrumentation.test.ts` (front) | `service.name` no resource; XHR para a API recebe `traceparent` W3C; XHR para terceiros e sem instrumentação não recebem |
+| `scripts/test_grafana_dashboards.py` (CI) | JSON e uids válidos; datasources existentes; painéis na grade sem sobreposição; `refId` únicos; só `backend-spring`; **toda `http_route` citada existe nos controllers**; links entre dashboards; montagem e home no compose |
 
 ```bash
 cd shopping-delivery/shopping-delivery && ./mvnw verify
 cd shopping-delivery-frontend && npx tsc -b && npm run lint && npm run coverage && npm run build
+python3 -m unittest discover -s shopping-delivery/scripts -p 'test_grafana_dashboards.py'
 ```
 
 ### 8.2 Verificação ponta a ponta (manual, depois de mudar a stack, o agente ou o SDK)
@@ -360,6 +409,8 @@ ss -ltn | grep -E ':(3000|3100|3200|4317|4318|9090) '                           
 | Medir carregamento de página / cliques | `@opentelemetry/instrumentation-document-load` / `-user-interaction` na lista de `initObservability`, com teste |
 | Amostrar menos traces | Back: `OTEL_TRACES_SAMPLER=parentbased_traceidratio` + `OTEL_TRACES_SAMPLER_ARG`. Front: `sampler` no `WebTracerProvider`. Com `parentbased`, o back segue a decisão do front |
 | Guardar dados entre reinícios | Volumes nomeados para `/var/tempo`, `/loki`, `/prometheus` e `/var/lib/grafana` no compose |
+| Novo painel / dashboard | Crie no Grafana, exporte o JSON para `dashboards/` (seção 4.6) e rode o teste. Novo arquivo = `uid` novo e único |
+| Endpoint novo ou renomeado | Atualize os `http_route="..."` dos dashboards. O CI acusa rota inexistente |
 
 ### 9.5 Problemas conhecidos
 
@@ -389,8 +440,9 @@ ss -ltn | grep -E ':(3000|3100|3200|4317|4318|9090) '                           
    - nenhum dado pessoal em logs nem spans;
    - retenção definida.
 4. **Volumes persistentes e retenção** adequados (Tempo, Loki, Prometheus).
-5. **Dashboards e alertas:** picos de 401/429/5xx, webhooks Pix recusados, `REFUND_PENDING`, latência p95 e saúde
-   do pool de conexões (ver `security-review.md`, seção 3, "Operação").
+5. **Alertas** (os dashboards já existem, seção 4.6): picos de 401/429/5xx, webhooks Pix recusados, `REFUND_PENDING`,
+   latência p95 e saúde do pool de conexões (ver `security-review.md`, seção 3, "Operação"). Os painéis de
+   "Visão geral" e "Segurança" são o ponto de partida para as regras.
 6. **Amostragem** para controlar volume e custo (seção 9.4).
 7. Avaliar o tipo `docker-compose` no Dependabot para as imagens da stack.
 
