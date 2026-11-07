@@ -197,7 +197,7 @@ Administrador (/admin, MFA obrigatório em produção)
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
 | Backend   | `./mvnw verify`         | 259    | 97,7%  | 93,1%    |
-| Frontend  | `npm run coverage`      | 295    | 99,0%  | 95,9%    |
+| Frontend  | `npm run coverage`      | 299    | 99,0%  | 95,8%    |
 | Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 29 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
 | API rodando (k6) | `./load-tests/run.sh smoke` | 23 verificações | — | — |
