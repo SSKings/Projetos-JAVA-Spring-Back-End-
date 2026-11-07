@@ -40,6 +40,20 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(409, "The resource was modified concurrently. Reload and try again"));
     }
 
+    /**
+     * Restrição única/FK violada por requisições simultâneas (ex.: dois cadastros com o mesmo email ao mesmo tempo) ou
+     * transação escolhida como vítima de deadlock: é conflito de concorrência, não bug do servidor, e o cliente pode
+     * repetir. Antes caía no handler genérico (500 + log de erro).
+     */
+    @ExceptionHandler({org.springframework.dao.DataIntegrityViolationException.class,
+            // vítima de deadlock/espera por trava: a transação foi desfeita inteira e pode ser repetida
+            org.springframework.dao.PessimisticLockingFailureException.class})
+    public ResponseEntity<ErrorResponse> handleDataConflict(Exception ex) {
+        log.warn("Data integrity conflict: {}", ex.getClass().getSimpleName());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(409, "The request conflicts with existing data. Reload and try again"));
+    }
+
     @ExceptionHandler(InvalidSignatureException.class)
     public ResponseEntity<ErrorResponse> handleInvalidSignature(InvalidSignatureException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

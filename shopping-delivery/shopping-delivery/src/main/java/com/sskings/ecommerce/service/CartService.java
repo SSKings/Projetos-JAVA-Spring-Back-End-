@@ -34,12 +34,16 @@ public class CartService {
 
     @Transactional
     public CartSummaryResponse addItem(AddCartItemRequest request, Long userId) {
+        // Trava o usuário antes de "procura o item, senão insere": sem isso, duas adições simultâneas do mesmo produto
+        // (duplo clique, duas abas) não encontravam o item e as duas inseriam → violação de unique(user_id, product_id)
+        // → 500. Achado no teste de carga (load-tests/prod-like); coberto por ConcurrencyIntegrationTest.
+        User user = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         Product product = productRepository.findByIdAndActiveTrue(request.productId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
         if (product.getStockQuantity() < request.quantity()) {
             throw new BusinessException("Insufficient stock for: " + product.getName());
         }
-        User user = userRepository.getReferenceById(userId);
         cartItemRepository.findByUserIdAndProductId(userId, request.productId())
                 .ifPresentOrElse(
                         existing -> {

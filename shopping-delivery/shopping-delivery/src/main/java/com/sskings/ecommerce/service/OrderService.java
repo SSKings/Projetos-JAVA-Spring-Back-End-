@@ -47,6 +47,10 @@ public class OrderService {
                 .build();
 
         BigDecimal total = BigDecimal.ZERO;
+        // Baixa o estoque SEMPRE em ordem de id do produto (como StockService.restore): checkout de [A, B] concorrendo
+        // com o cancelamento de um pedido [B, A] travava as linhas em ordens opostas → deadlock no PostgreSQL → 500.
+        // Achado no teste de carga (load-tests/prod-like); coberto por ConcurrencyIntegrationTest.
+        cartItems = cartItems.stream().sorted(java.util.Comparator.comparing(ci -> ci.getProduct().getId())).toList();
         for (CartItem ci : cartItems) {
             // produto desativado depois de ir para o carrinho não pode ser comprado
             Product product = productRepository.findByIdAndActiveTrue(ci.getProduct().getId())

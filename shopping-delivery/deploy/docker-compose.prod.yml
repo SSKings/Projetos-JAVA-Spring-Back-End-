@@ -34,6 +34,9 @@ services:
     volumes:
       - access-logs:/var/log/shopeasy   # Marco Civil art. 15: guardar por 6 meses (max-days: 190)
     networks: [internal]
+    # Sem limite, a JVM (MaxRAMPercentage=75 no Dockerfile) dimensiona o heap pela RAM da máquina inteira.
+    # 1536m: no teste de carga (load-tests/prod-like) o pico foi ~555 MiB. Ajuste API_MEM_LIMIT ao servidor.
+    mem_limit: ${API_MEM_LIMIT:-1536m}
     read_only: true
     tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]

@@ -248,10 +248,10 @@ Preço e nome do produto são copiados no momento da compra. Se o administrador 
 | Camada | Mecanismo |
 |--------|-----------|
 | Configuração | Perfis `dev`/`prod`; `ProductionConfigValidator` impede startup inseguro |
-| Borda | nginx: TLS, HSTS, CSP, `limit_req`; API sem porta pública (ADR-019) |
+| Borda | nginx: TLS, cabeçalhos de segurança (fonte única: os da API são escondidos), `limit_req` (login 10/min, API 100/s por IP); API sem porta pública e com `mem_limit` (ADR-019) |
 | Autenticação | BCrypt; JWT com `ver` (revogação via `User.tokenVersion`); bloqueio após 5 falhas, idêntico para email inexistente e contando a reautenticação; MFA TOTP com segredo AES-256-GCM |
 | Autorização | URL (`/api/admin/**` → `ROLE_ADMIN`); consultas sempre filtradas pelo usuário (`findByIdAndUserId`) |
-| Dados | Estoque com `UPDATE` atômico; `@Version` em `Order`/`Payment`; validação de entrada espelhando as colunas |
+| Dados | Estoque com `UPDATE` atômico; `@Version` em `Order`/`Payment`; validação de entrada espelhando as colunas; carrinho com trava do usuário (`findByIdForUpdate`); estoque sempre travado em ordem de id do produto (sem deadlock); violação de restrição ou vítima de trava → 409 |
 | Rastreabilidade | `audit_logs` + access log do Tomcat (190 dias) |
 | Entrada | Corpo ≤ 64 KB (`RequestSizeLimitFilter`, 413); erros de requisição com código próprio e sem stack trace (ADR-021) |
 | Dependências | Versões do BOM sobrescritas quando há CVE; `check-dependency-cves.py` (OSV) e `npm audit` no CI (ADR-021) |

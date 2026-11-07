@@ -5,6 +5,7 @@
 #   ./load-tests/run.sh load       # carga constante: latência com X ações/s (RATE, DURATION)
 #   ./load-tests/run.sh stress     # estresse em degraus: qual o limite? (STEPS, STEP_SECONDS, SLO_MS)
 #   ./load-tests/run.sh alerts     # dispara os alertas do Grafana de propósito (DRILL)
+#   ./load-tests/run.sh edge       # limite por IP da borda (nginx de produção; ver prod-like/)
 #
 # Variáveis: BASE_URL (padrão http://localhost:8080) e as de cada teste; argumentos extras vão para o k6.
 set -euo pipefail
@@ -12,17 +13,21 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K6_IMAGE="grafana/k6:1.3.0"
 
-usage() { sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2; }
 test_name="${1:-}"
-case "$test_name" in smoke|load|stress|alerts) shift ;; *) usage ;; esac
+case "$test_name" in smoke|load|stress|alerts|edge) shift ;; *) usage ;; esac
 
-if ! curl -fsS --max-time 5 "${BASE_URL:-http://localhost:8080}/actuator/health" >/dev/null; then
-  echo "A API não respondeu em ${BASE_URL:-http://localhost:8080}/actuator/health. Ela está no ar?" >&2
+# HEALTH_URL: atrás do nginx de produção o /actuator não é exposto (prod-like/prod-like.sh usa /api/products)
+HEALTH_URL="${HEALTH_URL:-${BASE_URL:-http://localhost:8080}/actuator/health}"
+insecure=(); [[ "${K6_INSECURE_SKIP_TLS_VERIFY:-}" == true ]] && insecure=(-k)   # certificado autoassinado
+if ! curl -fsS "${insecure[@]}" --max-time 5 "$HEALTH_URL" >/dev/null; then
+  echo "A API não respondeu em $HEALTH_URL. Ela está no ar?" >&2
   exit 1
 fi
 
 env_args=()
-for var in BASE_URL RATE DURATION USERS STEPS STEP_SECONDS SLO_MS MAX_VUS DRILL; do
+for var in BASE_URL RATE DURATION USERS BUYERS MIX MAX_REGISTER PROD_LIKE STEPS STEP_SECONDS SLO_MS MAX_VUS DRILL \
+           K6_INSECURE_SKIP_TLS_VERIFY; do
   if [[ -n "${!var:-}" ]]; then env_args+=(-e "$var=${!var}"); fi
 done
 
