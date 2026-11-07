@@ -113,8 +113,11 @@ say "5/5  Teste do contact point pelo Grafana (o mesmo botão Test da interface)
 body="$(python3 -c '
 import json, sys
 c = [x for x in json.load(sys.stdin) if x["name"] == "Telegram ShopEasy"][0]
+# a API devolve o token mascarado ("[REDACTED]"): reenviá-lo faria o Grafana usar o texto literal (Telegram → 404).
+# Sem o campo + secureFields, o Grafana usa o token armazenado.
+settings = {k: v for k, v in c["settings"].items() if k != "bottoken"}
 print(json.dumps({"receivers": [{"name": c["name"], "grafana_managed_receiver_configs": [
-    {"uid": c["uid"], "name": c["name"], "type": "telegram", "settings": c["settings"], "secureFields": {"bottoken": True}}]}]}))' <<<"$cp_json")"
+    {"uid": c["uid"], "name": c["name"], "type": "telegram", "settings": settings, "secureFields": {"bottoken": True}}]}]}))' <<<"$cp_json")"
 result="$(curl -sS -X POST -H 'Content-Type: application/json' -d "$body" "$GRAFANA_URL/api/alertmanager/grafana/config/api/v1/receivers/test")"
 status="$(json_get "d['receivers'][0]['grafana_managed_receiver_configs'][0]['status']" <<<"$result" 2>/dev/null || echo erro)"
 [[ "$status" == "ok" ]] || die "O Grafana não conseguiu enviar: $(json_get "d['receivers'][0]['grafana_managed_receiver_configs'][0].get('error')" <<<"$result" 2>/dev/null || echo "$result")"
