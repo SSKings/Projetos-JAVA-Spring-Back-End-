@@ -24,6 +24,9 @@ exporters:
     endpoint: "0.0.0.0:8889"
     resource_to_telemetry_conversion:
       enabled: true          # service.name etc. viram labels nas métricas
+    # a série some 1 min depois de parar de chegar (padrão: 5 min). O agente exporta a cada 15 s; com isso o
+    # alerta "API sem telemetria" dispara em ~2 min em vez de ~6.
+    metric_expiration: 1m
 
   otlp/tempo:
     endpoint: "tempo:4317"

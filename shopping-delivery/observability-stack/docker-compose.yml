@@ -68,6 +68,8 @@ services:
       # dashboards versionados (ver grafana-dashboards.yaml e dashboards/)
       - ./grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
       - ./dashboards:/var/lib/grafana/dashboards:ro
+      # regras de alerta versionadas (ver alerting/)
+      - ./alerting:/etc/grafana/provisioning/alerting:ro
     ports:
       - "127.0.0.1:3000:3000"
     networks: [obs-network]

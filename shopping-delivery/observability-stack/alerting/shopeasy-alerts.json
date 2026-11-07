@@ -1,0 +1,773 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "API — disponibilidade",
+      "folder": "ShopEasy — Alertas",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "shopeasy-api-down",
+          "title": "API sem telemetria (fora do ar?)",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "count(count by (service_instance_id) (jvm_cpu_count{service_name=\"backend-spring\"})) or vector(0)",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "lt",
+                      "params": [
+                        1
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "Alerting",
+          "execErrState": "Error",
+          "for": "1m",
+          "isPaused": false,
+          "labels": {
+            "severity": "critical",
+            "service": "backend-spring",
+            "area": "disponibilidade"
+          },
+          "annotations": {
+            "summary": "A API backend-spring parou de enviar métricas.",
+            "description": "Nenhuma instância da API reporta há mais de 1 minuto (instâncias: {{ $values.A.Value }}).",
+            "o_que_fazer": "Veja se o processo está de pé (curl localhost:8080/actuator/health) e se foi iniciado com scripts/run-backend.sh (sem o agente não há telemetria). Se a API está de pé, confira o collector (docker logs otel-collector).",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "2"
+          }
+        },
+        {
+          "uid": "shopeasy-api-5xx",
+          "title": "Taxa de erros 5xx acima de 5%",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "100 * (sum(rate(http_server_request_duration_seconds_count{service_name=\"backend-spring\", http_response_status_code=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name=\"backend-spring\"}[5m]))",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        5
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "5m",
+          "isPaused": false,
+          "labels": {
+            "severity": "critical",
+            "service": "backend-spring",
+            "area": "disponibilidade"
+          },
+          "annotations": {
+            "summary": "Mais de 5% das respostas da API são erro do servidor (5xx).",
+            "description": "Erros 5xx: {{ printf \"%.1f\" $values.A.Value }}% das requisições nos últimos 5 minutos.",
+            "o_que_fazer": "Abra o painel 'Requisições com erro' (Tempo) e os logs de erro (Loki) no dashboard da API para achar a exceção; o trace mostra a rota e a consulta que falhou.",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "4"
+          }
+        },
+        {
+          "uid": "shopeasy-api-latency",
+          "title": "Latência p95 acima de 1 s",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_name=\"backend-spring\", http_route!~\"/actuator.*\"}[5m])))",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        1
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "5m",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "service": "backend-spring",
+            "area": "disponibilidade"
+          },
+          "annotations": {
+            "summary": "A API está lenta: 5% das requisições levam mais de 1 segundo.",
+            "description": "Latência p95: {{ printf \"%.2f\" $values.A.Value }} s nos últimos 5 minutos.",
+            "o_que_fazer": "Veja 'Latência p95 por rota' e 'Requisições lentas' (Tempo) para achar a rota e o trecho lento (SQL, pool de conexões, GC).",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "11"
+          }
+        },
+        {
+          "uid": "shopeasy-db-pool-pending",
+          "title": "Requisições esperando conexão do banco",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(db_client_connections_pending_requests{service_name=\"backend-spring\"})",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "2m",
+          "isPaused": false,
+          "labels": {
+            "severity": "critical",
+            "service": "backend-spring",
+            "area": "disponibilidade"
+          },
+          "annotations": {
+            "summary": "Há requisições na fila esperando conexão do pool HikariCP.",
+            "description": "{{ $values.A.Value }} requisição(ões) esperando conexão há mais de 2 minutos.",
+            "o_que_fazer": "O pool está esgotado: consultas lentas segurando conexões ou pool pequeno (DATABASE_POOL_SIZE). Veja 'Tempo de espera e de uso da conexão' e os traces lentos.",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "26"
+          }
+        }
+      ]
+    },
+    {
+      "orgId": 1,
+      "name": "API — segurança",
+      "folder": "ShopEasy — Alertas",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "shopeasy-auth-denied-spike",
+          "title": "Pico de 401/403 (possível varredura)",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=\"backend-spring\", http_response_status_code=~\"401|403\"}[5m])) * 60",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        30
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "2m",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "service": "backend-spring",
+            "area": "seguranca"
+          },
+          "annotations": {
+            "summary": "Muitas requisições recusadas por falta de login ou de permissão.",
+            "description": "{{ printf \"%.0f\" $values.A.Value }} respostas 401/403 por minuto.",
+            "o_que_fazer": "Veja 'Recusas por rota' no dashboard da API e Admin → Auditoria. Origem única e rotas variadas indicam varredura; considere bloquear o IP na borda (nginx).",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "15"
+          }
+        },
+        {
+          "uid": "shopeasy-login-bruteforce",
+          "title": "Muitos logins recusados (possível força bruta)",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=\"backend-spring\", http_route=\"/api/auth/login\", http_response_status_code=~\"400|429\"}[5m])) * 60",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        10
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "2m",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "service": "backend-spring",
+            "area": "seguranca"
+          },
+          "annotations": {
+            "summary": "Taxa alta de logins recusados ou bloqueados.",
+            "description": "{{ printf \"%.0f\" $values.A.Value }} logins recusados/bloqueados por minuto (400 = senha errada/conta desativada/MFA, 429 = bloqueio).",
+            "o_que_fazer": "Confira Admin → Auditoria (LOGIN_FAILED / ACCOUNT_LOCKED): muitos emails = credential stuffing; um email = ataque a uma conta. O bloqueio por conta e o rate limit por IP já atuam; em ataque distribuído, use a borda.",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "16"
+          }
+        },
+        {
+          "uid": "shopeasy-rate-limit",
+          "title": "Rate limit acionado com frequência",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=\"backend-spring\", http_response_status_code=\"429\"}[5m])) * 60",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        5
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "2m",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "service": "backend-spring",
+            "area": "seguranca"
+          },
+          "annotations": {
+            "summary": "A API está respondendo 429 (rate limit ou conta bloqueada) com frequência.",
+            "description": "{{ printf \"%.0f\" $values.A.Value }} respostas 429 por minuto.",
+            "o_que_fazer": "Veja em 'Recusas por rota' qual rota está limitando. Em login/cadastro, é abuso ou força bruta; no webhook, o PSP pode estar reenviando.",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "15"
+          }
+        },
+        {
+          "uid": "shopeasy-pix-webhook-rejected",
+          "title": "Webhook Pix recusado",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(http_server_request_duration_seconds_count{service_name=\"backend-spring\", http_route=\"/api/payments/pix/webhook\", http_response_status_code=~\"4..\"}) - (sum(http_server_request_duration_seconds_count{service_name=\"backend-spring\", http_route=\"/api/payments/pix/webhook\", http_response_status_code=~\"4..\"} offset 10m) or vector(0))",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "service": "backend-spring",
+            "area": "seguranca"
+          },
+          "annotations": {
+            "summary": "Uma notificação de pagamento Pix foi recusada.",
+            "description": "{{ printf \"%.0f\" $values.A.Value }} webhook(s) Pix recusado(s) nos últimos 10 minutos.",
+            "o_que_fazer": "401 = assinatura inválida ou replay (segredo errado ou tentativa de fraude); 403 = IP fora da allowlist; 400 = payload ou valor divergente. Veja Admin → Auditoria (PIX_WEBHOOK_REJECTED). Se for o PSP legítimo, o pagamento pode não ter sido confirmado: confira os pedidos aguardando Pix.",
+            "__dashboardUid__": "shopeasy-business",
+            "__panelId__": "10"
+          }
+        }
+      ]
+    },
+    {
+      "orgId": 1,
+      "name": "API — recursos",
+      "folder": "ShopEasy — Alertas",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "shopeasy-db-pool-saturated",
+          "title": "Pool de conexões acima de 90%",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(db_client_connections_usage{service_name=\"backend-spring\", state=\"used\"}) / sum(db_client_connections_max{service_name=\"backend-spring\"})",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.9
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "5m",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "service": "backend-spring",
+            "area": "recursos"
+          },
+          "annotations": {
+            "summary": "Quase todas as conexões do banco estão em uso.",
+            "description": "Uso do pool: {{ humanizePercentage $values.A.Value }} há mais de 5 minutos.",
+            "o_que_fazer": "Se não houver pico de tráfego, procure consultas lentas nos traces. Se houver, aumente DATABASE_POOL_SIZE (respeitando o limite de conexões do PostgreSQL).",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "25"
+          }
+        },
+        {
+          "uid": "shopeasy-heap-high",
+          "title": "Memória heap alta depois do GC",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(jvm_memory_used_after_last_gc_bytes{service_name=\"backend-spring\", jvm_memory_pool_name=\"G1 Old Gen\"}) / sum(jvm_memory_limit_bytes{service_name=\"backend-spring\", jvm_memory_pool_name=\"G1 Old Gen\"})",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.85
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "service": "backend-spring",
+            "area": "recursos"
+          },
+          "annotations": {
+            "summary": "A geração antiga do heap continua acima de 85% mesmo depois do GC.",
+            "description": "Old Gen após GC: {{ humanizePercentage $values.A.Value }} do limite.",
+            "o_que_fazer": "Risco de OutOfMemoryError. Compare com o painel 'Memória heap': se cresce sempre, é vazamento (gere um heap dump); se acompanha o tráfego, aumente -Xmx.",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "18"
+          }
+        },
+        {
+          "uid": "shopeasy-gc-time",
+          "title": "Tempo excessivo em garbage collection",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(rate(jvm_gc_duration_seconds_sum{service_name=\"backend-spring\"}[5m]))",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.1
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "5m",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "service": "backend-spring",
+            "area": "recursos"
+          },
+          "annotations": {
+            "summary": "A JVM gasta mais de 10% do tempo em garbage collection.",
+            "description": "GC: {{ humanizePercentage $values.A.Value }} do tempo nos últimos 5 minutos.",
+            "o_que_fazer": "Geralmente é heap pequeno ou perto do limite: veja o alerta de heap e o painel 'Memória heap'.",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "21"
+          }
+        },
+        {
+          "uid": "shopeasy-cpu-high",
+          "title": "CPU da JVM acima de 90%",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "max(jvm_cpu_recent_utilization_ratio{service_name=\"backend-spring\"})",
+                "instant": true,
+                "range": false,
+                "intervalMs": 15000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.9
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "service": "backend-spring",
+            "area": "recursos"
+          },
+          "annotations": {
+            "summary": "A API está usando mais de 90% da CPU disponível.",
+            "description": "CPU: {{ humanizePercentage $values.A.Value }} há mais de 10 minutos.",
+            "o_que_fazer": "Veja se é tráfego (req/s), GC (alerta de GC) ou uma rota cara (latência por rota). Em produção, considere mais réplicas.",
+            "__dashboardUid__": "shopeasy-api",
+            "__panelId__": "20"
+          }
+        }
+      ]
+    }
+  ]
+}
