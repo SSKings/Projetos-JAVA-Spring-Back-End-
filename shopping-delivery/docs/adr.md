@@ -587,4 +587,18 @@ notificações.
   unidade não veem.
 - Achado ao escrever o `smoke`: `itemCount` do carrinho conta **linhas** (produtos distintos), não unidades. É o
   comportamento esperado pelo front; o teste documenta isso.
+- **Ambiente de produção** (`load-tests/prod-like/`): a mesma bateria contra a pilha de `deploy/`, sem alterá-la,
+  com PostgreSQL e nginx com TLS. Só os rate limits sobem, porque o k6 sai de um IP. Resultados:
+  - ~400 ações/s dentro do SLO com login e compra;
+  - gargalo de CPU (API e TLS); o PostgreSQL ficou folgado;
+  - estoque íntegro depois de 3.484 pedidos.
+
+  Também revelou problemas de produção, já corrigidos e verificados repetindo o mesmo teste (0 erros 5xx):
+  - o rate limit por IP da borda (429 a partir de 30 req/s por IP), que passou para 100r/s;
+  - a corrida no carrinho (500), agora com trava do usuário e 409 em violação de restrição;
+  - um **deadlock** entre checkout e cancelamento, que só o PostgreSQL mostrou, agora com o estoque sempre travado
+    em ordem de id do produto;
+  - a falta de limite de memória da API (`mem_limit`).
+
+  De quebra, os cabeçalhos de segurança duplicados entre a API e o nginx.
 

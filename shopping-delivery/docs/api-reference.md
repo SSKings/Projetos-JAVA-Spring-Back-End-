@@ -24,7 +24,10 @@ permissão: a sessão continua. Corpo: `{"status":401,"message":"Authentication 
 - A reautenticação (`/api/account/delete`, `/api/account/mfa/disable`) conta para esse mesmo bloqueio.
 - Webhook: 120/min por IP.
 - Corpo da requisição: no máximo 64 KB (`security.max-request-bytes`) → acima disso, `413 Request body too large`.
-- Conflito de edição simultânea (lock otimista) → `409`.
+- Conflito de edição simultânea (lock otimista) ou requisição simultânea que viola uma restrição do banco (por
+  exemplo, dois cadastros com o mesmo email ao mesmo tempo) → `409`.
+- Em produção, a borda (nginx) também limita por IP: login e cadastro a 10/min (rajada 5) e o resto da API a
+  100 req/s (rajada 200) → `429`.
 
 > O navegador envia um *preflight* `OPTIONS` antes de requisições com JSON. O CORS precisa estar
 > habilitado **também na cadeia do Spring Security** (`.cors(Customizer.withDefaults())`), senão o

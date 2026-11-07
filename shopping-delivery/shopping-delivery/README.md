@@ -222,20 +222,22 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 ./mvnw verify    # idem + falha se a cobertura ficar abaixo do mínimo (85% linhas / 80% branches)
 ```
 
-**250 testes**, todos verdes. Cobertura (JaCoCo):
+**259 testes**, todos verdes. Cobertura (JaCoCo):
 
 | Métrica   | Cobertura |
 |-----------|-----------|
-| Linhas    | **97,3%** (1113/1144) |
-| Branches  | **92,7%** (429/463)   |
-| Métodos   | 95,7% (331/346)       |
+| Linhas    | **97,7%** (1123/1149) |
+| Branches  | **93,1%** (429/461)   |
+| Métodos   | 96,0% (337/351)       |
 
 | Suite                          | Tipo              | Cenários cobertos |
 |--------------------------------|-------------------|-------------------|
 | `AuthServiceTest`              | Unit (Mockito)    | Registro (email normalizado, aceite de termos), duplicado, login, BCrypt também para email inexistente, bloqueio após N falhas (429 + Retry-After), bloqueio vencido, conta bloqueada, MFA (pedir código, código certo, reuso, errado), logout revoga; **revisão 2:** bloqueio idêntico para email inexistente (sem oráculo 429), vencimento do bloqueio |
 | `ProductServiceTest`           | Unit (Mockito)    | Busca geral, filtro por nome, por id, produto inativo |
-| `CartServiceTest`              | Unit (Mockito)    | Listar, adicionar, produto inexistente, sem estoque, remover, atualizar |
-| `OrderServiceTest`             | Unit (Mockito)    | Carrinho vazio, estoque insuficiente (UPDATE atômico recusado), produto desativado, sucesso (cria cobrança Pix), cancelamento pelo cliente, arrependimento (prazo de 7 dias, repetido, antes da entrega) |
+| `CartServiceTest`              | Unit (Mockito)    | Listar, adicionar, produto inexistente, sem estoque, remover, atualizar; usuário inexistente; **trava o usuário antes de procurar o item** (`InOrder`) |
+| `ConcurrencyIntegrationTest`   | @SpringBootTest   | Corridas achadas no teste de carga, com banco e transações reais (20 rodadas × 8 threads): **mesmo produto no mesmo carrinho ao mesmo tempo** soma as quantidades (antes: 500 por chave duplicada); **checkout × cancelamento** com vários produtos sem deadlock (antes: 500); cadastro simultâneo com o mesmo email cria uma conta só |
+| `StockServiceTest`             | Unit (Mockito)    | Devolução do estoque em ordem de id do produto, a mesma do checkout (evita deadlock) |
+| `OrderServiceTest`             | Unit (Mockito)    | Carrinho vazio, estoque insuficiente (UPDATE atômico recusado), produto desativado, sucesso (cria cobrança Pix), cancelamento pelo cliente, arrependimento (prazo de 7 dias, repetido, antes da entrega); baixa do estoque em ordem de id do produto, não na ordem do carrinho |
 | `AccountServiceTest`           | Unit (Mockito)    | Perfil, exportação, exclusão/anonimização (endereços com pedido mantidos), senha/MFA na reautenticação, pedidos em andamento, MFA setup/enable/disable; **revisão 2:** senha/código errado na reautenticação conta para o bloqueio, 429 quando bloqueado |
 | `AuditServiceTest`             | Unit              | Ator explícito/implícito, IP, truncamento, busca, máscara de email |
 | `TotpServiceTest`              | Unit              | Vetores oficiais da RFC 6238, Base32, janela ±1 passo, reuso, URI otpauth |
@@ -266,7 +268,7 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 | `JwtAuthFilterTest`            | Unit              | Admin sem MFA perde ROLE_ADMIN quando obrigatório |
 | `ProductControllerTest`        | @WebMvcTest       | GET público, detalhe, rota protegida sem auth → 403 |
 | `CartControllerTest`           | @WebMvcTest       | GET autenticado, 403 sem auth, POST/PUT/DELETE item |
-| `AddressAndOrderControllerTest`| @WebMvcTest       | CRUD de endereço, UF inválida, campo longo demais, exclusão de endereço em uso, checkout, pedidos, cancelar/devolver, 409 de lock otimista, 404, 500 genérico |
+| `AddressAndOrderControllerTest`| @WebMvcTest       | CRUD de endereço, UF inválida, campo longo demais, exclusão de endereço em uso, checkout, pedidos, cancelar/devolver, 409 de lock otimista, 409 para violação de restrição e para vítima de deadlock (sem detalhes do SQL), 404, 500 genérico |
 | `AdminProductControllerTest`   | @WebMvcTest       | 403 sem auth e para cliente, 201 para admin, validação, 204 |
 | `AdminControllersTest`         | @WebMvcTest       | JWT real (admin/cliente/bloqueado/inválido/revogado → 401/403), pedidos (com `nextStatuses`), estorno, auditoria, usuários, dashboard |
 | `CorsPreflightTest`            | @WebMvcTest       | Preflight `OPTIONS` para PATCH (admin), GET, PUT, DELETE, POST; `traceparent`/`tracestate` aceitos; método e cabeçalho desconhecidos recusados |

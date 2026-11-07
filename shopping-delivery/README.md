@@ -161,7 +161,8 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
 Sobe PostgreSQL (sem porta exposta), API em perfil `prod` (container read-only, sem root) e nginx com TLS,
-HSTS, CSP, rate limit e proxy de `/api` na mesma origem. A API **não inicia** com segredos ausentes, fracos ou
+HSTS, CSP, rate limit (login 10/min e API 100 req/s por IP) e proxy de `/api` na mesma origem. A API tem limite de
+memória (`API_MEM_LIMIT`, padrão 1536m) e pool de conexões configurável (`DATABASE_POOL_SIZE`). A API **não inicia** com segredos ausentes, fracos ou
 de desenvolvimento, CORS aberto ou banco H2 (`ProductionConfigValidator`). Detalhes: ADR-017 a ADR-019 e
 [`docs/security-review.md`](docs/security-review.md) (status de cada correção e o que ainda depende da empresa:
 CNPJ e textos legais revisados, PSP para Pix dinâmico, NF-e, email transacional).
@@ -195,7 +196,7 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 250    | 97,3%  | 92,7%    |
+| Backend   | `./mvnw verify`         | 259    | 97,7%  | 93,1%    |
 | Frontend  | `npm run coverage`      | 295    | 99,0%  | 95,9%    |
 | Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 29 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
@@ -217,10 +218,24 @@ Relatórios HTML: `shopping-delivery/target/site/jacoco/index.html` e `shopping-
 ./load-tests/run.sh load      # carga constante (RATE ações/s)
 ./load-tests/run.sh stress    # limite: degraus até sair do SLO
 ./load-tests/run.sh alerts    # dispara os alertas do Grafana de propósito
+./load-tests/prod-like/prod-like.sh up && ./load-tests/prod-like/prod-like.sh stress   # na pilha de produção
 ```
 
-Referência (notebook de dev, H2): **~1.600 ações/s dentro do SLO** (p95 < 500 ms) e **~2.900 req/s de vazão
-máxima**, sem erros. Detalhes e cuidados em [load-tests/README.md](load-tests/README.md).
+Referência (notebook de dev):
+
+| Ambiente | Mistura | Dentro do SLO (p95 < 500 ms) | Vazão máxima |
+|---|---|---|---|
+| Dev (H2, sem TLS) | Só leitura | ~1.600 ações/s | ~2.900 req/s |
+| **Produção** (PostgreSQL, nginx com TLS) | Com login e compra | **~400 ações/s** | ~730 req/s |
+
+O gargalo é a CPU (API e TLS). O estoque ficou íntegro sob saturação. O teste também revelou problemas que já
+foram corrigidos e confirmados com o mesmo teste (0 erros 500):
+- duas corridas que davam 500: o carrinho com o mesmo produto ao mesmo tempo e o **deadlock** entre checkout e
+  cancelamento no PostgreSQL;
+- o rate limit por IP da borda, que recusava clientes atrás do mesmo IP;
+- a falta de limite de memória da API;
+- os cabeçalhos de segurança duplicados.
+Detalhes em [load-tests/README.md](load-tests/README.md).
 
 ## Documentação
 

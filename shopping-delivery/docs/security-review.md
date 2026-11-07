@@ -242,12 +242,32 @@ Além do mTLS (A4), aplicar o lock de C2 em `Payment` para que webhook e job nã
 - [ ] Perfil `prod` separado: H2, Swagger e devtools desligados, CORS restrito, segredos obrigatórios (C1, M2–M4).
 - [ ] Segredos em cofre e rotação documentada.
 - [ ] WAF/rate limit na borda (A1).
+- [x] **Rate limit por IP do nginx revisto** (2026-11-07). Era `zone=api 20r/s burst=40`: no teste de carga
+  (`load-tests/prod-like`, `edge.js`), um IP recebia 429 a partir de 30 req/s (29% das requisições), e 66% com 60 req/s.
+  Clientes atrás do mesmo IP (CGNAT de operadora móvel, empresa) somam as requisições. Agora é `100r/s burst=200`; o
+  login continua com `10r/m`. Ataque distribuído continua sendo papel de WAF/CDN.
+- [x] **Limite de memória do container da API** (`mem_limit: ${API_MEM_LIMIT:-1536m}` em
+  `deploy/docker-compose.prod.yml`). Sem ele, a JVM (`MaxRAMPercentage=75`) dimensionava o heap pela RAM da máquina.
+  O pico no teste foi de 555 MiB.
+- [x] **Cabeçalhos de segurança sem duplicidade:** a API e o nginx enviavam os dois o HSTS, o CSP, o
+  X-Frame-Options, o X-Content-Type-Options e o Referrer-Policy, este com valores diferentes. Agora `proxy-api.inc`
+  esconde os da API, e a borda é a fonte única em produção.
 
 **Aplicação**
 - [ ] Corrigir C1, C2, A1, A2 antes do primeiro cliente real.
 - [ ] Atualizar dependências (A3) e manter Dependabot, CodeQL e scanner de CVE no CI.
 - [ ] Pix via PSP com cobrança dinâmica e webhook mTLS (A4); manter a confirmação manual só como contingência.
 - [ ] Sessão: CSP, token curto e revogação (M1).
+- [x] **Corrida em `POST /api/cart/items` corrigida** (2026-11-07). Duas requisições simultâneas do mesmo usuário e
+  produto davam 500 (`duplicate key cart_items_user_id_product_id_key`), achado no teste de carga. Agora `addItem` trava
+  a linha do usuário (`SELECT … FOR UPDATE`) antes de "procura, senão insere", e as quantidades se somam. Além disso,
+  qualquer violação de restrição do banco responde **409** em vez de 500, o que cobre a mesma corrida no cadastro com
+  email repetido. Cobertura: `ConcurrencyIntegrationTest`, que reproduzia o erro em 7 de 8 threads antes da correção.
+- [x] **Deadlock entre checkout e cancelamento corrigido** (2026-11-07, só aparecia no PostgreSQL sob carga). O
+  checkout baixava o estoque na ordem do carrinho e o cancelamento devolvia na ordem do pedido: [A, B] × [B, A] →
+  `deadlock detected` → 500. Agora os dois seguem a ordem de id do produto, e vítimas de trava respondem 409.
+  Cobertura: `ConcurrencyIntegrationTest` (reproduzia no H2), `StockServiceTest` e `OrderServiceTest`. Na repetição
+  do teste de carga: 0 erros 5xx.
 - [ ] MFA para admin, verificação de email, recuperação de senha (M7).
 - [ ] Auditoria e retenção de logs (M6).
 

@@ -9,6 +9,7 @@ instalar o [k6](https://grafana.com/docs/k6/). Versão fixada em `run.sh` (`K6_I
 | `./load-tests/run.sh load` | **Aguenta a carga esperada?** Taxa constante de ações/s, com latência por rota | 3 min |
 | `./load-tests/run.sh stress` | **Qual é o limite?** Sobe a taxa em degraus até a API sair do SLO | até ~5 min |
 | `./load-tests/run.sh alerts` | **Os alertas funcionam?** Dispara de propósito os alertas do Grafana (e o Telegram) | ~3 min |
+| `./load-tests/prod-like/prod-like.sh up` + `stress` / `smoke` / `edge` | **E no ambiente de produção?** A mesma bateria contra a pilha de `deploy/` (PostgreSQL + nginx + TLS) | ver abaixo |
 
 O código de saída é 0 quando os critérios (*thresholds*) passam e diferente de 0 quando não passam. O `smoke` roda
 no CI a cada push, contra a API subida a partir do jar.
@@ -75,6 +76,9 @@ navegador nesta máquina por até 1 minuto.
 | `STEPS`, `STEP_SECONDS`, `MAX_VUS` | `25,…,1600`, `45`, `2000` | stress |
 | `SLO_MS` | `500` | load, stress |
 | `DRILL` | `todos` | alerts |
+| `MIX` | `leitura` (`completa` no prod-like) | load, stress |
+| `BUYERS` | `100` | load, stress com `MIX=completa` |
+| `HEALTH_URL`, `PROD_LIKE`, `K6_INSECURE_SKIP_TLS_VERIFY`, `MAX_REGISTER` | definidos pelo `prod-like.sh` | todos |
 
 Exemplo: `RATE=100 DURATION=5m SLO_MS=300 ./load-tests/run.sh load`. Argumentos extras vão para o k6
 (ex.: `--quiet`).
@@ -107,6 +111,34 @@ gargalo: CPU, GC, pool do banco ou uma rota específica. Os traces lentos aparec
 - Os dados de teste ficam no banco de dev (usuários `*@carga.teste`, carrinhos, um pedido cancelado do `smoke`).
   Com o H2 em memória, eles somem quando a API reinicia.
 
+## Ambiente de produção (`prod-like/`)
+
+`prod-like/prod-like.sh` sobe **a pilha de produção de `deploy/`**, sem alterá-la, com o projeto Docker
+`shopeasy-loadtest`. Ela tem:
+- PostgreSQL 16;
+- a API no perfil `prod`, num container somente leitura e sem *capabilities*, com o validador de configuração ativo;
+- nginx com TLS e os cabeçalhos de segurança.
+
+O script gera em `prod-like/generated/` (ignorado pelo Git) segredos descartáveis, um certificado autoassinado e a
+configuração do nginx.
+
+```bash
+./load-tests/prod-like/prod-like.sh up       # 1ª vez ~10 min (constrói as imagens); depois ~1 min
+./load-tests/prod-like/prod-like.sh smoke    # 24 verificações através do nginx (inclui: /actuator não exposto, HSTS/CSP)
+./load-tests/prod-like/prod-like.sh stress   # MIX=completa + CPU/memória de cada container (CSV em results/)
+NGINX_LIMITS=prod ./load-tests/prod-like/prod-like.sh up && RATE=30 ./load-tests/prod-like/prod-like.sh edge
+./load-tests/prod-like/prod-like.sh down     # apaga os dados do teste
+```
+
+**O que muda em relação à produção** (em `docker-compose.loadtest.yml`, só no teste). O limite de memória da API
+(`API_MEM_LIMIT`, padrão 1536m) já vem do próprio `deploy/docker-compose.prod.yml`.
+- **Rate limits da API e do nginx bem maiores:** o k6 sai de um IP só, e com os limites reais o teste mediria o
+  limitador, não a API. Os limitadores continuam ligados. `NGINX_LIMITS=prod` usa os limites reais.
+- **Porta só em `127.0.0.1:8443`.**
+
+**`MIX=completa`:** além da navegação, inclui login (3%, BCrypt) e compra (5%: carrinho → checkout Pix →
+cancelamento, que devolve o estoque).
+
 ## Resultados de referência
 
 Medido em 2026-11-07 num notebook AMD Ryzen 5 3500U (8 threads, 9 GB de RAM), Java 17. Perfil dev (H2 em memória),
@@ -130,3 +162,48 @@ API com o agente OpenTelemetry (`scripts/run-backend.sh`), k6 na mesma máquina,
 
 Para a sua máquina, rode `./load-tests/run.sh stress` e, se todos os degraus passarem,
 `STEPS=1600,2400,3200,4800 STEP_SECONDS=30 ./load-tests/run.sh stress`.
+
+### Ambiente de produção (2026-11-07, mesma máquina, `prod-like.sh`)
+
+| Mistura | Dentro do SLO | Vazão máxima | Erros acima do limite |
+|---|---|---|---|
+| Leitura (a mesma do dev) | 400/s OK (p95 6,5 ms); 800/s já passa (p95 522 ms) | **~1.190 req/s** | 0% |
+| **Completa** (login e compra) | **~400 ações/s** (~440 req/s, p95 41–104 ms, 99,8–100% das compras OK) | ~600–675 ações/s (~650–730 req/s) | ~2%; ~45% das compras |
+
+**CPU no pico** (100% = 1 núcleo, a máquina tem 8 threads):
+
+| Container | Pico | Leitura |
+|---|---|---|
+| API | ~480% | o maior consumidor |
+| **nginx (TLS)** | **~450%** | o TLS custa quase tanto quanto a API |
+| PostgreSQL | ~65–86% | folgado; nem o banco nem o pool de 10 conexões foram gargalo |
+
+A memória ficou folgada: a API chegou a 555 MiB de 1.536.
+
+**Conclusões:**
+- **Capacidade real de referência: ~400 ações/s**, 4 vezes menos que no dev. O ambiente (PostgreSQL e nginx com
+  TLS) derruba cerca de 2,4 vezes, e a mistura com login e compra, cerca de 2 vezes.
+- Para uma loja pequena ou média, isso ainda é **folgado**: 400 ações/s correspondem a algo como 2 a 4 mil pessoas
+  navegando ao mesmo tempo.
+- **Gargalo: CPU**, dividida entre a API, o TLS do nginx e o próprio k6. Num servidor dedicado, sem o k6, o número
+  tende a ser maior. Em produção, considere terminar o TLS num balanceador ou CDN.
+- **Integridade:** depois de 3.484 pedidos criados e cancelados sob saturação, o estoque voltou exatamente ao
+  inicial. Não houve venda acima do estoque.
+- **As falhas de compra acima do limite** vêm de duas causas: o teste (2.000 VUs dividindo 100 compradores, e um
+  esvazia o carrinho do outro) e o estoque segurado por pedidos pendentes nos produtos com 10 a 15 unidades. Dentro
+  do limite, 100% das compras deram certo.
+
+**Problemas encontrados por este teste, já corrigidos** e confirmados repetindo o teste: depois das correções,
+**0 respostas 5xx** e nenhum `duplicate key` ou `deadlock` no log.
+
+| Problema | Evidência antes | Correção |
+|---|---|---|
+| **Corrida ao adicionar o mesmo produto ao carrinho** | Duas requisições simultâneas do mesmo usuário e produto: as duas inseriam, e a segunda quebrava `cart_items_user_id_product_id_key` → **500** (duplo clique, duas abas) | `CartService.addItem` trava a linha do usuário (`SELECT … FOR UPDATE`) antes de "procura, senão insere" |
+| **Deadlock entre checkout e cancelamento** (só no PostgreSQL) | O checkout de [A, B] e o cancelamento de [B, A] travavam os produtos em ordens opostas → `deadlock detected` → **500** (4 vezes numa rodada) | Baixa e devolução do estoque sempre em ordem de id do produto (`OrderService.checkout`, `StockService.restore`) |
+| Violação de restrição ou vítima de trava viravam 500 | Por exemplo, dois cadastros simultâneos com o mesmo email | `GlobalExceptionHandler` → **409** sem detalhes do SQL (o cliente pode repetir) |
+| **Rate limit da borda por IP** (`20r/s`, `burst=40`) | Um único IP: 30 req/s → **29%** de 429; 60 → **66%**. Clientes atrás do mesmo IP (CGNAT, empresa, Wi-Fi público) somam requisições | `100r/s`, `burst=200` (o login continua com `10r/m`). Depois: 30 e 60 req/s → **0%**; 120 → 11%; 300 → 64% (ainda corta abuso) |
+| **API sem limite de memória** em `deploy/docker-compose.prod.yml` | A JVM dimensionava o heap pela RAM da máquina inteira | `mem_limit: ${API_MEM_LIMIT:-1536m}` (pico medido: 558 MiB) |
+| Cabeçalhos de segurança **duplicados** (API e nginx) | Cinco cabeçalhos repetidos; `Referrer-Policy` com dois valores diferentes | `proxy_hide_header` em `deploy/proxy-api.inc`: a borda é a fonte única. O `smoke` (prod-like) confere |
+
+Testes que reproduzem as corridas e falhavam antes da correção: `ConcurrencyIntegrationTest`, `StockServiceTest` e o
+teste da ordem da baixa em `OrderServiceTest`.
