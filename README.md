@@ -74,12 +74,20 @@ histórico de compras e endereços) para clientes, e uma **área administrativa*
 - Segurança revisada e corrigida: segredos fora do código com validação no startup, estoque atômico (sem venda acima do estoque), rate limit e bloqueio por tentativas, revogação de sessão, MFA (TOTP) para admin, auditoria, CSP/HSTS — ver [`security-review.md`](shopping-delivery/docs/security-review.md)
 - LGPD e CDC no produto: exportar/corrigir/excluir dados, aceite de termos, cancelamento e direito de arrependimento
 - Produção com Docker: PostgreSQL, API sem root e nginx com TLS ([`shopping-delivery/deploy/`](shopping-delivery/deploy/))
-- Observabilidade com **OpenTelemetry**: um clique no front vira um trace até o SQL no Grafana (Tempo), com logs (Loki) e métricas (Prometheus) correlacionados, dashboards prontos de saúde da API e de negócio/segurança e 12 alertas ([`observability-stack/`](shopping-delivery/observability-stack/README.md))
-- **545 testes** com cobertura exigida no build: backend 97,3% de linhas (JaCoCo) e frontend 99,0% (Vitest); CI com build de produção do front, verificação de CVEs (OSV + `npm audit`) e Dependabot agrupado
+- Observabilidade com **OpenTelemetry**: um clique no front vira um trace até o SQL no Grafana (Tempo), com logs (Loki) e métricas (Prometheus) correlacionados, dashboards prontos de saúde da API e de negócio/segurança e 12 alertas com notificação no **Telegram** ([`observability-stack/`](shopping-delivery/observability-stack/README.md))
+- **545 testes** com cobertura exigida no build: backend 97,3% de linhas (JaCoCo) e frontend 99,0% (Vitest). O CI também roda:
+  - o build de produção do front;
+  - a verificação de CVEs (OSV + `npm audit`);
+  - 39 testes dos scripts (Python e shell);
+  - a validação dos dashboards e alertas;
+  - um **teste funcional k6 contra a API rodando**.
+
+  O Dependabot é agrupado.
+- **Capacidade medida com k6:** ~1.600 ações/s dentro do SLO e ~2.900 req/s de vazão máxima num notebook de dev ([`load-tests/`](shopping-delivery/load-tests/README.md))
 - Documentação de API, arquitetura e ADRs em [`shopping-delivery/docs/`](shopping-delivery/docs/)
 
 **Stack:** Java 17 · Spring Boot 3.5.16 · Spring Security · JWT · TOTP · JPA · Flyway · H2 · PostgreSQL · OpenAPI · Docker · nginx ·
-React 19 · TypeScript · Tailwind · Vitest · OpenTelemetry · Grafana (Tempo, Loki, Prometheus)
+React 19 · TypeScript · Tailwind · Vitest · OpenTelemetry · Grafana (Tempo, Loki, Prometheus) · k6
 
 ```bash
 cd shopping-delivery/shopping-delivery && ./mvnw spring-boot:run   # API em :8080

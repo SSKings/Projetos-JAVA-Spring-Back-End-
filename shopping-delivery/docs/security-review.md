@@ -348,7 +348,7 @@ Os 5 testes de `SecurityReview2IntegrationTest` foram executados contra o códig
 
 ---
 
-## 7. Observabilidade — 2026-11-06 (ADR-022)
+## 7. Observabilidade — 2026-11-06, atualizado em 2026-11-07 (ADR-022, ADR-023)
 
 A especificação de observabilidade foi implementada com estes controles. Os itens marcados com ✅ estão cobertos
 por teste ou foram verificados com a stack rodando.
@@ -360,4 +360,8 @@ por teste ou foram verificados com a stack rodando.
 | Grafana anônimo Admin e stack aberta na rede | Portas presas a `127.0.0.1` | ✅ `ss -ltn` mostra só `127.0.0.1` |
 | `traceparent` vazando para terceiros | Propagação só para a API da aplicação, regex com âncora | ✅ `config.test.ts`, `instrumentation.test.ts` |
 | CORS liberando cabeçalhos demais | Só `traceparent`/`tracestate` foram adicionados; cabeçalho desconhecido continua → 403 | ✅ `CorsPreflightTest` |
+| Token do bot do Telegram vazado (controle do bot) | Só no `.env` (ignorado pelo Git, permissão 600); o assistente lê o token sem eco e o passa ao `curl` pela entrada padrão, nunca na linha de comando; a API do Grafana devolve `[REDACTED]` | ✅ `TelegramTest.test_no_secret_is_versioned` (procura tokens com cara de real); conferido antes do commit do PR #26 |
+| Valor do `.env` injetando conteúdo no contact point (`sed`/JSON) | `entrypoint.sh` aceita só `^[0-9]+:[A-Za-z0-9_-]+$` (token) e `^-?[0-9]+$` (chat); fora disso o Grafana não sobe | ✅ `test_entrypoint_rejects_invalid_values` (10 casos, com `/`, `&`, aspas, espaço) |
+| Dados pessoais saindo para o Telegram (terceiro) | Mensagens só com nome do alerta, métrica e link local; annotations sem dados de clientes | Regra documentada no guia, seção 4.8 |
+| Teste de estresse derrubando um ambiente | `stress` para sozinho com > 20% de erro; README proíbe rodar contra produção sem combinar | `load-tests/README.md` |
 | ⏳ Dados pessoais e a senha de admin de dev nos logs enviados ao Loki | Stack só para dev; antes de produção, revisar o que é logado (LGPD) e usar backend autenticado | Documentado em `observability-stack/README.md` |
