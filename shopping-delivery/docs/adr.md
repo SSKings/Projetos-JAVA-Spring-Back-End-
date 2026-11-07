@@ -546,5 +546,8 @@ Grafana anônimo, Actuator com detalhes públicos.
   impede enviar telemetria a outra origem.
 - O bundle principal não muda com a instrumentação desligada. Ligada, carrega mais ~25 KB gzip.
 - Dashboards versionados em `observability-stack/dashboards/` (API e negócio/segurança), provisionados no start do
-  Grafana e validados no CI (`scripts/test_grafana_dashboards.py`). As métricas de negócio derivam das métricas HTTP,
+  Grafana e validados no CI (`scripts/test_grafana_provisioning.py`). As métricas de negócio derivam das métricas HTTP,
   sem código novo no backend. O contrato é o template da rota (`http_route`), e o CI acusa rota renomeada.
+- 12 regras de alerta versionadas em `observability-stack/alerting/` (disponibilidade, segurança, recursos), na
+  pasta "ShopEasy — Alertas" e validadas no mesmo teste. Ainda não há destino de notificação: o contact point
+  depende do canal escolhido e de um segredo, e fica como pendência.

@@ -70,7 +70,7 @@ cd .. && ./scripts/run-backend.sh                                 # API com o ag
 cd ../shopping-delivery-frontend && VITE_OTEL_ENABLED=true npm run dev
 ```
 
-Dashboards prontos na pasta **ShopEasy** do Grafana: "ShopEasy API — Visão geral" (home) e "ShopEasy — Negócio e segurança".
+Dashboards prontos na pasta **ShopEasy** do Grafana: "ShopEasy API — Visão geral" (home) e "ShopEasy — Negócio e segurança"; 12 alertas na pasta **ShopEasy — Alertas**.
 Detalhes, correções em relação à especificação e cuidados de segurança: [observability-stack/README.md](observability-stack/README.md).
 
 > Depois de trocar de branch, **reinicie a API** (o Vite recarrega sozinho; o Spring não). Trabalho paralelo
