@@ -1,0 +1,2 @@
+# Segredos locais (token do bot do Telegram etc.). Modelo: .env.example
+.env

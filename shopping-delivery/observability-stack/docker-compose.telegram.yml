@@ -1,0 +1,16 @@
+# Notificações dos alertas no Telegram (opcional). Ativado pelo .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.telegram.yml
+# Os segredos vêm do .env (ignorado pelo Git); o compose recusa subir se faltarem. O entrypoint valida os valores e
+# gera o contact point (ver alerting-telegram/entrypoint.sh para o motivo de não usar a interpolação do Grafana).
+services:
+  grafana:
+    entrypoint: ["/bin/sh", "/etc/grafana/telegram/entrypoint.sh"]
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?defina TELEGRAM_BOT_TOKEN no .env (ver .env.example)}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:?defina TELEGRAM_CHAT_ID no .env (ver .env.example)}
+      # links "Painel:" das mensagens
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+      # horário das mensagens (o container usa UTC por padrão)
+      - TZ=${GRAFANA_TZ:-America/Sao_Paulo}
+    volumes:
+      - ./alerting-telegram:/etc/grafana/telegram:ro

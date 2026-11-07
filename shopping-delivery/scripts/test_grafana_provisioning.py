@@ -18,12 +18,21 @@ Alertas:
 - link para dashboard/painel inexistente; rota inexistente; pasta com o mesmo nome da dos dashboards (o
   provisionamento de alertas roda antes e cria uma segunda pasta "ShopEasy").
 
+Telegram (alerting-telegram/, docker-compose.telegram.yml):
+- segredo versionado por engano (token com cara de real fora do .env);
+- texto variável da mensagem sem o filtro html: um & solto (o link do painel tem vários) faz o Telegram recusar a
+  mensagem em parse_mode HTML;
+- entrypoint.sh executado de verdade: gera o JSON certo, aceita chat de grupo (negativo) e recusa valores
+  inválidos ou com caracteres que quebrariam o sed/JSON.
+
     python3 -m unittest discover -s shopping-delivery/scripts -p 'test_grafana_provisioning.py'
 """
 import glob
 import json
 import os
 import re
+import subprocess
+import tempfile
 import unittest
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -34,6 +43,8 @@ DASHBOARD_FOLDER = "ShopEasy"  # grafana-dashboards.yaml
 # funções de template de alerta usadas aqui e que existem no Grafana (text/template + as de Prometheus)
 TEMPLATE_FUNCS = {"printf", "humanize", "humanize1024", "humanizePercentage", "humanizeDuration", "index", "len",
                   "if", "else", "end", "range", "with", "and", "or", "not", "eq", "ne", "lt", "gt", "le", "ge"}
+TELEGRAM_DIR = os.path.join(STACK, "alerting-telegram")
+REAL_LOOKING_TOKEN = re.compile(r"\b\d{6,}:[A-Za-z0-9_-]{30,}\b")
 TARGET_INFO_BY_SERVICE = re.compile(r'target_info\{[^}]*service_name')
 CONTROLLERS = os.path.join(ROOT, "shopping-delivery", "src", "main", "java", "com", "sskings", "ecommerce", "controller")
 
@@ -253,6 +264,87 @@ class AlertRulesTest(unittest.TestCase):
     def test_compose_mounts_alerting(self):
         with open(os.path.join(STACK, "docker-compose.yml"), encoding="utf-8") as f:
             self.assertIn("./alerting:/etc/grafana/provisioning/alerting:ro", f.read())
+
+
+class TelegramTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(TELEGRAM_DIR, "telegram.template.json"), encoding="utf-8") as f:
+            cls.doc = json.load(f)
+        cls.receiver = cls.doc["contactPoints"][0]["receivers"][0]
+
+    def test_contact_point_policy_and_template_are_wired(self):
+        cp = self.doc["contactPoints"][0]
+        self.assertEqual(self.receiver["type"], "telegram")
+        self.assertEqual(self.doc["policies"][0]["receiver"], cp["name"])
+        settings = self.receiver["settings"]
+        self.assertEqual(settings["bottoken"], "__TELEGRAM_BOT_TOKEN__")
+        self.assertEqual(settings["chatid"], "__TELEGRAM_CHAT_ID__")
+        self.assertEqual(settings["parse_mode"], "HTML")
+        used = re.search(r'template "([^"]+)"', settings["message"]).group(1)
+        defined = re.findall(r'define "([^"]+)"', self.doc["templates"][0]["template"])
+        self.assertIn(used, defined)
+
+    def test_variable_text_is_html_escaped(self):
+        tpl = self.doc["templates"][0]["template"]
+        for expr in re.findall(r"{{\s*(\.(?:Annotations|Labels)\.\w+|\.PanelURL)([^}]*)}}", tpl):
+            self.assertIn("| html", expr[1], f"{expr[0]} sem | html")
+        self.assertTrue(set(re.findall(r"</?(\w+)", tpl)) <= {"b", "i"}, "tag que o Telegram não aceita")
+
+    def test_no_secret_is_versioned(self):
+        for root, _, files in os.walk(STACK):
+            for name in files:
+                if name == ".env":
+                    continue
+                with open(os.path.join(root, name), encoding="utf-8", errors="ignore") as f:
+                    self.assertNotRegex(f.read(), REAL_LOOKING_TOKEN, os.path.join(root, name))
+        with open(os.path.join(STACK, ".gitignore"), encoding="utf-8") as f:
+            self.assertIn(".env", f.read().split())
+
+    def test_compose_override_requires_secrets(self):
+        with open(os.path.join(STACK, "docker-compose.telegram.yml"), encoding="utf-8") as f:
+            override = f.read()
+        self.assertIn("${TELEGRAM_BOT_TOKEN:?", override)
+        self.assertIn("${TELEGRAM_CHAT_ID:?", override)
+        self.assertIn("./alerting-telegram:/etc/grafana/telegram:ro", override)
+        self.assertIn('entrypoint: ["/bin/sh", "/etc/grafana/telegram/entrypoint.sh"]', override)
+        with open(os.path.join(STACK, ".env.example"), encoding="utf-8") as f:
+            example = f.read()
+        self.assertIn("COMPOSE_FILE=docker-compose.yml:docker-compose.telegram.yml", example)
+
+    def _run_entrypoint(self, token, chat):
+        tmp = tempfile.mkdtemp()
+        source = os.path.join(tmp, "provisioning")
+        os.makedirs(os.path.join(source, "alerting"))
+        with open(os.path.join(source, "alerting", "regras.json"), "w") as f:
+            f.write("{}")
+        target = os.path.join(tmp, "out")
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "TELEGRAM_BOT_TOKEN": token, "TELEGRAM_CHAT_ID": chat,
+               "TELEGRAM_TEMPLATE": os.path.join(TELEGRAM_DIR, "telegram.template.json"),
+               "GF_PATHS_PROVISIONING": source, "TELEGRAM_PROVISIONING_TARGET": target, "GRAFANA_RUN": "true"}
+        proc = subprocess.run(["sh", os.path.join(TELEGRAM_DIR, "entrypoint.sh")], env=env,
+                              capture_output=True, text=True, timeout=30)
+        return proc, target
+
+    def test_entrypoint_generates_contact_point(self):
+        for chat in ("42", "-1001234567890"):
+            proc, target = self._run_entrypoint("123456:AAbb-cc_DD", chat)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            with open(os.path.join(target, "alerting", "telegram.json"), encoding="utf-8") as f:
+                settings = json.load(f)["contactPoints"][0]["receivers"][0]["settings"]
+            self.assertEqual(settings["chatid"], chat)  # texto, não número
+            self.assertEqual(settings["bottoken"], "123456:AAbb-cc_DD")
+            self.assertTrue(os.path.exists(os.path.join(target, "alerting", "regras.json")), "copia o resto")
+            self.assertEqual(os.stat(os.path.join(target, "alerting", "telegram.json")).st_mode & 0o777, 0o600)
+
+    def test_entrypoint_rejects_invalid_values(self):
+        cases = [("", "42"), ("123456:AA", ""), ("sem-dois-pontos", "42"), ("123:AA/bb", "42"), ("123:AA&x", "42"),
+                 ('123:AA"x', "42"), ("123456:AA", "abc"), ("123456:AA", "1/e"), ("123456:AA", "42 43"), ("123456:AA", "--1")]
+        for token, chat in cases:
+            proc, target = self._run_entrypoint(token, chat)
+            self.assertNotEqual(proc.returncode, 0, (token, chat))
+            self.assertIn("inválido", proc.stderr, (token, chat))
+            self.assertFalse(os.path.exists(os.path.join(target, "alerting", "telegram.json")), (token, chat))
 
 
 class RouteParserTest(unittest.TestCase):
