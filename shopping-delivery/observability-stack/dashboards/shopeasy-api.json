@@ -95,7 +95,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "count(target_info{service_name=\"backend-spring\"}) or vector(0)",
+          "expr": "count(count by (service_instance_id) (jvm_cpu_count{service_name=\"backend-spring\"})) or vector(0)",
           "legendFormat": "",
           "range": false,
           "instant": true
