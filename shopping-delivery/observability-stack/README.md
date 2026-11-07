@@ -25,6 +25,9 @@ cd observability-stack && docker compose up -d && cd ..
 # 3. Front com a instrumentação ligada — a partir da raiz do repositório
 cd ../shopping-delivery-frontend
 VITE_OTEL_ENABLED=true npm run dev        # ou coloque VITE_OTEL_ENABLED=true no .env.local
+
+# 4. (opcional) Alertas no Telegram — nesta pasta; depois disso, o `docker compose up -d` já inclui o Telegram
+./telegram-setup.sh
 ```
 
 Use a loja em `http://localhost:5173` e abra o **Grafana em `http://localhost:3000`** (sem login, ver abaixo).
@@ -68,7 +71,7 @@ Ele guia o resto, um passo por vez:
 | 2. Chat | Você manda `/start` ao seu bot e tecla Enter; o assistente descobre o chat ID. Para um grupo, adicione o bot ao grupo e mande uma mensagem lá |
 | 3. Teste direto | O bot manda "✅ ShopEasy: bot configurado" no seu Telegram |
 | 4. Configuração | Grava o `.env` (ignorado pelo Git, permissão 600) e recria o Grafana com o Telegram |
-| 5. Teste pelo Grafana | O Grafana envia uma notificação de teste, a mesma do botão *Test* da interface |
+| 5. Teste pelo Grafana | O Grafana envia uma notificação de teste, a mesma do botão *Test* da interface, usando o token armazenado |
 
 **3. Veja alertas de verdade chegando:**
 ```bash

@@ -1,6 +1,10 @@
 # Observabilidade (OpenTelemetry + Grafana LGTM) — especificação e guia de manutenção
 
-> **Status:** implementado (ADR-022, 2026-11-06).
+> **Status:** implementado (ADR-022, 2026-11-06). Atualizado em 2026-11-07 com:
+> - dashboards (4.6);
+> - alertas (4.7);
+> - notificações no Telegram (4.8);
+> - testes k6 da API (ADR-023).
 >
 > Este documento era a especificação inicial. Agora descreve **o que está implementado**: as regras que não podem
 > quebrar, como verificar e como manter. As configurações completas ficam nos próprios arquivos (seção 3). Aqui
@@ -416,6 +420,8 @@ os `@opentelemetry/*` no mesmo PR (seção 9.2).
 | `CorsPreflightTest` (back) | Preflight com `traceparent`/`tracestate` → 200; cabeçalho desconhecido → 403 |
 | `src/observability/config.test.ts` (front) | Opt-in, URL do exporter, propagação só para a API (IP da rede, mesma origem, outro domínio, hosts parecidos recusados), `ignoreUrls` |
 | `src/observability/instrumentation.test.ts` (front) | `service.name` no resource; XHR para a API recebe `traceparent` W3C; XHR para terceiros e sem instrumentação não recebem |
+| `scripts/test_grafana_provisioning.py`: Telegram (CI) | Contact point, política e template ligados; todo texto variável com `\| html` e só `<b>`/`<i>`; nenhum token com cara de real versionado; override exige os segredos; **`entrypoint.sh` executado de verdade**: gera o JSON com chat como texto (usuário e grupo), copia o resto do provisionamento, permissão 600, e recusa 10 entradas inválidas |
+| `load-tests/smoke.js` (CI, k6) | A API rodando de ponta a ponta: health, métricas protegidas, catálogo, login, carrinho, checkout Pix, cancelamento, logout (23 verificações) |
 | `scripts/test_grafana_provisioning.py` (CI) | **Dashboards:** JSON e uids válidos; datasources existentes; painéis na grade sem sobreposição; `refId` únicos; só `backend-spring`; **toda `http_route` citada existe nos controllers**; `target_info` sem filtro por `service_name`; links; montagem e home no compose. **Alertas:** uids únicos; pasta diferente da dos dashboards; condição e `refId` coerentes; datasources; severidade e duração; "API sem telemetria" dispara sem dados; annotations; **só funções de template existentes**; links para painéis existentes; rotas; montagem no compose |
 
 ```bash
@@ -425,6 +431,8 @@ python3 -m unittest discover -s shopping-delivery/scripts -p 'test_grafana_provi
 ```
 
 ### 8.2 Verificação ponta a ponta (manual, depois de mudar a stack, o agente ou o SDK)
+
+Para ver dashboards, alertas e Telegram com tráfego realista, use também os testes k6: `load-tests/run.sh load` / `stress` / `alerts` (ADR-023).
 
 Este roteiro não precisa de navegador: ele reproduz o que o front faz. Rode a partir de `shopping-delivery/`.
 
@@ -542,6 +550,7 @@ ss -ltn | grep -E ':(3000|3100|3200|4317|4318|9090) '                           
 | Grafana não sobe com o Telegram: `cannot unmarshal number into ... chatid` | Chat ID passado por interpolação do Grafana. Use o `entrypoint.sh` (seção 4.8) |
 | Container do Grafana não inicia: `make mountpoint ... read-only file system` | Arquivo montado dentro de uma pasta já montada `:ro` (seção 4.8) |
 | `telegram: TELEGRAM_..._ inválido` no log e Grafana parado | Valor do `.env` fora do formato: o token vem do @BotFather (`123456789:AA...`) e o chat ID é um número (grupo é negativo) |
+| Teste do contact point pela API → `404 Not Found`, mas os alertas chegam | O pedido reenviou `settings.bottoken` com o valor mascarado (`[REDACTED]`), e o Grafana o usou literalmente. Envie as `settings` **sem** `bottoken` e com `secureFields: {bottoken: true}` (é o que o `telegram-setup.sh` faz) |
 | Alerta dispara mas nada chega no Telegram | Veja `docker logs grafana \| grep "Notify for alerts failed"`. `401/404` = token errado; `400 chat not found` = chat ID errado ou faltou `/start`; `400 can't parse entities` = texto sem `\| html` |
 | Contadores de 1 em 1 (ex.: "Pedidos criados") menores que o real por 1 | `increase()` ignora o primeiro evento de cada série nova (o contador nasce em 1). Em períodos longos é desprezível; em alertas de evento único, use `atual - (offset or 0)` (seção 4.7) |
 

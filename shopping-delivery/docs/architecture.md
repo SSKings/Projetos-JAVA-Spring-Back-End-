@@ -264,6 +264,12 @@ Traces, métricas e logs com OpenTelemetry, opcionais e sem dependência no cód
 - **Front:** `src/observability/` liga, se `VITE_OTEL_ENABLED=true`, as instrumentações XHR (axios) e fetch, que
   enviam o `traceparent` W3C à API. Por isso o trace começa no navegador.
 - **Stack:** `observability-stack/` (Collector → Tempo/Loki/Prometheus → Grafana). Ver o README dessa pasta.
+- **Dashboards e alertas:** 2 dashboards e 12 alertas provisionados de arquivo (disponibilidade, segurança,
+  recursos), com notificação opcional no **Telegram** (`telegram-setup.sh`). As métricas de negócio derivam das
+  métricas HTTP. O contrato é o template da rota (`http_route`), validado contra os controllers no CI.
+- **Testes da API rodando (ADR-023):** `load-tests/` (k6), com:
+  - `smoke` funcional no CI;
+  - `load`, `stress` (capacidade e limite) e `alerts` (simulações que disparam os alertas).
 
 ```
 audit_logs (V5): id, created_at, actor_id, actor_email, action, target_type, target_id, details, ip

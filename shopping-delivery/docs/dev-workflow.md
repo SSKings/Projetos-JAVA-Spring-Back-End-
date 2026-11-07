@@ -22,6 +22,12 @@ código.
    # ... trabalhe, commite e faça push lá ...
    git worktree remove ../wt-fix-ci
    ```
+   **Onde:** fora do repositório e **nunca em `/tmp`**. Nesta máquina o `/tmp` é `tmpfs` e é apagado a cada
+   reinício. Em 2026-11-06 um worktree em `/tmp`, com trabalho ainda sem commit, sumiu num reboot e teve de ser
+   refeito. Use uma pasta em disco, por exemplo `~/Projetos-wt/<branch>`:
+   ```bash
+   git worktree add ~/Projetos-wt/feat-x -b feat/x origin/main
+   ```
 2. **Branch nova sai da `main` atualizada:** `git fetch origin` antes de `git checkout -b ... origin/main`.
 3. **Trocou de branch? Reinicie a API.** O Vite recarrega o front sozinho; o Spring Boot não (migrações,
    configuração e beans novos só entram no próximo start).
@@ -30,6 +36,20 @@ código.
    git branch --show-current
    git fetch origin && git log --oneline HEAD..origin/main   # commits da main que você NÃO tem
    ```
+
+5. **A stack de observabilidade monta arquivos da pasta de onde foi iniciada.**
+   - Subiu a stack a partir de um worktree? Depois do merge, recrie-a a partir da `main`, antes de remover o
+     worktree:
+     ```bash
+     cd shopping-delivery/observability-stack && docker compose up -d --force-recreate
+     ```
+   - Depois de um `git pull` que mudou `otel-config.yaml` (ou outro arquivo montado sozinho), **reinicie o
+     container**. O Docker fica preso à versão antiga do arquivo, e o Compose não percebe a mudança:
+     ```bash
+     docker compose restart otel-collector
+     ```
+   - O `.env` dessa pasta (token do Telegram) não é versionado. Ao trocar de pasta, copie-o (`cp -p`) ou rode
+     `./telegram-setup.sh` de novo.
 
 ## Aviso automático
 
@@ -72,6 +92,17 @@ O Tailwind voltou para `^3.4.19`.
 - `.github/dependabot.yml`: atualizações **minor/patch agrupadas** (um PR por ecossistema) e **majors ignoradas**.
   Major é migração e se faz num PR próprio, de propósito.
 - CI do front: passo **`npm run build`** depois dos testes.
+
+### O que o Dependabot NÃO atualiza
+
+Estas versões são fixas de propósito e ficam fora do Dependabot. Revise de tempos em tempos, seguindo o
+procedimento da seção 9 do [guia de observabilidade](instrunctions-cloud-impl-observability.md):
+
+| O quê | Onde |
+|---|---|
+| Imagens da stack (Collector, Prometheus, Tempo, Loki, Grafana) | `observability-stack/docker-compose.yml` |
+| Agente Java do OpenTelemetry | `pom.xml` → `otel-javaagent.version` (propriedade, não dependência) |
+| Imagem do k6 | `load-tests/run.sh` → `K6_IMAGE` (o CI lê dali) |
 
 ### Antes de mergear um PR de dependência
 

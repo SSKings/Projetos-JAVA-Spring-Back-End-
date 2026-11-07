@@ -230,9 +230,12 @@ Retorna o carrinho do usuário autenticado.
     }
   ],
   "total": 9199.80,
-  "itemCount": 2
+  "itemCount": 1
 }
 ```
+
+`itemCount` é o número de **linhas** do carrinho (produtos distintos), não de unidades. É o "N itens" exibido no
+front. As unidades estão em `items[].quantity`. Coberto por `load-tests/smoke.js`.
 
 ---
 

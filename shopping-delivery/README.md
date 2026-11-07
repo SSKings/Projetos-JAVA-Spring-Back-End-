@@ -13,14 +13,16 @@ Projetos-JAVA-Spring-Back-End-/
 │   │   ├── Dockerfile            ← imagem da API (sem root)
 │   │   └── pom.xml
 │   ├── deploy/                   ← produção: docker-compose, nginx (TLS/CSP), .env.prod.example
-│   ├── observability-stack/      ← OpenTelemetry Collector + Grafana/Tempo/Loki/Prometheus + dashboards (dev, ADR-022)
+│   ├── observability-stack/      ← OpenTelemetry Collector + Grafana/Tempo/Loki/Prometheus, dashboards, alertas e Telegram (dev, ADR-022)
 │   ├── load-tests/               ← testes k6 da API: smoke (CI), carga, estresse, alertas
-│   ├── scripts/                  ← simulate-pix-payment.sh (dev) + teste; run-backend.sh (API com agente OTel)
+│   ├── scripts/                  ← simulate-pix-payment.sh (+ teste), run-backend.sh (API com agente OTel),
+│   │                               check-dependency-cves.py (+ teste), test_grafana_provisioning.py
 │   └── docs/
 │       ├── api-reference.md      ← Referência completa dos endpoints
 │       ├── architecture.md       ← Modelo de domínio e decisões técnicas
 │       ├── adr.md                ← Architecture Decision Records
 │       ├── dev-workflow.md       ← Branches, worktrees e servidores locais
+│       ├── instrunctions-cloud-impl-observability.md ← Guia de observabilidade (especificação e manutenção)
 │       └── security-review.md    ← Revisão de segurança, status das correções, checklist legal
 └── shopping-delivery-frontend/   ← Frontend (React + TS), na raiz do repositório
     ├── src/
@@ -37,7 +39,8 @@ Projetos-JAVA-Spring-Back-End-/
 | HTTP client  | Axios (com interceptors de auth e 401 redirect)     |
 | Testes BE    | JUnit 5, Mockito, `@WebMvcTest`, JaCoCo             |
 | Testes FE    | Vitest, Testing Library, `@vitest/coverage-v8`      |
-| Observabilidade | OpenTelemetry (agente Java 2.33 + SDK web), Collector, Grafana, Tempo, Loki, Prometheus |
+| Observabilidade | OpenTelemetry (agente Java 2.33 + SDK web), Collector, Grafana, Tempo, Loki, Prometheus; alertas no Telegram |
+| Testes da API | k6 1.3 (via Docker): funcional, carga, estresse e simulação de alertas |
 
 ## Pré-requisitos
 
@@ -72,12 +75,17 @@ cd ../shopping-delivery-frontend && VITE_OTEL_ENABLED=true npm run dev
 ```
 
 Dashboards prontos na pasta **ShopEasy** do Grafana: "ShopEasy API — Visão geral" (home) e "ShopEasy — Negócio e segurança"; 12 alertas na pasta **ShopEasy — Alertas**.
+Para receber os alertas no Telegram: `cd observability-stack && ./telegram-setup.sh` (assistente passo a passo).
 Detalhes, correções em relação à especificação e cuidados de segurança: [observability-stack/README.md](observability-stack/README.md).
 
 > Depois de trocar de branch, **reinicie a API** (o Vite recarrega sozinho; o Spring não). Trabalho paralelo
 > vai num `git worktree`, não no checkout em uso — ver [`docs/dev-workflow.md`](docs/dev-workflow.md).
 
-O perfil padrão é **`dev`** (H2 em memória, Swagger e console H2 ligados, segredos de exemplo).
+O perfil padrão é **`dev`**:
+- H2 em memória;
+- Swagger e console H2 ligados;
+- segredo JWT e senha do admin **aleatórios a cada start**;
+- segredo do webhook Pix de exemplo, para o script de simulação.
 
 **Login de administrador (dev):** `admin@shopeasy.com` e a **senha mostrada no log da API** ao subir
 (bloco "Senha do admin de desenvolvimento"). Ela muda a cada start; para fixar, defina `ADMIN_PASSWORD`
@@ -189,6 +197,11 @@ Administrador (/admin, MFA obrigatório em produção)
 |-----------|-------------------------|--------|--------|----------|
 | Backend   | `./mvnw verify`         | 250    | 97,3%  | 92,7%    |
 | Frontend  | `npm run coverage`      | 295    | 99,0%  | 95,9%    |
+| Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 29 | — | — |
+| Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
+| API rodando (k6) | `./load-tests/run.sh smoke` | 23 verificações | — | — |
+
+Os 29 testes Python cobrem o verificador de CVEs (4) e a validação de dashboards, alertas e Telegram (25).
 
 Os dois comandos **falham se a cobertura cair** abaixo do mínimo (backend 85% linhas / 80% branches;
 frontend 90% linhas / 85% branches) e rodam no CI a cada push. No front, o CI também roda `tsc -b`, `lint` e
@@ -215,6 +228,7 @@ máxima**, sem erros. Detalhes e cuidados em [load-tests/README.md](load-tests/R
 - [Arquitetura e modelo de domínio](docs/architecture.md)
 - [Decisões de arquitetura (ADR)](docs/adr.md)
 - [Observabilidade](observability-stack/README.md) — OpenTelemetry + Grafana (ADR-022); alertas no Telegram com `observability-stack/telegram-setup.sh`
+- [Guia de observabilidade](docs/instrunctions-cloud-impl-observability.md) — regras que não podem quebrar, verificação, manutenção e problemas conhecidos
 - [Testes da API com k6](load-tests/README.md) — funcional, carga, estresse (capacidade e limite) e simulação de alertas (ADR-023)
 - [Fluxo de desenvolvimento](docs/dev-workflow.md) — branches, worktrees, o aviso do `npm run dev` e como revisar PRs do Dependabot
 - [Revisão de segurança e prontidão para produção](docs/security-review.md) — vulnerabilidades encontradas, checklist técnico e legal (LGPD, CDC, Marco Civil, Pix)
