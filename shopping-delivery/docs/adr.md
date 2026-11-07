@@ -549,5 +549,42 @@ Grafana anônimo, Actuator com detalhes públicos.
   Grafana e validados no CI (`scripts/test_grafana_provisioning.py`). As métricas de negócio derivam das métricas HTTP,
   sem código novo no backend. O contrato é o template da rota (`http_route`), e o CI acusa rota renomeada.
 - 12 regras de alerta versionadas em `observability-stack/alerting/` (disponibilidade, segurança, recursos), na
-  pasta "ShopEasy — Alertas" e validadas no mesmo teste. Ainda não há destino de notificação: o contact point
-  depende do canal escolhido e de um segredo, e fica como pendência.
+  pasta "ShopEasy — Alertas" e validadas no mesmo teste. Notificações opcionais no **Telegram**
+  (`docker-compose.telegram.yml`, assistente `telegram-setup.sh`), com o token e o chat ID num `.env` não
+  versionado. Um entrypoint valida os dois e gera o contact point: a interpolação do Grafana transforma o chat ID em
+  número e impede o start.
+
+---
+
+## ADR-023 — Testes da API rodando com k6 (funcional, carga, estresse e alertas)
+
+**Status:** Aceito
+
+**Contexto**
+Os testes do backend (JUnit/MockMvc) validam o código, mas não a API rodando como um cliente a vê. Não havia como
+saber a capacidade da API, onde ela satura, nem como disparar os alertas (ADR-022) de propósito para conferir as
+notificações.
+
+**Decisão**
+- **k6** (Grafana), rodando via Docker (`load-tests/run.sh`, versão fixada em `K6_IMAGE`, sem instalação), com
+  quatro roteiros:
+  - `smoke`: fluxo de compra completo com 23 verificações;
+  - `load`: taxa constante com a mistura de uso de uma loja;
+  - `stress`: degraus até sair do SLO, com o limite calculado no fim;
+  - `alerts`: força bruta, varredura e webhook forjado.
+- **Taxa de chegada constante** (`constant-arrival-rate`), e não um número fixo de usuários em laço: clientes reais
+  não esperam a API responder para chegar. Assim a saturação aparece como latência e como iterações descartadas.
+- O **`smoke` roda no CI** contra a API subida a partir do jar do `verify`. Os outros roteiros são validados com
+  `k6 inspect`.
+- Os testes usam só usuários criados por eles (`*@carga.teste`), no máximo 15 por execução, por causa do rate limit
+  do cadastro. As escritas não esgotam o estoque, e o pedido do `smoke` é cancelado.
+
+**Consequências**
+- Referência em notebook de dev (H2, k6 na mesma máquina): ~1.600 ações/s dentro do SLO e ~2.900 req/s de vazão
+  máxima, com degradação suave (latência sobe, quase sem erro). O gargalo é a CPU. Os números servem para comparar
+  versões; dimensionar a produção pede um ambiente igual ao de produção.
+- O CI ganha cerca de 1 minuto e passa a pegar quebras de contrato da API (status, campos, fluxo) que os testes de
+  unidade não veem.
+- Achado ao escrever o `smoke`: `itemCount` do carrinho conta **linhas** (produtos distintos), não unidades. É o
+  comportamento esperado pelo front; o teste documenta isso.
+

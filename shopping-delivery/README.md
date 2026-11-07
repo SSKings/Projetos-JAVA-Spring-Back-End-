@@ -14,6 +14,7 @@ Projetos-JAVA-Spring-Back-End-/
 │   │   └── pom.xml
 │   ├── deploy/                   ← produção: docker-compose, nginx (TLS/CSP), .env.prod.example
 │   ├── observability-stack/      ← OpenTelemetry Collector + Grafana/Tempo/Loki/Prometheus + dashboards (dev, ADR-022)
+│   ├── load-tests/               ← testes k6 da API: smoke (CI), carga, estresse, alertas
 │   ├── scripts/                  ← simulate-pix-payment.sh (dev) + teste; run-backend.sh (API com agente OTel)
 │   └── docs/
 │       ├── api-reference.md      ← Referência completa dos endpoints
@@ -196,11 +197,24 @@ O CI também verifica vulnerabilidades conhecidas nas dependências: `scripts/ch
 OSV, inclui o que vem do BOM do Spring Boot) e `npm audit --omit=dev --audit-level=high` (front) — ADR-021.
 Relatórios HTML: `shopping-delivery/target/site/jacoco/index.html` e `shopping-delivery-frontend/coverage/index.html`.
 
+### Testes da API rodando (k6, ADR-023)
+
+```bash
+./load-tests/run.sh smoke     # funcional: fluxo de compra completo (também roda no CI)
+./load-tests/run.sh load      # carga constante (RATE ações/s)
+./load-tests/run.sh stress    # limite: degraus até sair do SLO
+./load-tests/run.sh alerts    # dispara os alertas do Grafana de propósito
+```
+
+Referência (notebook de dev, H2): **~1.600 ações/s dentro do SLO** (p95 < 500 ms) e **~2.900 req/s de vazão
+máxima**, sem erros. Detalhes e cuidados em [load-tests/README.md](load-tests/README.md).
+
 ## Documentação
 
 - [Referência da API](docs/api-reference.md)
 - [Arquitetura e modelo de domínio](docs/architecture.md)
 - [Decisões de arquitetura (ADR)](docs/adr.md)
-- [Observabilidade](observability-stack/README.md) — OpenTelemetry + Grafana (ADR-022)
+- [Observabilidade](observability-stack/README.md) — OpenTelemetry + Grafana (ADR-022); alertas no Telegram com `observability-stack/telegram-setup.sh`
+- [Testes da API com k6](load-tests/README.md) — funcional, carga, estresse (capacidade e limite) e simulação de alertas (ADR-023)
 - [Fluxo de desenvolvimento](docs/dev-workflow.md) — branches, worktrees, o aviso do `npm run dev` e como revisar PRs do Dependabot
 - [Revisão de segurança e prontidão para produção](docs/security-review.md) — vulnerabilidades encontradas, checklist técnico e legal (LGPD, CDC, Marco Civil, Pix)

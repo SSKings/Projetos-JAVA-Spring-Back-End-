@@ -252,7 +252,7 @@ Além do mTLS (A4), aplicar o lock de C2 em `Payment` para que webhook e job nã
 - [ ] Auditoria e retenção de logs (M6).
 
 **Operação**
-- [ ] Logs estruturados sem senhas e sem dados pessoais desnecessários; métricas; alertas para picos de 401/429/5xx, webhooks recusados e `REFUND_PENDING`. Em dev já há traces/métricas/logs com OpenTelemetry, dashboards e 12 alertas, incluindo força bruta, varredura 401/403, rate limit e webhook Pix recusado (ADR-022, `observability-stack/`); falta configurar o destino das notificações; falta um backend de telemetria **autenticado** para produção (a stack local é aberta a quem acessa `127.0.0.1`).
+- [ ] Logs estruturados sem senhas e sem dados pessoais desnecessários; métricas; alertas para picos de 401/429/5xx, webhooks recusados e `REFUND_PENDING`. Em dev já há traces/métricas/logs com OpenTelemetry, dashboards e 12 alertas, incluindo força bruta, varredura 401/403, rate limit e webhook Pix recusado (ADR-022, `observability-stack/`); notificações opcionais no Telegram, com o token fora do Git (`.env`) e validado no start; falta um backend de telemetria **autenticado** para produção (a stack local é aberta a quem acessa `127.0.0.1`).
 - [ ] Monitoramento de disponibilidade.
 - [ ] **Plano de resposta a incidentes** (quem decide, como comunicar; ver LGPD art. 48).
 - [ ] Pentest externo antes do lançamento e após mudanças grandes.

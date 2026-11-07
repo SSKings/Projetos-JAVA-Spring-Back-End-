@@ -21,7 +21,7 @@ Seguir uma ação do usuário do navegador até a consulta SQL, num único trace
 **Fora do escopo (por enquanto):**
 - produção, que tem pendências na seção 10;
 - métricas e logs do navegador: o front envia só traces;
-- envio de notificações dos alertas para fora do Grafana (os alertas existem; ver seção 4.7).
+- canais de notificação além do Telegram (seção 4.8).
 
 ---
 
@@ -71,6 +71,11 @@ API Spring Boot (backend-spring) + agente Java OpenTelemetry   │
 | `shopping-delivery/observability-stack/grafana-dashboards.yaml` | Provider que carrega `dashboards/` na pasta "ShopEasy" do Grafana |
 | `shopping-delivery/observability-stack/dashboards/*.json` | Dashboards versionados: `shopeasy-api.json` (home) e `shopeasy-business.json` |
 | `shopping-delivery/observability-stack/alerting/shopeasy-alerts.json` | 12 regras de alerta da API (pasta "ShopEasy — Alertas") |
+| `shopping-delivery/observability-stack/docker-compose.telegram.yml` | Override opcional: notificações no Telegram (seção 4.8) |
+| `shopping-delivery/observability-stack/alerting-telegram/` | `telegram.template.json` (contact point, política, mensagem) e `entrypoint.sh` (gera o contact point a partir do `.env`) |
+| `shopping-delivery/observability-stack/telegram-setup.sh` | Assistente que configura o Telegram de ponta a ponta (token, chat ID, `.env`, testes) |
+| `shopping-delivery/observability-stack/.env.example` / `.gitignore` | Modelo dos segredos locais; o `.env` nunca é versionado |
+| `shopping-delivery/load-tests/` | Testes k6 da API: `smoke` (CI), `load`, `stress`, `alerts` (ADR-023) |
 | `shopping-delivery/scripts/test_grafana_provisioning.py` | Validação de dashboards e alertas no CI (seção 8.1) |
 | `shopping-delivery/observability-stack/README.md` | Uso do dia a dia e tabela de desvios desta especificação |
 | `shopping-delivery/scripts/run-backend.sh` | Baixa o agente (versão do pom, checksum verificado), gera o jar e sobe a API com o agente |
@@ -217,15 +222,66 @@ São 12 regras do Grafana Alerting, provisionadas de arquivo e avaliadas a cada 
   nome do pool.
 - **Mesma fonte do JSON:** alterar uma regra provisionada pela interface não é permitido. Edite o arquivo, rode o
   teste da seção 8.1 e recrie o Grafana (`docker compose up -d --force-recreate grafana`).
-- **Notificações:** a política padrão do Grafana não tem destino configurado. Os alertas aparecem em *Alerting*
-  (e com estado nos painéis), mas **não são enviados para fora**. Para receber, crie um *contact point*
-  (email/SMTP, Telegram, Discord, Slack, webhook) e associe-o à política padrão. Pendência na seção 10.
+- **Notificações:** sem configuração, os alertas só aparecem em *Alerting*, porque a política padrão não tem
+  destino. Com o Telegram ligado (seção 4.8), todos vão para o Telegram.
 
 **Testados** contra a API real (2026-11-07):
 - dispararam: força bruta (33 recusas/min), rate limit (29 respostas 429/min), varredura (65 respostas 401/min) e
   webhook Pix forjado (401);
 - os demais ficaram inativos com a API saudável;
 - "API sem telemetria" foi conferido pela consulta: 1 com a API no ar, 0 sem ela.
+
+### 4.8 Notificações no Telegram (`docker-compose.telegram.yml` + `alerting-telegram/`)
+
+**Opcional**: sem `.env`, a stack sobe como antes. Ligado, todo alerta (e a resolução dele) vira uma mensagem no
+Telegram. Para configurar, rode `observability-stack/telegram-setup.sh`, que faz tudo e testa cada passo (README da
+stack).
+
+**Como funciona:**
+- **Ativação:** o `.env` (ignorado pelo Git) define `COMPOSE_FILE=docker-compose.yml:docker-compose.telegram.yml`,
+  e então `docker compose up -d` inclui o override sozinho.
+- **Segredos:** o override exige `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID` (`${VAR:?}`). Se faltarem, o compose
+  recusa subir com uma mensagem clara.
+- **Contact point:** o entrypoint `alerting-telegram/entrypoint.sh` gera o contact point a partir do
+  `telegram.template.json`, que define:
+  - o contact point "Telegram ShopEasy";
+  - a **política padrão** (tudo para o Telegram, agrupado por pasta e alerta: espera 30 s, reagrupa a cada 5 min,
+    repete a cada 4 h);
+  - o template da mensagem.
+- **Mensagem:** 🔴 critical / 🟠 warning / ✅ resolvido, com resumo, valor medido, o que fazer, severidade, área,
+  horário (fuso `GRAFANA_TZ`, padrão `America/Sao_Paulo`) e link do painel (`GRAFANA_ROOT_URL`).
+
+**Regras (cada uma veio de uma falha real nos testes):**
+- **Não usar `$TELEGRAM_CHAT_ID` no arquivo de provisionamento.** O Grafana substitui a variável e reinterpreta o
+  resultado: o chat ID (numérico) vira número, o campo `chatid` (texto) é recusado e o **Grafana não sobe**. Nenhuma
+  forma de aspas resolve (aspas ficam literais no valor). Por isso o `entrypoint.sh`:
+  1. valida o token (`^[0-9]+:[A-Za-z0-9_-]+$`) e o chat ID (`^-?[0-9]+$`), o que também impede que um valor quebre o `sed` ou o JSON;
+  2. copia o provisionamento para `/tmp/grafana-provisioning`, porque a pasta original é só leitura;
+  3. gera ali o `telegram.json` (permissão 600) e inicia o Grafana com `GF_PATHS_PROVISIONING` apontando para a cópia.
+- **Não montar o arquivo do Telegram dentro de `/etc/grafana/provisioning/alerting`.** Essa pasta já está montada
+  `:ro`, e o Docker não consegue criar um ponto de montagem dentro dela: o container nem inicia.
+- **Escape HTML obrigatório.** A mensagem usa `parse_mode: HTML`, e um `&`, `<` ou `>` solto faz o Telegram recusar a
+  mensagem inteira. O link do painel sempre tem `&`. Todo texto variável passa por `| html`, e só as tags `<b>` e
+  `<i>` são usadas. O CI confere as duas coisas.
+- **`telegram-setup.sh`:**
+  - o token vai ao `curl` pela entrada padrão (`--config -`), nunca na linha de comando;
+  - textos com acento usam UTF-8 literal, porque o formato de config do `curl` descarta a barra de escapes
+    `\uXXXX`;
+  - `TELEGRAM_API` só muda nos testes, que usam um servidor que imita o Telegram.
+- **O token é segredo:** quem tem o token controla o bot. Se vazar, use `/revoke` no @BotFather e rode o assistente
+  de novo. O CI procura tokens com cara de real nos arquivos versionados.
+- **Privacidade:** as mensagens saem para um serviço de terceiro (Telegram). Elas levam só nomes de alertas,
+  métricas e links locais, sem dados de clientes. Não acrescente dados pessoais nas annotations (LGPD).
+
+**Testado** (2026-11-07):
+- **Grafana descartável com token falso:**
+  - valores inválidos impedem o start com mensagem clara;
+  - chat de grupo (negativo) e de usuário chegam como texto;
+  - um alerta real (webhook Pix forjado) foi roteado e renderizado, e o Telegram respondeu "não autorizado";
+  - a prévia do template não tem `&` solto e mostra o horário de Brasília.
+- **Assistente contra um Telegram falso:** fluxo completo, chat encontrado na segunda tentativa, mensagem em UTF-8
+  correta, `.env` com permissão 600 e entrada encerrada tratada.
+- **Com o Telegram real:** o token inválido é recusado.
 
 ## 5. Backend — regras
 
@@ -461,7 +517,10 @@ ss -ltn | grep -E ':(3000|3100|3200|4317|4318|9090) '                           
 | Novo painel / dashboard | Crie no Grafana, exporte o JSON para `dashboards/` (seção 4.6) e rode o teste. Novo arquivo = `uid` novo e único |
 | Endpoint novo ou renomeado | Atualize os `http_route="..."` dos dashboards e dos alertas. O CI acusa rota inexistente |
 | Novo alerta | Acrescente em `alerting/shopeasy-alerts.json` (uid único, `condition` C sobre a consulta A, annotations e link para um painel), rode o teste e recrie o Grafana |
-| Receber notificações | Crie um contact point (UI ou arquivo em `alerting/`, com segredo vindo de variável de ambiente, nunca versionado) e associe-o à política padrão |
+| Receber notificações no Telegram | `observability-stack/telegram-setup.sh` (ou os passos manuais no README da stack) |
+| Outro canal (email, Discord, Slack) | Mesmo padrão da seção 4.8: override opcional, segredo no `.env` e validado num entrypoint, contact point gerado. O Grafana só aceita **uma** política padrão: troque o `receiver` dela ou use rotas filhas |
+| Desligar o Telegram | Apague `COMPOSE_FILE` do `.env` e rode `docker compose up -d` |
+| Disparar alertas de propósito / gerar carga para ver os dashboards | `load-tests/run.sh alerts` / `load` / `stress` (ADR-023, `load-tests/README.md`) |
 
 ### 9.5 Problemas conhecidos
 
@@ -480,6 +539,10 @@ ss -ltn | grep -E ':(3000|3100|3200|4317|4318|9090) '                           
 | "API reportando" em 0 / SEM DADOS com a API no ar | Consulta em `target_info{service_name=...}`: esse label não existe em `target_info` (seção 4.2) |
 | Duas pastas "ShopEasy" no Grafana | Alertas provisionados na mesma pasta dos dashboards (seção 4.7) |
 | Descrição do alerta com `{{ ... }}` cru | Função de template inexistente (ex.: `mul`) |
+| Grafana não sobe com o Telegram: `cannot unmarshal number into ... chatid` | Chat ID passado por interpolação do Grafana. Use o `entrypoint.sh` (seção 4.8) |
+| Container do Grafana não inicia: `make mountpoint ... read-only file system` | Arquivo montado dentro de uma pasta já montada `:ro` (seção 4.8) |
+| `telegram: TELEGRAM_..._ inválido` no log e Grafana parado | Valor do `.env` fora do formato: o token vem do @BotFather (`123456789:AA...`) e o chat ID é um número (grupo é negativo) |
+| Alerta dispara mas nada chega no Telegram | Veja `docker logs grafana \| grep "Notify for alerts failed"`. `401/404` = token errado; `400 chat not found` = chat ID errado ou faltou `/start`; `400 can't parse entities` = texto sem `\| html` |
 | Contadores de 1 em 1 (ex.: "Pedidos criados") menores que o real por 1 | `increase()` ignora o primeiro evento de cada série nova (o contador nasce em 1). Em períodos longos é desprezível; em alertas de evento único, use `atual - (offset or 0)` (seção 4.7) |
 
 ---
@@ -495,8 +558,8 @@ ss -ltn | grep -E ':(3000|3100|3200|4317|4318|9090) '                           
    - nenhum dado pessoal em logs nem spans;
    - retenção definida.
 4. **Volumes persistentes e retenção** adequados (Tempo, Loki, Prometheus).
-5. **Notificação dos alertas** (as regras existem, seção 4.7):
-   - um contact point real (email, Telegram ou outro) com o segredo vindo do ambiente;
+5. **Notificações em produção:**
+   - o Telegram (seção 4.8) atende dev e times pequenos; em produção, avalie um canal com escala de plantão;
    - um alerta para pedidos em `REFUND_PENDING`, que pede uma métrica de negócio no backend: hoje só há métricas
      HTTP.
 6. **Amostragem** para controlar volume e custo (seção 9.4).
