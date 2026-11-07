@@ -5,6 +5,11 @@ import http from 'k6/http';
 import { check, group } from 'k6';
 import { BASE, anon, authed, json, registerUsers } from './lib/common.js';
 
+// PROD_LIKE=1 (prod-like/prod-like.sh smoke): através do nginx de produção. O /actuator não passa pela borda (o
+// nginx serve o front no lugar), e as respostas da API têm os cabeçalhos de segurança da borda.
+const PROD_LIKE = __ENV.PROD_LIKE === '1';
+const notJson = (r) => !String(r.headers['Content-Type'] || '').includes('json');
+
 export const options = {
   vus: 1,
   iterations: 1,
@@ -14,13 +19,31 @@ export const options = {
 
 export default function () {
   group('saúde e catálogo (público)', () => {
-    const health = http.get(`${BASE}/actuator/health`, anon('GET /actuator/health'));
-    check(health, { 'health → 200 UP': (r) => r.status === 200 && r.json('status') === 'UP' });
-    check(http.get(`${BASE}/actuator/prometheus`, anon('GET /actuator/prometheus')),
-      { 'métricas exigem login → 401': (r) => r.status === 401 });
+    if (PROD_LIKE) {
+      check(http.get(`${BASE}/actuator/health`, anon('GET /actuator/health')),
+        { 'actuator não exposto pela borda': notJson });
+      check(http.get(`${BASE}/actuator/prometheus`, anon('GET /actuator/prometheus')),
+        { 'métricas não expostas pela borda': notJson });
+    } else {
+      const health = http.get(`${BASE}/actuator/health`, anon('GET /actuator/health'));
+      check(health, { 'health → 200 UP': (r) => r.status === 200 && r.json('status') === 'UP' });
+      check(http.get(`${BASE}/actuator/prometheus`, anon('GET /actuator/prometheus')),
+        { 'métricas exigem login → 401': (r) => r.status === 401 });
+    }
 
     const list = http.get(`${BASE}/api/products?page=0&size=5`, anon('GET /api/products'));
     check(list, { 'lista de produtos → 200 com itens': (r) => r.status === 200 && r.json('content').length > 0 });
+    if (PROD_LIKE) {
+      check(list, {
+        'borda: HSTS e CSP presentes': (r) => /max-age=\d+/.test(r.headers['Strict-Transport-Security'] || '') &&
+          !!r.headers['Content-Security-Policy'],
+        // o k6 junta cabeçalhos repetidos com ", ": dois HSTS/CSP/Referrer-Policy = API e nginx enviando os dois
+        'borda: cabeçalhos de segurança sem duplicidade': (r) =>
+          (r.headers['Strict-Transport-Security'] || '').split('max-age').length === 2 &&
+          (r.headers['Content-Security-Policy'] || '').split('default-src').length === 2 &&
+          !(r.headers['Referrer-Policy'] || '').includes(','),
+      });
+    }
     const search = http.get(`${BASE}/api/products?search=camiseta`, anon('GET /api/products'));
     check(search, { 'busca por nome → 200': (r) => r.status === 200 });
     check(http.get(`${BASE}/api/products/1`, anon('GET /api/products/{id}')),

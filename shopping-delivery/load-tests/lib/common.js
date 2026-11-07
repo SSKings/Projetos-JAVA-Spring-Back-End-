@@ -23,7 +23,9 @@ export function json(body) {
  * por isso no máximo 15 por execução, e os testes compartilham esses usuários entre as VUs.
  */
 export function registerUsers(count, prefix) {
-  if (count > 15) fail('no máximo 15 usuários por execução (rate limit do cadastro: 20/min por IP)');
+  // MAX_REGISTER só sobe no ambiente prod-like, onde o rate limit do teste é alto (prod-like/docker-compose.loadtest.yml)
+  const max = Number(__ENV.MAX_REGISTER || 15);
+  if (count > max) fail(`no máximo ${max} usuários por execução (rate limit do cadastro: 20/min por IP)`);
   const users = [];
   const stamp = Date.now();
   for (let i = 0; i < count; i++) {
