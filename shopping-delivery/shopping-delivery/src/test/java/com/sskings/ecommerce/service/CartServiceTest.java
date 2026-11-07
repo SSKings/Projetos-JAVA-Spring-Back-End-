@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,6 +44,8 @@ class CartServiceTest {
         user = User.builder().id(1L).email("u@u.com").build();
         product = Product.builder().id(10L).name("Widget").price(BigDecimal.TEN)
                 .stockQuantity(5).active(true).build();
+        // addItem trava o usuário antes de tudo (corrida no carrinho); updateItem/removeItem não usam
+        lenient().when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
     }
 
     @Test
@@ -72,7 +75,6 @@ class CartServiceTest {
     @DisplayName("addItem — new item is added to cart")
     void addItem_newItem_added() {
         given(productRepository.findByIdAndActiveTrue(10L)).willReturn(Optional.of(product));
-        given(userRepository.getReferenceById(1L)).willReturn(user);
         given(cartItemRepository.findByUserIdAndProductId(1L, 10L)).willReturn(Optional.empty());
         given(cartItemRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         CartItem ci = CartItem.builder().id(1L).user(user).product(product).quantity(2).build();
@@ -82,6 +84,29 @@ class CartServiceTest {
 
         assertThat(summary.itemCount()).isEqualTo(1);
         then(cartItemRepository).should().save(any(CartItem.class));
+    }
+
+    @Test
+    @DisplayName("addItem — trava o usuário ANTES de procurar o item (senão duas adições simultâneas inserem as duas)")
+    void addItem_locksUserBeforeLookingUpItem() {
+        given(productRepository.findByIdAndActiveTrue(10L)).willReturn(Optional.of(product));
+        given(cartItemRepository.findByUserIdAndProductId(1L, 10L)).willReturn(Optional.empty());
+
+        cartService.addItem(new AddCartItemRequest(10L, 1), 1L);
+
+        InOrder order = inOrder(userRepository, cartItemRepository);
+        order.verify(userRepository).findByIdForUpdate(1L);
+        order.verify(cartItemRepository).findByUserIdAndProductId(1L, 10L);
+        then(userRepository).should(never()).getReferenceById(any());
+    }
+
+    @Test
+    @DisplayName("addItem — usuário inexistente → ResourceNotFoundException")
+    void addItem_userNotFound_throws() {
+        given(userRepository.findByIdForUpdate(2L)).willReturn(Optional.empty());
+        assertThatThrownBy(() -> cartService.addItem(new AddCartItemRequest(10L, 1), 2L))
+                .isInstanceOf(ResourceNotFoundException.class);
+        then(cartItemRepository).shouldHaveNoInteractions();
     }
 
     @Test

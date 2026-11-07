@@ -187,4 +187,26 @@ class AddressAndOrderControllerTest {
                 new org.springframework.orm.ObjectOptimisticLockingFailureException(com.sskings.ecommerce.model.Order.class, 3L));
         mockMvc.perform(post("/api/orders/3/cancel").with(user(ANA))).andExpect(status().isConflict());
     }
+
+    @Test
+    @DisplayName("Restrição do banco violada por requisição simultânea → 409 sem detalhes do SQL (antes: 500)")
+    void dataIntegrityViolation_returns409() throws Exception {
+        given(orderService.cancelByCustomer(3L, 2L)).willThrow(new org.springframework.dao.DataIntegrityViolationException(
+                "could not execute statement [Unique index violation: CART_ITEMS(USER_ID, PRODUCT_ID)]"));
+        mockMvc.perform(post("/api/orders/3/cancel").with(user(ANA)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value("The request conflicts with existing data. Reload and try again"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("CART_ITEMS"))));
+    }
+
+    @Test
+    @DisplayName("Transação vítima de deadlock → 409 (pode repetir), sem detalhes do SQL (antes: 500)")
+    void deadlockVictim_returns409() throws Exception {
+        given(orderService.cancelByCustomer(3L, 2L)).willThrow(new org.springframework.dao.CannotAcquireLockException(
+                "update products set stock_quantity=... [ERROR: deadlock detected]"));
+        mockMvc.perform(post("/api/orders/3/cancel").with(user(ANA)))
+                .andExpect(status().isConflict())
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("deadlock"))));
+    }
 }

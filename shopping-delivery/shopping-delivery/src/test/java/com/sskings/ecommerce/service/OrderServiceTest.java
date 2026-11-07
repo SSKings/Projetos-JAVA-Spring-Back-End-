@@ -127,6 +127,30 @@ class OrderServiceTest {
     }
 
     @Test
+    @DisplayName("checkout — baixa o estoque em ordem de id do produto, não na ordem do carrinho (evita deadlock)")
+    void checkout_decrementsStockInProductIdOrder() {
+        Product a = Product.builder().id(5L).name("A").price(BigDecimal.ONE).stockQuantity(9).build();
+        Product c = Product.builder().id(30L).name("C").price(BigDecimal.ONE).stockQuantity(9).build();
+        // carrinho na ordem em que o cliente adicionou: 30, 10, 5
+        given(cartItemRepository.findAllByUserId(1L)).willReturn(List.of(
+                CartItem.builder().id(3L).user(user).product(c).quantity(1).build(),
+                cartItem,
+                CartItem.builder().id(4L).user(user).product(a).quantity(1).build()));
+        given(addressRepository.findByIdAndUserId(1L, 1L)).willReturn(Optional.of(address));
+        given(userRepository.getReferenceById(1L)).willReturn(user);
+        for (Product p : List.of(a, product, c)) given(productRepository.findByIdAndActiveTrue(p.getId())).willReturn(Optional.of(p));
+        given(productRepository.decrementStock(any(), org.mockito.ArgumentMatchers.anyInt())).willReturn(1);
+        given(orderRepository.save(any(Order.class))).willAnswer(inv -> inv.getArgument(0));
+
+        orderService.checkout(new CheckoutRequest(1L), 1L);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(productRepository);
+        order.verify(productRepository).decrementStock(5L, 1);
+        order.verify(productRepository).decrementStock(10L, 2);
+        order.verify(productRepository).decrementStock(30L, 1);
+    }
+
+    @Test
     @DisplayName("findById — not found throws ResourceNotFoundException")
     void findById_notFound_throws() {
         given(orderRepository.findByIdAndUserIdWithItems(99L, 1L)).willReturn(Optional.empty());
