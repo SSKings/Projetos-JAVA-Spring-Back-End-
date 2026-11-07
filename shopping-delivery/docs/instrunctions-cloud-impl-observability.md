@@ -21,7 +21,7 @@ Seguir uma ação do usuário do navegador até a consulta SQL, num único trace
 **Fora do escopo (por enquanto):**
 - produção, que tem pendências na seção 10;
 - métricas e logs do navegador: o front envia só traces;
-- alertas (os dashboards existem; ver seção 4.6).
+- envio de notificações dos alertas para fora do Grafana (os alertas existem; ver seção 4.7).
 
 ---
 
@@ -70,7 +70,8 @@ API Spring Boot (backend-spring) + agente Java OpenTelemetry   │
 | `shopping-delivery/observability-stack/grafana-datasources.yaml` | Datasources e correlações (trace ↔ log, trace → métricas) |
 | `shopping-delivery/observability-stack/grafana-dashboards.yaml` | Provider que carrega `dashboards/` na pasta "ShopEasy" do Grafana |
 | `shopping-delivery/observability-stack/dashboards/*.json` | Dashboards versionados: `shopeasy-api.json` (home) e `shopeasy-business.json` |
-| `shopping-delivery/scripts/test_grafana_dashboards.py` | Validação dos dashboards no CI (seção 8.1) |
+| `shopping-delivery/observability-stack/alerting/shopeasy-alerts.json` | 12 regras de alerta da API (pasta "ShopEasy — Alertas") |
+| `shopping-delivery/scripts/test_grafana_provisioning.py` | Validação de dashboards e alertas no CI (seção 8.1) |
 | `shopping-delivery/observability-stack/README.md` | Uso do dia a dia e tabela de desvios desta especificação |
 | `shopping-delivery/scripts/run-backend.sh` | Baixa o agente (versão do pom, checksum verificado), gera o jar e sobe a API com o agente |
 | `shopping-delivery/shopping-delivery/pom.xml` | `spring-boot-starter-actuator`, `micrometer-registry-prometheus`, propriedade `otel-javaagent.version` |
@@ -110,6 +111,10 @@ API Spring Boot (backend-spring) + agente Java OpenTelemetry   │
   exporter `loki`, que foi removido do collector, nem `otlp` (gRPC), que o Loki não aceita.
 - `memory_limiter` vem antes de `batch` em todos os pipelines.
 - `resource_to_telemetry_conversion` no exporter Prometheus faz `service.name` virar o label `service_name` das métricas.
+  **Exceção:** `target_info` não recebe `service_name` (o serviço aparece como `exported_job`). Para saber se a API
+  está reportando, use uma métrica dela, como `jvm_cpu_count{service_name="backend-spring"}`.
+- `metric_expiration: 1m` no exporter Prometheus: uma série some 1 minuto depois de parar de chegar (padrão: 5 min).
+  É o que faz o alerta "API sem telemetria" disparar em cerca de 2 minutos. Não aumente sem rever esse alerta.
 - O bloco `cors` do receiver HTTP só vale para quem apontar o exporter do front direto para `:4318`
   (`VITE_OTEL_EXPORTER_URL`). O caminho padrão é o proxy `/otlp` (mesma origem, sem CORS). Se você trocar a porta
   do Vite, atualize essas origens.
@@ -177,6 +182,50 @@ código novo no backend:
   *API reportando* indica API fora do ar ou rodando sem o agente.
 
 ---
+
+### 4.7 Alertas (`alerting/shopeasy-alerts.json`)
+
+São 12 regras do Grafana Alerting, provisionadas de arquivo e avaliadas a cada minuto, na pasta
+**ShopEasy — Alertas** (*Alerting → Alert rules*). Cada uma tem `summary`, `description` (com o valor medido),
+`o_que_fazer` e link para o painel correspondente do dashboard.
+
+| Grupo | Alerta | Condição | Dura | Severidade |
+|---|---|---|---|---|
+| Disponibilidade | API sem telemetria (fora do ar?) | nenhuma instância com `jvm_cpu_count` (sem dados também dispara) | 1m | critical |
+| | Taxa de erros 5xx acima de 5% | % de 5xx em 5 min > 5 | 5m | critical |
+| | Latência p95 acima de 1 s | p95 em 5 min, sem `/actuator` | 5m | warning |
+| | Requisições esperando conexão do banco | fila do HikariCP > 0 | 2m | critical |
+| Segurança | Pico de 401/403 (possível varredura) | > 30/min | 2m | warning |
+| | Muitos logins recusados (possível força bruta) | 400 ou 429 em `/api/auth/login` > 10/min | 2m | warning |
+| | Rate limit acionado com frequência | 429 > 5/min | 2m | warning |
+| | Webhook Pix recusado | qualquer 4xx no webhook nos últimos 10 min | imediato | warning |
+| Recursos | Pool de conexões acima de 90% | usadas / máximo > 0,9 | 5m | warning |
+| | Memória heap alta depois do GC | G1 Old Gen após GC > 85% do limite | 10m | warning |
+| | Tempo excessivo em garbage collection | > 10% do tempo | 5m | warning |
+| | CPU da JVM acima de 90% | `jvm_cpu_recent_utilization_ratio` > 0,9 | 10m | warning |
+
+**Regras:**
+- **Pasta própria, nunca "ShopEasy".** O provisionamento de alertas roda antes do de dashboards. Com o mesmo nome,
+  ele criava uma segunda pasta "ShopEasy" (uid aleatório) ao lado da dos dashboards. O CI impede isso.
+- **Sem dados = OK**, exceto "API sem telemetria". Sem tráfego, não há taxa de erro nem latência a avaliar.
+- **Webhook Pix:** a consulta é `atual - (10 min atrás or 0)`, e não `increase()`. O contador de cada combinação
+  rota/status nasce com valor 1, e `increase()` só enxerga a diferença entre duas amostras: a primeira recusa
+  após o start da API passaria em branco.
+- **Templates:** só funções do Grafana (`printf`, `humanize`, `humanizePercentage`…). Uma função inexistente, como
+  `mul`, faz a descrição chegar com o template cru. O CI confere a lista.
+- **Heap:** a regra usa o pool `G1 Old Gen`, do G1, o coletor padrão da JVM 17. Se trocar de coletor, ajuste o
+  nome do pool.
+- **Mesma fonte do JSON:** alterar uma regra provisionada pela interface não é permitido. Edite o arquivo, rode o
+  teste da seção 8.1 e recrie o Grafana (`docker compose up -d --force-recreate grafana`).
+- **Notificações:** a política padrão do Grafana não tem destino configurado. Os alertas aparecem em *Alerting*
+  (e com estado nos painéis), mas **não são enviados para fora**. Para receber, crie um *contact point*
+  (email/SMTP, Telegram, Discord, Slack, webhook) e associe-o à política padrão. Pendência na seção 10.
+
+**Testados** contra a API real (2026-11-07):
+- dispararam: força bruta (33 recusas/min), rate limit (29 respostas 429/min), varredura (65 respostas 401/min) e
+  webhook Pix forjado (401);
+- os demais ficaram inativos com a API saudável;
+- "API sem telemetria" foi conferido pela consulta: 1 com a API no ar, 0 sem ela.
 
 ## 5. Backend — regras
 
@@ -311,12 +360,12 @@ os `@opentelemetry/*` no mesmo PR (seção 9.2).
 | `CorsPreflightTest` (back) | Preflight com `traceparent`/`tracestate` → 200; cabeçalho desconhecido → 403 |
 | `src/observability/config.test.ts` (front) | Opt-in, URL do exporter, propagação só para a API (IP da rede, mesma origem, outro domínio, hosts parecidos recusados), `ignoreUrls` |
 | `src/observability/instrumentation.test.ts` (front) | `service.name` no resource; XHR para a API recebe `traceparent` W3C; XHR para terceiros e sem instrumentação não recebem |
-| `scripts/test_grafana_dashboards.py` (CI) | JSON e uids válidos; datasources existentes; painéis na grade sem sobreposição; `refId` únicos; só `backend-spring`; **toda `http_route` citada existe nos controllers**; links entre dashboards; montagem e home no compose |
+| `scripts/test_grafana_provisioning.py` (CI) | **Dashboards:** JSON e uids válidos; datasources existentes; painéis na grade sem sobreposição; `refId` únicos; só `backend-spring`; **toda `http_route` citada existe nos controllers**; `target_info` sem filtro por `service_name`; links; montagem e home no compose. **Alertas:** uids únicos; pasta diferente da dos dashboards; condição e `refId` coerentes; datasources; severidade e duração; "API sem telemetria" dispara sem dados; annotations; **só funções de template existentes**; links para painéis existentes; rotas; montagem no compose |
 
 ```bash
 cd shopping-delivery/shopping-delivery && ./mvnw verify
 cd shopping-delivery-frontend && npx tsc -b && npm run lint && npm run coverage && npm run build
-python3 -m unittest discover -s shopping-delivery/scripts -p 'test_grafana_dashboards.py'
+python3 -m unittest discover -s shopping-delivery/scripts -p 'test_grafana_provisioning.py'
 ```
 
 ### 8.2 Verificação ponta a ponta (manual, depois de mudar a stack, o agente ou o SDK)
@@ -410,7 +459,9 @@ ss -ltn | grep -E ':(3000|3100|3200|4317|4318|9090) '                           
 | Amostrar menos traces | Back: `OTEL_TRACES_SAMPLER=parentbased_traceidratio` + `OTEL_TRACES_SAMPLER_ARG`. Front: `sampler` no `WebTracerProvider`. Com `parentbased`, o back segue a decisão do front |
 | Guardar dados entre reinícios | Volumes nomeados para `/var/tempo`, `/loki`, `/prometheus` e `/var/lib/grafana` no compose |
 | Novo painel / dashboard | Crie no Grafana, exporte o JSON para `dashboards/` (seção 4.6) e rode o teste. Novo arquivo = `uid` novo e único |
-| Endpoint novo ou renomeado | Atualize os `http_route="..."` dos dashboards. O CI acusa rota inexistente |
+| Endpoint novo ou renomeado | Atualize os `http_route="..."` dos dashboards e dos alertas. O CI acusa rota inexistente |
+| Novo alerta | Acrescente em `alerting/shopeasy-alerts.json` (uid único, `condition` C sobre a consulta A, annotations e link para um painel), rode o teste e recrie o Grafana |
+| Receber notificações | Crie um contact point (UI ou arquivo em `alerting/`, com segredo vindo de variável de ambiente, nunca versionado) e associe-o à política padrão |
 
 ### 9.5 Problemas conhecidos
 
@@ -426,6 +477,10 @@ ss -ltn | grep -E ':(3000|3100|3200|4317|4318|9090) '                           
 | `[trace_id= span_id=]` vazio no console | API sem o agente (`./mvnw spring-boot:run`). Esperado |
 | `docker compose pull` falha com `connection reset by peer` | Rede instável no download; repita o pull |
 | `tsc`: `ImportMetaEnv has no properties in common with ObservabilityEnv` | `ObservabilityEnv` precisa da index signature `[key: string]: unknown` |
+| "API reportando" em 0 / SEM DADOS com a API no ar | Consulta em `target_info{service_name=...}`: esse label não existe em `target_info` (seção 4.2) |
+| Duas pastas "ShopEasy" no Grafana | Alertas provisionados na mesma pasta dos dashboards (seção 4.7) |
+| Descrição do alerta com `{{ ... }}` cru | Função de template inexistente (ex.: `mul`) |
+| Contadores de 1 em 1 (ex.: "Pedidos criados") menores que o real por 1 | `increase()` ignora o primeiro evento de cada série nova (o contador nasce em 1). Em períodos longos é desprezível; em alertas de evento único, use `atual - (offset or 0)` (seção 4.7) |
 
 ---
 
@@ -440,9 +495,10 @@ ss -ltn | grep -E ':(3000|3100|3200|4317|4318|9090) '                           
    - nenhum dado pessoal em logs nem spans;
    - retenção definida.
 4. **Volumes persistentes e retenção** adequados (Tempo, Loki, Prometheus).
-5. **Alertas** (os dashboards já existem, seção 4.6): picos de 401/429/5xx, webhooks Pix recusados, `REFUND_PENDING`,
-   latência p95 e saúde do pool de conexões (ver `security-review.md`, seção 3, "Operação"). Os painéis de
-   "Visão geral" e "Segurança" são o ponto de partida para as regras.
+5. **Notificação dos alertas** (as regras existem, seção 4.7):
+   - um contact point real (email, Telegram ou outro) com o segredo vindo do ambiente;
+   - um alerta para pedidos em `REFUND_PENDING`, que pede uma métrica de negócio no backend: hoje só há métricas
+     HTTP.
 6. **Amostragem** para controlar volume e custo (seção 9.4).
 7. Avaliar o tipo `docker-compose` no Dependabot para as imagens da stack.
 

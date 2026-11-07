@@ -40,6 +40,17 @@ Use a loja em `http://localhost:5173` e abra o **Grafana em `http://localhost:30
 - Alterações feitas no Grafana não ficam salvas: exporte o JSON para `dashboards/` e faça commit. As regras estão
   na seção 4.6 do [guia](../docs/instrunctions-cloud-impl-observability.md).
 
+### Alertas (pasta **ShopEasy — Alertas**, provisionados de `alerting/`)
+
+São 12 regras avaliadas a cada minuto (*Alerting → Alert rules*):
+- **disponibilidade:** API sem telemetria, 5xx > 5%, latência p95 > 1 s, fila no pool do banco;
+- **segurança:** pico de 401/403, força bruta no login, rate limit, webhook Pix recusado;
+- **recursos:** pool > 90%, heap após GC > 85%, GC > 10%, CPU > 90%.
+
+Cada alerta traz o valor medido, **o que fazer** e um link para o painel. **Os alertas não são enviados para fora**
+enquanto não houver um *contact point* configurado. Detalhes na seção 4.7 do
+[guia](../docs/instrunctions-cloud-impl-observability.md).
+
 ### Explorar livremente
 
 - **Explore → Tempo → Search**: os traces começam no `frontend-react` (requisição XHR do axios) e continuam no
