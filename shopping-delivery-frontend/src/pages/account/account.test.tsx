@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { AuthProvider } from '../../contexts/AuthContext';
+import { AuthProvider } from '../../contexts/AuthProvider';
 import AccountLayout from './AccountLayout';
 import OrdersPage from './OrdersPage';
 import OrderDetailPage from './OrderDetailPage';

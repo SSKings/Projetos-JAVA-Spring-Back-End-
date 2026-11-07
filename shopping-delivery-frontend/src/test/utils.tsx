@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { render } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { AuthProvider } from '../contexts/AuthContext';
+import { AuthProvider } from '../contexts/AuthProvider';
 import type { Role } from '../types';
 
 /** Simula uma sessão salva no localStorage antes de montar o AuthProvider. */

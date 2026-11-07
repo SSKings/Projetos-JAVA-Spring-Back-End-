@@ -1,32 +1,7 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import * as authApi from '../api/auth';
-import type { AuthResponse, Role } from '../types';
-
-interface AuthUser {
-  name: string;
-  email: string;
-  role: Role;
-  mfaEnabled: boolean;
-  /** Admin precisa ativar o MFA antes de entrar na área administrativa. */
-  mfaSetupRequired: boolean;
-}
-
-interface AuthContextType {
-  user: AuthUser | null;
-  token: string | null;
-  login: (email: string, password: string, mfaCode?: string) => Promise<void>;
-  register: (name: string, email: string, password: string, phone: string | undefined, acceptTerms: boolean) => Promise<void>;
-  logout: () => Promise<void>;
-  /** Encerra só a sessão local (o servidor já revogou o token, ex.: conta excluída). */
-  clearSession: () => void;
-  /** Troca a sessão por uma nova (ex.: o back-end revogou a anterior ao ativar o MFA). */
-  updateSession: (resp: AuthResponse) => void;
-  updateName: (name: string) => void;
-  isAuthenticated: boolean;
-  isAdmin: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
+import type { AuthResponse } from '../types';
+import { AuthContext, type AuthUser } from './AuthContext';
 
 const toUser = (resp: AuthResponse): AuthUser => ({
   name: resp.name, email: resp.email, role: resp.role,
@@ -96,10 +71,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
-  return ctx;
 }
