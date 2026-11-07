@@ -1,0 +1,43 @@
+{
+  "apiVersion": 1,
+  "templates": [
+    {
+      "orgId": 1,
+      "name": "shopeasy-telegram",
+      "template": "{{ define \"shopeasy.telegram.message\" -}}\n{{/* parse_mode HTML: todo texto variável passa por \"html\" (& < > soltos fazem o Telegram recusar a mensagem) */ -}}\n{{ range .Alerts -}}\n{{ if eq .Status \"firing\" }}{{ if eq .Labels.severity \"critical\" }}🔴{{ else }}🟠{{ end }} <b>ALERTA</b>{{ else }}✅ <b>RESOLVIDO</b>{{ end }} · <b>{{ .Labels.alertname | html }}</b>\n{{ .Annotations.summary | html }}\n{{ if eq .Status \"firing\" -}}\n{{ .Annotations.description | html }}\n\n<b>O que fazer:</b> {{ .Annotations.o_que_fazer | html }}\n{{ end -}}\n<i>severidade: {{ .Labels.severity | html }} · área: {{ .Labels.area | html }} · {{ .StartsAt.Local.Format \"02/01 15:04\" }}</i>\n{{ if .PanelURL }}Painel: {{ .PanelURL | html }}{{ end }}\n\n{{ end -}}\n{{ end }}"
+    }
+  ],
+  "contactPoints": [
+    {
+      "orgId": 1,
+      "name": "Telegram ShopEasy",
+      "receivers": [
+        {
+          "uid": "shopeasy-telegram",
+          "type": "telegram",
+          "disableResolveMessage": false,
+          "settings": {
+            "bottoken": "__TELEGRAM_BOT_TOKEN__",
+            "chatid": "__TELEGRAM_CHAT_ID__",
+            "parse_mode": "HTML",
+            "disable_web_page_preview": true,
+            "message": "{{ template \"shopeasy.telegram.message\" . }}"
+          }
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "orgId": 1,
+      "receiver": "Telegram ShopEasy",
+      "group_by": [
+        "grafana_folder",
+        "alertname"
+      ],
+      "group_wait": "30s",
+      "group_interval": "5m",
+      "repeat_interval": "4h"
+    }
+  ]
+}

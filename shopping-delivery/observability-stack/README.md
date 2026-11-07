@@ -47,9 +47,60 @@ São 12 regras avaliadas a cada minuto (*Alerting → Alert rules*):
 - **segurança:** pico de 401/403, força bruta no login, rate limit, webhook Pix recusado;
 - **recursos:** pool > 90%, heap após GC > 85%, GC > 10%, CPU > 90%.
 
-Cada alerta traz o valor medido, **o que fazer** e um link para o painel. **Os alertas não são enviados para fora**
-enquanto não houver um *contact point* configurado. Detalhes na seção 4.7 do
+Cada alerta traz o valor medido, **o que fazer** e um link para o painel. Sem configuração, eles só aparecem no
+Grafana. Para recebê-los no celular, configure o Telegram (abaixo). Detalhes nas seções 4.7 e 4.8 do
 [guia](../docs/instrunctions-cloud-impl-observability.md).
+
+### Notificações no Telegram
+
+**1. Crie o bot (no celular ou no Telegram Desktop).** Abra o **@BotFather**, envie `/newbot`, escolha um nome e um
+usuário terminado em `bot`. Ele responde com o **token** (`123456789:AA...`). Trate o token como senha.
+
+**2. Rode o assistente num terminal, nesta pasta:**
+```bash
+./telegram-setup.sh
+```
+Ele guia o resto, um passo por vez:
+
+| Passo | O que acontece |
+|---|---|
+| 1. Token | Você cola o token (ele não aparece na tela) e o assistente confere com o Telegram |
+| 2. Chat | Você manda `/start` ao seu bot e tecla Enter; o assistente descobre o chat ID. Para um grupo, adicione o bot ao grupo e mande uma mensagem lá |
+| 3. Teste direto | O bot manda "✅ ShopEasy: bot configurado" no seu Telegram |
+| 4. Configuração | Grava o `.env` (ignorado pelo Git, permissão 600) e recria o Grafana com o Telegram |
+| 5. Teste pelo Grafana | O Grafana envia uma notificação de teste, a mesma do botão *Test* da interface |
+
+**3. Veja alertas de verdade chegando:**
+```bash
+../load-tests/run.sh alerts
+```
+O script simula força bruta, varredura e webhook forjado. "Webhook Pix recusado" chega em cerca de 1 minuto e os
+outros em 3 a 4 minutos. As resoluções (✅) chegam alguns minutos depois do fim da simulação.
+
+**Desligar:** apague a linha `COMPOSE_FILE` do `.env` e rode `docker compose up -d`.
+
+**Se algo falhar,** o assistente diz em qual passo e por quê. Os casos mais comuns:
+
+| Sintoma | Causa |
+|---|---|
+| "O Telegram recusou o token" | O token foi copiado errado ou revogado |
+| "Ainda não chegou nenhuma mensagem ao bot" | Faltou o `/start` |
+| O Grafana não sobe | Veja `docker logs grafana`: valores inválidos aparecem como `telegram: ... inválido` |
+
+<details><summary>Configuração manual (sem o assistente)</summary>
+
+1. Descubra o chat ID depois de mandar `/start` ao bot:
+   ```bash
+   read -rsp "Token do bot: " TOKEN; echo
+   curl -s "https://api.telegram.org/bot$TOKEN/getUpdates" | python3 -c \
+     "import json,sys; [print(u['message']['chat']['id'], u['message']['chat'].get('title') or u['message']['chat'].get('first_name')) for u in json.load(sys.stdin)['result'] if 'message' in u]"
+   ```
+   Usuário é um número positivo; grupo é negativo (`-100...`).
+2. Copie o modelo com `cp .env.example .env`.
+3. Descomente e preencha `COMPOSE_FILE`, `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID`.
+4. Rode `docker compose up -d`.
+5. Teste em **Alerting → Contact points → Telegram ShopEasy → Test**.
+</details>
 
 ### Explorar livremente
 

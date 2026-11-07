@@ -62,6 +62,20 @@ jobs:
       - name: Validate Grafana dashboards and alerts
         run: python3 -m unittest discover -s ../scripts -p 'test_grafana_provisioning.py'
 
+      # Teste funcional da API rodando de verdade (load-tests/smoke.js, k6): o fluxo de compra completo, de ponta a ponta
+      - name: API smoke test (k6)
+        run: |
+          java -jar target/ecommerce-*.jar > /tmp/api.log 2>&1 &
+          for i in $(seq 1 60); do curl -fsS localhost:8080/actuator/health >/dev/null 2>&1 && break; sleep 2; done
+          ../load-tests/run.sh smoke --quiet || { echo "--- log da API ---"; tail -80 /tmp/api.log; exit 1; }
+      - name: Validate load test scripts (k6 inspect)
+        working-directory: shopping-delivery/load-tests
+        run: |
+          K6_IMAGE=$(sed -n 's/^K6_IMAGE="\(.*\)"$/\1/p' run.sh)   # versão única, definida em run.sh
+          for t in load stress alerts; do
+            docker run --rm -v "$PWD:/scripts" -w /scripts "$K6_IMAGE" inspect "/scripts/$t.js" >/dev/null
+          done
+
   shopping-delivery-frontend:
     name: Shopping Delivery Frontend
     runs-on: ubuntu-latest
