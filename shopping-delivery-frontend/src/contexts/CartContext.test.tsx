@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { AuthProvider } from './AuthContext';
-import { CartProvider, useCart } from './CartContext';
+import { AuthProvider } from './AuthProvider';
+import { CartProvider } from './CartProvider';
+import { useCart } from './CartContext';
 import * as cartApi from '../api/cart';
 import { loginAs } from '../test/utils';
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { AuthProvider } from '../contexts/AuthContext';
+import { AuthProvider } from '../contexts/AuthProvider';
 import AdminRoute from './AdminRoute';
 import ProtectedRoute from './ProtectedRoute';
 import { loginAs, renderWithProviders } from '../test/utils';
