@@ -7,7 +7,9 @@ import com.sskings.ecommerce.exception.ResourceNotFoundException;
 import com.sskings.ecommerce.model.*;
 import com.sskings.ecommerce.model.enums.OrderStatus;
 import com.sskings.ecommerce.repository.*;
+import com.sskings.ecommerce.event.OrderEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,7 @@ public class OrderService {
     private final StockService stockService;
     private final AuditService auditService;
     private final java.time.Clock clock;
+    private final ApplicationEventPublisher events;
 
     @Transactional
     public OrderResponse checkout(CheckoutRequest request, Long userId) {
@@ -76,6 +79,7 @@ public class OrderService {
         Order saved = orderRepository.save(order);
         paymentService.createPixCharge(saved); // único método hoje: CheckoutRequest.paymentMethod = PIX
         cartItemRepository.deleteAllByUserId(userId);
+        events.publishEvent(new OrderEvent(saved.getId(), OrderEvent.Type.CREATED));
         return OrderResponse.from(saved);
     }
 
@@ -106,6 +110,7 @@ public class OrderService {
         order.setStatus(OrderStatus.CANCELLED);
         auditService.record(order.getUser(), AuditService.ORDER_CANCELLED_BY_CUSTOMER, "ORDER", id,
                 order.getPayment() != null ? "payment " + order.getPayment().getStatus() : null);
+        events.publishEvent(new OrderEvent(id, OrderEvent.Type.CANCELLED_BY_CUSTOMER));
         return OrderResponse.from(orderRepository.save(order));
     }
 
@@ -120,6 +125,7 @@ public class OrderService {
         order.setReturnRequestedAt(java.time.LocalDateTime.now(clock));
         order.setReturnReason(reason == null || reason.isBlank() ? null : reason.trim());
         auditService.record(order.getUser(), AuditService.RETURN_REQUESTED, "ORDER", id, null);
+        events.publishEvent(new OrderEvent(id, OrderEvent.Type.RETURN_REQUESTED));
         return OrderResponse.from(orderRepository.save(order));
     }
 }

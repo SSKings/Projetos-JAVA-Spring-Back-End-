@@ -2,6 +2,7 @@ package com.sskings.ecommerce.service;
 
 import com.sskings.ecommerce.dto.request.CheckoutRequest;
 import com.sskings.ecommerce.dto.response.OrderResponse;
+import com.sskings.ecommerce.event.OrderEvent;
 import com.sskings.ecommerce.exception.BusinessException;
 import com.sskings.ecommerce.exception.ResourceNotFoundException;
 import com.sskings.ecommerce.model.*;
@@ -37,6 +38,7 @@ class OrderServiceTest {
     @Mock UserRepository userRepository;
     @Mock PaymentService paymentService;
     @Mock AuditService auditService;
+    @Mock org.springframework.context.ApplicationEventPublisher events;
     OrderService orderService;
     private static final java.time.Instant NOW = java.time.Instant.parse("2026-11-05T12:00:00Z");
     private static final java.time.LocalDateTime LOCAL_NOW = java.time.LocalDateTime.ofInstant(NOW, java.time.ZoneOffset.UTC);
@@ -55,7 +57,7 @@ class OrderServiceTest {
         cartItem = CartItem.builder().id(1L).user(user).product(product).quantity(2).build();
         orderService = new OrderService(orderRepository, cartItemRepository, addressRepository, productRepository,
                 userRepository, paymentService, new StockService(productRepository), auditService,
-                java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC));
+                java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC), events);
     }
 
     @Test
@@ -124,6 +126,7 @@ class OrderServiceTest {
         then(cartItemRepository).should().deleteAllByUserId(1L);
         then(paymentService).should().createPixCharge(savedOrder);
         then(productRepository).should().decrementStock(10L, 2);   // baixa atômica no banco
+        then(events).should().publishEvent(new OrderEvent(100L, OrderEvent.Type.CREATED));   // aviso do bot (após o commit)
     }
 
     @Test
@@ -199,6 +202,7 @@ class OrderServiceTest {
         then(productRepository).should().incrementStock(10L, 2);
         then(paymentService).should().onOrderCancelled(o);
         then(auditService).should().record(eq(user), eq(AuditService.ORDER_CANCELLED_BY_CUSTOMER), eq("ORDER"), eq(7L), any());
+        then(events).should().publishEvent(new OrderEvent(7L, OrderEvent.Type.CANCELLED_BY_CUSTOMER));
     }
 
     @Test
@@ -222,6 +226,7 @@ class OrderServiceTest {
         assertThat(o.getReturnReason()).isEqualTo("não serviu");
         assertThat(resp.returnRequestedAt()).isEqualTo(LOCAL_NOW);
         then(auditService).should().record(user, AuditService.RETURN_REQUESTED, "ORDER", 7L, null);
+        then(events).should().publishEvent(new OrderEvent(7L, OrderEvent.Type.RETURN_REQUESTED));
     }
 
     @Test

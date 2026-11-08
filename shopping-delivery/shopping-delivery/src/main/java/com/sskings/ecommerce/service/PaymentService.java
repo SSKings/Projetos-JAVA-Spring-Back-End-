@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.dto.request.PixWebhookRequest;
 import com.sskings.ecommerce.dto.response.PaymentResponse;
+import com.sskings.ecommerce.event.OrderEvent;
 import com.sskings.ecommerce.exception.BusinessException;
 import com.sskings.ecommerce.exception.ForbiddenException;
 import com.sskings.ecommerce.exception.ResourceNotFoundException;
@@ -20,6 +21,7 @@ import com.sskings.ecommerce.repository.PaymentRepository;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +52,7 @@ public class PaymentService {
     private final Validator validator;
     private final Clock clock;
     private final AuditService auditService;
+    private final ApplicationEventPublisher events;
 
     /** Executado dentro da transação do checkout, com o pedido já salvo (tem id e total). */
     public Payment createPixCharge(Order order) {
@@ -183,6 +186,7 @@ public class PaymentService {
         if ("WEBHOOK".equals(confirmedBy)) {
             auditService.record(null, AuditService.PAYMENT_CONFIRMED, "ORDER", order.getId(),
                     "webhook, txid " + payment.getTxid() + ", e2e " + endToEndId);
+            events.publishEvent(new OrderEvent(order.getId(), OrderEvent.Type.PAID));
         }
     }
 
@@ -190,6 +194,7 @@ public class PaymentService {
         payment.setStatus(PaymentStatus.EXPIRED);
         Order order = payment.getOrder();
         auditService.record(null, AuditService.PAYMENT_EXPIRED, "ORDER", order.getId(), "txid " + payment.getTxid());
+        events.publishEvent(new OrderEvent(order.getId(), OrderEvent.Type.PAYMENT_EXPIRED));
         if (order.getStatus() == OrderStatus.PENDING) {
             order.setStatus(OrderStatus.CANCELLED);
             stockService.restore(order);

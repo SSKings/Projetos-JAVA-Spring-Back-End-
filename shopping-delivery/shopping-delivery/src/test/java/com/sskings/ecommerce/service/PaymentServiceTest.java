@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
@@ -44,6 +45,7 @@ class PaymentServiceTest {
     @Mock PaymentRepository paymentRepository;
     @Mock ProductRepository productRepository;
     @Mock AuditService auditService;
+    @Mock org.springframework.context.ApplicationEventPublisher events;
 
     private PaymentService service;
     private Clock clock;
@@ -66,7 +68,7 @@ class PaymentServiceTest {
         PixProperties pix = new PixProperties("pix@loja.com", "ShopEasy", "Sao Paulo", 30, SECRET, allowedIps);
         return new PaymentService(paymentRepository, new StockService(productRepository), pix,
                 new WebhookSignatureVerifier(SECRET, clock), new ObjectMapper(),
-                Validation.buildDefaultValidatorFactory().getValidator(), clock, auditService);
+                Validation.buildDefaultValidatorFactory().getValidator(), clock, auditService, events);
     }
 
     private Payment pending(LocalDateTime expiresAt) {
@@ -158,6 +160,7 @@ class PaymentServiceTest {
         assertThat(p.getPaidAt()).isEqualTo(LOCAL_NOW);
         assertThat(p.getConfirmedBy()).isEqualTo("WEBHOOK");
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        verify(events).publishEvent(new com.sskings.ecommerce.event.OrderEvent(order.getId(), com.sskings.ecommerce.event.OrderEvent.Type.PAID));
     }
 
     @Test
@@ -264,6 +267,7 @@ class PaymentServiceTest {
         verify(auditService).record(isNull(), eq(AuditService.PAYMENT_CONFIRMED), eq("ORDER"), eq(42L), contains("manual"));
         assertThat(p.getEndToEndId()).isNull();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        verifyNoInteractions(events);   // quem confirmou foi o próprio admin: não precisa de aviso
     }
 
     @Test
@@ -314,6 +318,7 @@ class PaymentServiceTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         verify(productRepository).incrementStock(1L, 2);
         assertThat(shipped.getStatus()).isEqualTo(OrderStatus.SHIPPED); // só cancela pedidos ainda pendentes
+        verify(events).publishEvent(new com.sskings.ecommerce.event.OrderEvent(order.getId(), com.sskings.ecommerce.event.OrderEvent.Type.PAYMENT_EXPIRED));
     }
 
     // ---------- estorno ----------
