@@ -63,11 +63,12 @@ src/
 │   ├── config.ts       # resolveObservabilityConfig(): liga/desliga, exporter (/otlp), para onde vai o traceparent
 │   └── instrumentation.ts # initObservability(): WebTracerProvider + XHR/fetch; import dinâmico em main.tsx
 │
-├── contexts/
-│   ├── AuthContext.tsx  # user (com role), token, login(), register(), logout(),
-│   │                    # isAuthenticated, isAdmin — persiste token e user em localStorage
-│   └── CartContext.tsx  # cart, addItem(), updateItem(), removeItem(), clearCart()
-│                        # Busca o carrinho do backend ao autenticar
+├── contexts/            # contexto + hook (.ts) separados do Provider (.tsx): Fast Refresh sem recarregar a página
+│   ├── AuthContext.ts   # tipos, AuthContext e useAuth(): user (com role), token, login(), register(), logout(),
+│   │                    # isAuthenticated, isAdmin
+│   ├── AuthProvider.tsx # <AuthProvider>: estado da sessão, persiste token e user em localStorage
+│   ├── CartContext.ts   # tipos, CartContext e useCart(): cart, addItem(), updateItem(), removeItem(), clearCart()
+│   └── CartProvider.tsx # <CartProvider>: busca o carrinho do backend ao autenticar
 │
 ├── components/
 │   ├── Navbar.tsx        # Logo, carrinho com badge, "Minha conta" (também no mobile), login/logout
@@ -132,7 +133,7 @@ scripts/
 
 ```
 Usuário faz login/register
-  → AuthContext salva { token, user } no localStorage
+  → AuthProvider salva { token, user } no localStorage
   → axios.ts injeta "Authorization: Bearer <token>" em toda requisição
   → Conta com MFA: o back-end responde "MFA code required" e o login mostra o campo do código
   → Se resposta for 401 (token expirado ou revogado): remove localStorage e redireciona para /login
@@ -173,7 +174,7 @@ Cancelar pede confirmação, o seletor fica bloqueado enquanto salva e o resulta
 npm run coverage
 ```
 
-**295 testes** em 24 arquivos. Cobertura: **99,0% linhas · 95,9% branches · 96,7% funções**.
+**299 testes** em 24 arquivos. Cobertura: **99,0% linhas · 95,8% branches · 96,8% funções**.
 O CI roda, nesta ordem: `npm ci`, `npm audit --omit=dev --audit-level=high`, `tsc -b`, `lint`, `coverage` e `npm run build`. Os testes usam `css: false`,
 então só o build valida Tailwind/PostCSS.
 
@@ -188,15 +189,15 @@ então só o build valida Tailwind/PostCSS.
 | `components/AddressForm.test.tsx`     | Máscaras, erros no envio e no blur, acessibilidade, erro do back-end |
 | `api/baseUrl.test.ts`                 | URL da API pelo host da página (localhost, IP, IPv6, https) e prioridade de `VITE_API_BASE_URL` |
 | `api/api.test.ts`                     | Interceptor de token, logout só em 401 (403 e 400 mantêm a sessão), rota/método/corpo de cada função de API |
-| `contexts/AuthContext.test.tsx`       | Login (com e sem MFA), cadastro com aceite, logout revoga (mesmo sem rede), `updateSession`/`updateName`/`clearSession`, sessão antiga, JSON corrompido |
-| `contexts/CartContext.test.tsx`       | Carrinho deslogado, carregamento e operações |
+| `contexts/AuthContext.test.tsx`       | `AuthProvider` + `useAuth`: login (com e sem MFA), cadastro com aceite, logout revoga (mesmo sem rede), `updateSession`/`updateName`/`clearSession`, sessão antiga, JSON corrompido |
+| `contexts/CartContext.test.tsx`       | `CartProvider` + `useCart`: carrinho deslogado, carregamento e operações |
 | `components/routes.test.tsx`          | `ProtectedRoute` e `AdminRoute` (visitante, cliente, admin, admin sem MFA → /security) |
 | `components/Navbar.test.tsx`          | Links por perfil, badge 9+, logout |
 | `components/Pagination.test.tsx`      | Navegação e limites |
 | `pages/auth.test.tsx`                 | Login (MFA, bloqueio por tentativas e rate limit, conta bloqueada, inválido, redirect) e cadastro (erros por campo, termos, blur, máscara, normalização, email duplicado, API fora do ar) |
 | `pages/account/privacy-security.test.tsx` | Corrigir dados, baixar JSON, excluir conta (senha, confirmação, MFA), ativar/desativar MFA, aviso para admin |
 | `pages/legal/legal.test.tsx`          | Conteúdo mínimo das páginas legais, aviso de modelo, rodapé com e sem `VITE_COMPANY_*` |
-| `pages/shop.test.tsx`                 | Listagem, busca, paginação, card, detalhe com quantidade |
+| `pages/shop.test.tsx`                 | Listagem, busca, paginação, card, detalhe com quantidade; resposta atrasada de busca antiga ignorada, falha da API encerra o carregamento e mantém a página, mesma busca não recarrega |
 | `pages/cart-checkout.test.tsx`        | Carrinho; checkout endereço → revisão → Pix → pago → confirmação; pagar depois; Pix vencido; sem cobrança; erros |
 | `pages/account/account.test.tsx`      | Abas, pedidos (resumo, filtros, busca, paginação, retry, selo Aguardando Pix), detalhe (linha do tempo, cancelado, Pix pendente → pago, selos de pagamento, cancelar pedido, arrependimento com prazo e motivo), histórico de compras, endereços |
 | `pages/admin/admin.test.tsx`          | Dashboard, produtos (CRUD/modal), pedidos (todos os status, `nextStatuses`, pular etapas, confirmação ao cancelar, salvando, erro traduzido, falha de rede, Pix pendente/confirmar Pix, devolução solicitada e registrar estorno), usuários (bloqueio/papel), auditoria (filtro, paginação, vazio, erro) |
@@ -254,7 +255,7 @@ contato. Tudo vem de `VITE_COMPANY_*` (ver `.env.example`); enquanto faltar algu
 ## Fluxo do carrinho
 
 ```
-CartContext.useEffect([isAuthenticated])
+CartProvider.useEffect([isAuthenticated])
   → se autenticado: busca GET /api/cart do backend
   → se não autenticado: reseta para carrinho vazio local
 

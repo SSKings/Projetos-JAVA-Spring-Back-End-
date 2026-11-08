@@ -1,21 +1,10 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import * as cartApi from '../api/cart';
 import type { CartSummary } from '../types';
 import { useAuth } from './AuthContext';
-
-interface CartContextType {
-  cart: CartSummary;
-  loading: boolean;
-  addItem: (productId: number, quantity: number) => Promise<void>;
-  updateItem: (itemId: number, quantity: number) => Promise<void>;
-  removeItem: (itemId: number) => Promise<void>;
-  clearCart: () => Promise<void>;
-  refresh: () => Promise<void>;
-}
+import { CartContext } from './CartContext';
 
 const emptyCart: CartSummary = { items: [], total: 0, itemCount: 0 };
-
-const CartContext = createContext<CartContextType | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -60,10 +49,4 @@ export function CartProvider({ children }: { children: ReactNode }) {
       {children}
     </CartContext.Provider>
   );
-}
-
-export function useCart() {
-  const ctx = useContext(CartContext);
-  if (!ctx) throw new Error('useCart must be used inside CartProvider');
-  return ctx;
 }

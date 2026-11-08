@@ -4,31 +4,55 @@ import { getProducts } from '../api/products';
 import ProductCard from '../components/ProductCard';
 import type { Product } from '../types';
 
+interface Query {
+  page: number;
+  search: string;
+}
+
+interface Loaded {
+  /** Consulta a que esta resposta corresponde (ver `loading`). */
+  key: string;
+  page: number;
+  products: Product[];
+  totalPages: number;
+}
+
+const keyOf = (q: Query) => `${q.page}|${q.search}`;
+
 export default function ProductListPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState<Query>({ page: 0, search: '' });
   const [inputValue, setInputValue] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
 
-  const load = async (p: number, s: string) => {
-    setLoading(true);
-    try {
-      const data = await getProducts(p, 12, s || undefined);
-      setProducts(data.content);
-      setTotalPages(data.totalPages);
-      setPage(p);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const key = keyOf(query);
+  // "Carregando" é derivado (a última resposta não é da consulta atual), não um estado ligado dentro do efeito:
+  // setState síncrono no useEffect provoca um render extra em cascata (regra react/set-state-in-effect).
+  const loading = loaded?.key !== key;
 
-  useEffect(() => { load(0, search); }, [search]);
+  useEffect(() => {
+    // Ignora respostas de consultas antigas: sem isso, uma busca lenta que termina depois da mais nova
+    // sobrescrevia o resultado na tela. AbortController em vez de "let current = false" (regra react/immutability).
+    const stale = new AbortController();
+    getProducts(query.page, 12, query.search || undefined)
+      .then(data => {
+        if (!stale.signal.aborted) setLoaded({ key, page: query.page, products: data.content, totalPages: data.totalPages });
+      })
+      .catch(() => {
+        // como antes: mantém o que estava na tela e só encerra o "carregando"
+        if (!stale.signal.aborted) setLoaded(prev => ({ page: query.page, products: [], totalPages: 0, ...prev, key }));
+      });
+    return () => stale.abort();
+  }, [key, query.page, query.search]);
+
+  const products = loaded?.products ?? [];
+  const page = loaded?.page ?? 0;
+  const totalPages = loaded?.totalPages ?? 0;
+  const goTo = (p: number) => setQuery(q => ({ ...q, page: p }));
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setSearch(inputValue);
+    // mesma busca de novo não recarrega (igual ao comportamento anterior)
+    setQuery(q => (q.search === inputValue ? q : { page: 0, search: inputValue }));
   };
 
   return (
@@ -81,7 +105,7 @@ export default function ProductListPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-3 mt-10">
               <button
-                onClick={() => load(page - 1, search)}
+                onClick={() => goTo(page - 1)}
                 disabled={page === 0}
                 className="p-2 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -91,7 +115,7 @@ export default function ProductListPage() {
                 Página <strong>{page + 1}</strong> de <strong>{totalPages}</strong>
               </span>
               <button
-                onClick={() => load(page + 1, search)}
+                onClick={() => goTo(page + 1)}
                 disabled={page >= totalPages - 1}
                 className="p-2 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >

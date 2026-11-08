@@ -93,6 +93,11 @@ def maven_dependency_list():
         os.unlink(path)
 
 
+def read_text(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 def main(argv=None):
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -100,12 +105,12 @@ def main(argv=None):
     ap.add_argument("--allowlist", default=os.path.join(here, "cve-allowlist.txt"))
     args = ap.parse_args(argv)
 
-    text = open(args.deps).read() if args.deps else maven_dependency_list()
+    text = read_text(args.deps) if args.deps else maven_dependency_list()
     deps = parse_dependency_list(text)
     if not deps:
         print("nenhuma dependência encontrada na lista", file=sys.stderr)
         return 2
-    allowlist = load_allowlist(open(args.allowlist).read()) if os.path.exists(args.allowlist) else {}
+    allowlist = load_allowlist(read_text(args.allowlist)) if os.path.exists(args.allowlist) else {}
     blocked, allowed = find_findings(deps, query_osv(deps), allowlist)
 
     for (g, a, v), vid in allowed:

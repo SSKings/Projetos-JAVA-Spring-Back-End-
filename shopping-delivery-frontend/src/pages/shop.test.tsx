@@ -7,6 +7,7 @@ import ProductCard from '../components/ProductCard';
 import * as productsApi from '../api/products';
 import { loginAs, page, renderWithProviders } from '../test/utils';
 import { cart, product } from '../test/fixtures';
+import type { Page, Product } from '../types';
 import { mockCart } from '../test/cartMock';
 
 vi.mock('../api/products');
@@ -46,6 +47,52 @@ describe('ProductListPage', () => {
     vi.mocked(productsApi.getProducts).mockResolvedValue(page([product()], 1, 3));
     await userEvent.click(next);
     await waitFor(() => expect(productsApi.getProducts).toHaveBeenLastCalledWith(1, 12, undefined));
+  });
+
+  it('resposta atrasada de uma busca antiga não sobrescreve a mais nova', async () => {
+    let resolveOld!: (v: Page<Product>) => void;
+    vi.mocked(productsApi.getProducts)
+      .mockReturnValueOnce(new Promise<Page<Product>>(r => { resolveOld = r; }))  // carga inicial: lenta
+      .mockResolvedValueOnce(page([product({ id: 2, name: 'Mouse' })]));     // busca "mouse": rápida
+    renderWithProviders(<ProductListPage />);
+
+    await userEvent.type(screen.getByPlaceholderText('Buscar produtos...'), 'mouse');
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }));
+    expect(await screen.findByText('Mouse')).toBeInTheDocument();
+
+    // a carga inicial termina por último: a tela continua com o resultado da busca
+    await act(async () => resolveOld(page([product({ id: 1, name: 'Caneca' })])));
+    expect(screen.getByText('Mouse')).toBeInTheDocument();
+    expect(screen.queryByText('Caneca')).not.toBeInTheDocument();
+  });
+
+  it('falha da API encerra o carregamento (sem esqueleto infinito)', async () => {
+    vi.mocked(productsApi.getProducts).mockRejectedValue(new Error('rede'));
+    const { container } = renderWithProviders(<ProductListPage />);
+    expect(await screen.findByText('Nenhum produto encontrado')).toBeInTheDocument();
+    expect(container.querySelector('.animate-pulse')).toBeNull();
+  });
+
+  it('falha ao paginar mantém os produtos que estavam na tela', async () => {
+    vi.mocked(productsApi.getProducts).mockResolvedValueOnce(page([product()], 0, 3));
+    renderWithProviders(<ProductListPage />);
+    await screen.findByText('Caneca');
+
+    vi.mocked(productsApi.getProducts).mockRejectedValueOnce(new Error('rede'));
+    const [, next] = screen.getAllByRole('button').filter(b => b.textContent === '');
+    await userEvent.click(next);
+    await waitFor(() => expect(productsApi.getProducts).toHaveBeenLastCalledWith(1, 12, undefined));
+    expect(await screen.findByText('Caneca')).toBeInTheDocument();
+    expect(screen.getByText('1', { selector: 'strong' })).toBeInTheDocument();  // continua na página 1
+  });
+
+  it('buscar o mesmo termo de novo não recarrega', async () => {
+    vi.mocked(productsApi.getProducts).mockResolvedValue(page([product()]));
+    renderWithProviders(<ProductListPage />);
+    await screen.findByText('Caneca');
+    const calls = vi.mocked(productsApi.getProducts).mock.calls.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }));
+    expect(vi.mocked(productsApi.getProducts).mock.calls.length).toBe(calls);
   });
 });
 
