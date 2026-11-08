@@ -58,6 +58,10 @@ jobs:
       - name: Check dependency CVEs (OSV)
         run: python3 ../scripts/check-dependency-cves.py
 
+      # Assistente do bot de administração (ADR-024) contra um Telegram falso
+      - name: Test Telegram admin bot setup script
+        run: python3 -m unittest discover -s ../scripts -p 'test_telegram_admin_bot_setup.py'
+
       # Dashboards e alertas do Grafana (observability-stack/): JSON, datasources, grade, templates e rotas citadas
       - name: Validate Grafana dashboards and alerts
         run: python3 -m unittest discover -s ../scripts -p 'test_grafana_provisioning.py'

@@ -11,7 +11,19 @@
 #   ./scripts/run-backend.sh                    # perfil dev
 #   SKIP_BUILD=1 ./scripts/run-backend.sh       # reaproveita o jar já gerado
 #   ./scripts/run-backend.sh --server.port=8081
+#
+# Bot de administração no Telegram (ADR-024): se existir shopping-delivery/.env.telegram-admin-bot (gerado por
+# scripts/telegram-admin-bot-setup.sh), as variáveis TELEGRAM_ADMIN_BOT_* dele são carregadas. As que já estiverem
+# no ambiente têm prioridade.
 set -euo pipefail
+
+BOT_ENV="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env.telegram-admin-bot"
+if [[ -f "$BOT_ENV" ]]; then
+  while IFS='=' read -r key value; do
+    if [[ "$key" =~ ^TELEGRAM_ADMIN_BOT_[A-Z]+$ && -z "${!key:-}" ]]; then export "$key=$value"; fi
+  done < "$BOT_ENV"
+  echo "==> Bot de administração no Telegram: configuração lida de .env.telegram-admin-bot"
+fi
 
 BACKEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../shopping-delivery" && pwd)"
 cd "$BACKEND_DIR"
