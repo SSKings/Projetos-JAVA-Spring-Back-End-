@@ -80,3 +80,10 @@ app:
     # IPs/CIDRs do PSP autorizados a chamar o webhook (vazio = qualquer IP; use em produção)
     webhook-allowed-ips: ${PIX_WEBHOOK_ALLOWED_IPS:}
     expiration-check-ms: 60000
+  # Bot de administração no Telegram (ADR-024): avisos de pedidos e gestão de pedidos/usuários pelo chat.
+  # É um bot DIFERENTE do que manda os alertas do Grafana. Configure com scripts/telegram-admin-bot-setup.sh.
+  telegram-bot:
+    enabled: ${TELEGRAM_ADMIN_BOT_ENABLED:false}
+    token: ${TELEGRAM_ADMIN_BOT_TOKEN:}
+    # chatId:email-do-admin, separados por vírgula
+    admins: ${TELEGRAM_ADMIN_BOT_ADMINS:}

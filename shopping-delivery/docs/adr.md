@@ -602,3 +602,49 @@ notificações.
 
   De quebra, os cabeçalhos de segurança duplicados entre a API e o nginx.
 
+---
+
+## ADR-024 — Bot de administração no Telegram
+
+**Status:** Aceito
+
+**Contexto**
+O admin só acompanhava os pedidos abrindo o painel. Novos pedidos, Pix confirmados, cancelamentos e pedidos de
+devolução passavam despercebidos, e tarefas rápidas (confirmar um Pix, marcar um envio, bloquear um usuário) exigiam
+o computador. Já havia um bot do Telegram, mas só para os alertas técnicos do Grafana (ADR-022).
+
+**Decisão**
+- Um **segundo bot**, separado do bot dos alertas, que roda **dentro da API** (pacote `telegram`), desligado por
+  padrão (`TELEGRAM_ADMIN_BOT_ENABLED`). O assistente `scripts/telegram-admin-bot-setup.sh` cria a configuração local.
+- **Long polling** (`getUpdates`), sem webhook: a API só faz chamadas de saída para `api.telegram.org`, nada novo
+  fica exposto na borda e funciona igual em dev, na rede local e em produção. Ao iniciar, o bot descarta mensagens
+  acumuladas para não executar comandos antigos de surpresa.
+- **Avisos de pedidos** por evento de domínio (`OrderEvent`: novo pedido, Pix confirmado pelo PSP, cancelamento pelo
+  cliente, devolução, Pix expirado). Os serviços publicam o evento dentro da transação, e o bot só o recebe **depois
+  do commit** (`@TransactionalEventListener`), numa thread própria: rollback não avisa, e o checkout não espera a rede
+  do Telegram nem falha se ela cair.
+- **Gestão pelo chat** com os **mesmos serviços do painel** (`AdminOrderService`, `AdminUserService`,
+  `AdminDashboardService`): as regras de status, estoque, Pix e "não alterar a própria conta" não são duplicadas.
+- **Quem pode usar:** `TELEGRAM_ADMIN_BOT_ADMINS` liga cada chat a uma conta (`chatId:email`).
+  - Só conversa privada: em grupo, qualquer membro poderia clicar nos botões.
+  - A cada mensagem, a conta precisa continuar ADMIN, ativa, não anonimizada e, com `REQUIRE_ADMIN_MFA`, com MFA.
+    Bloquear o admin no painel corta o bot na hora.
+  - O admin vai para o `SecurityContext` durante o comando, então a auditoria registra quem fez.
+- **Toda ação que muda dados pede confirmação**: o botão `?…` só pergunta; o `!…` executa.
+
+**Consequências**
+- O admin recebe os pedidos no celular e resolve o dia a dia sem abrir o painel; o painel continua sendo o lugar das
+  tarefas longas (produtos, auditoria, endereço completo).
+- **A conta do Telegram passa a valer como acesso de admin.** Mitigações: lista fechada de chats, revalidação da
+  conta a cada mensagem, confirmação, auditoria. Recomendação: verificação em duas etapas no Telegram de quem usa.
+- **Dados pessoais vão para um terceiro (Telegram).** As mensagens levam o mínimo: nome, e-mail, total, itens e só
+  cidade/UF do endereço. Tudo que vem do banco ou do cliente é escapado (HTML do Telegram).
+- O token fica fora do código: `.env.telegram-admin-bot` (ignorado pelo Git, permissão 600) em dev e `.env.prod` em
+  produção. Erros da API do Telegram trazem a URL com o token, e o cliente troca o token por `<token>` antes de
+  logar. Configuração inválida impede o startup.
+- Uma instância por token: duas APIs com o mesmo bot disputariam o `getUpdates` (o Telegram responde 409). Com
+  várias réplicas, seria preciso um webhook ou eleger uma instância.
+- Testes: `TelegramAdminBotTest` (autorização, comandos, confirmação, botões forjados, escape de HTML),
+  `TelegramClientTest`, `TelegramBotPollerTest`, `TelegramOrderNotifierTest`, `TelegramBotPropertiesTest`,
+  `TelegramBotIntegrationTest` (checkout real → aviso; cancelamento pelo bot → auditoria com o admin) e
+  `scripts/test_telegram_admin_bot_setup.py` (assistente contra um Telegram falso).

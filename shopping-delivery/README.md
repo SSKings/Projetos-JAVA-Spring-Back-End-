@@ -151,6 +151,48 @@ O script confere o CRC do código (detecta cópia incompleta) e valida txid e va
 
 > Para receber de verdade, defina `PIX_KEY` com a chave real da loja. Sem PSP, use a confirmação manual.
 
+## Bot de administração no Telegram
+
+Um bot (diferente do bot dos alertas do Grafana) que **avisa sobre os pedidos** e deixa o admin **gerenciar pedidos e
+usuários pelo celular** (ADR-024). Ele roda dentro da API, só com conexões de saída para o Telegram, e vem desligado.
+
+**Configurar (uma vez):**
+
+1. No Telegram, abra o **@BotFather**, envie `/newbot` e guarde o token.
+2. Rode o assistente e siga as perguntas: token, e-mail da conta admin e `/start` no bot.
+   ```bash
+   ./scripts/telegram-admin-bot-setup.sh
+   ```
+3. Reinicie a API (`./scripts/run-backend.sh`). O log mostra `Telegram: bot de administração iniciado`.
+4. No Telegram, mande `/ajuda` para o bot.
+
+Para outro admin usar, rode o assistente de novo com o mesmo token: ele **adiciona** o chat à lista.
+
+**O que chega sozinho:** novo pedido, Pix confirmado pelo PSP, cancelamento pelo cliente (com aviso de estorno se o
+Pix já tinha sido pago), pedido de devolução e Pix expirado. Cada aviso traz o pedido e os botões de ação.
+
+| Comando | O que faz |
+|---|---|
+| `/pedidos` · `/pedidos pendentes` | Últimos 10 pedidos, ou só os de um status (pendentes, confirmados, enviados, entregues, cancelados) |
+| `/pedido 12` (ou toque em `/pedido_12`) | Detalhes do pedido, com botões: mudar status, confirmar Pix, registrar estorno |
+| `/usuarios` · `/usuarios ana` | Últimos cadastros, ou busca por nome/e-mail |
+| `/usuario 5` | Detalhes, com botões: bloquear/desbloquear, tornar admin/cliente, ver pedidos |
+| `/resumo` | Pedidos, faturamento, clientes e produtos |
+
+**Segurança:** só os chats da lista `TELEGRAM_ADMIN_BOT_ADMINS` (`chatId:email`), em conversa privada. A cada
+mensagem, a conta precisa continuar ADMIN e ativa (em produção, também com MFA). Toda ação pede confirmação, segue as
+mesmas regras do painel e fica na **auditoria** com o nome do admin. Para cortar o acesso de alguém, bloqueie a conta
+no painel ou tire o chat da lista. Quem usa o bot deve ativar a verificação em duas etapas no Telegram.
+
+| Variável | Padrão | O que é |
+|---|---|---|
+| `TELEGRAM_ADMIN_BOT_ENABLED` | `false` | Liga o bot |
+| `TELEGRAM_ADMIN_BOT_TOKEN` | — | Token do @BotFather |
+| `TELEGRAM_ADMIN_BOT_ADMINS` | — | `chatId:email-do-admin`, separados por vírgula |
+
+Em dev, o assistente grava essas variáveis em `shopping-delivery/.env.telegram-admin-bot` (ignorado pelo Git,
+permissão 600), e o `run-backend.sh` as carrega. Em produção, elas vão no `deploy/.env.prod`.
+
 ## Produção
 
 ```bash
@@ -196,13 +238,14 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 259    | 97,7%  | 93,1%    |
+| Backend   | `./mvnw verify`         | 304    | 98,2%  | 93,9%    |
 | Frontend  | `npm run coverage`      | 299    | 99,0%  | 95,8%    |
-| Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 29 | — | — |
+| Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 35 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
 | API rodando (k6) | `./load-tests/run.sh smoke` | 23 verificações | — | — |
 
-Os 29 testes Python cobrem o verificador de CVEs (4) e a validação de dashboards, alertas e Telegram (25).
+Os 35 testes Python cobrem o verificador de CVEs (4), a validação de dashboards, alertas e Telegram (25) e o
+assistente do bot de administração (6, contra um Telegram falso).
 
 Os dois comandos **falham se a cobertura cair** abaixo do mínimo (backend 85% linhas / 80% branches;
 frontend 90% linhas / 85% branches) e rodam no CI a cada push. No front, o CI também roda `tsc -b`, `lint` e
@@ -242,6 +285,7 @@ Detalhes em [load-tests/README.md](load-tests/README.md).
 - [Referência da API](docs/api-reference.md)
 - [Arquitetura e modelo de domínio](docs/architecture.md)
 - [Decisões de arquitetura (ADR)](docs/adr.md)
+- [Bot de administração no Telegram](#bot-de-administração-no-telegram) — avisos de pedidos e gestão pelo chat (ADR-024)
 - [Observabilidade](observability-stack/README.md) — OpenTelemetry + Grafana (ADR-022); alertas no Telegram com `observability-stack/telegram-setup.sh`
 - [Guia de observabilidade](docs/instrunctions-cloud-impl-observability.md) — regras que não podem quebrar, verificação, manutenção e problemas conhecidos
 - [Testes da API com k6](load-tests/README.md) — funcional, carga, estresse (capacidade e limite) e simulação de alertas (ADR-023)

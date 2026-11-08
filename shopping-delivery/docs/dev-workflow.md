@@ -50,6 +50,10 @@ código.
      ```
    - O `.env` dessa pasta (token do Telegram) não é versionado. Ao trocar de pasta, copie-o (`cp -p`) ou rode
      `./telegram-setup.sh` de novo.
+6. **O bot de administração no Telegram (ADR-024) também tem um arquivo local.** O
+   `shopping-delivery/.env.telegram-admin-bot` não é versionado e o `run-backend.sh` o lê da pasta de onde roda. Num
+   worktree novo, copie-o (`cp -p`) ou rode `./scripts/telegram-admin-bot-setup.sh` de novo. Só **uma** API pode
+   rodar com o mesmo token: duas instâncias disputam as mensagens (o Telegram responde 409).
 
 ## Aviso automático
 
