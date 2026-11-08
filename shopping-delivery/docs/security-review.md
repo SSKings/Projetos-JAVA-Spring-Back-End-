@@ -385,3 +385,24 @@ por teste ou foram verificados com a stack rodando.
 | Dados pessoais saindo para o Telegram (terceiro) | Mensagens só com nome do alerta, métrica e link local; annotations sem dados de clientes | Regra documentada no guia, seção 4.8 |
 | Teste de estresse derrubando um ambiente | `stress` para sozinho com > 20% de erro; README proíbe rodar contra produção sem combinar | `load-tests/README.md` |
 | ⏳ Dados pessoais e a senha de admin de dev nos logs enviados ao Loki | Stack só para dev; antes de produção, revisar o que é logado (LGPD) e usar backend autenticado | Documentado em `observability-stack/README.md` |
+
+---
+
+## 8. Bot de administração no Telegram — 2026-11-07 (ADR-024)
+
+O bot dá acesso de admin pelo Telegram. Controles:
+
+| Risco | Controle | Verificação |
+|---|---|---|
+| Qualquer pessoa achar o bot e mandar comandos | Lista fechada `chatId:email`; chat fora dela é ignorado (só `/start` e `/id` respondem o próprio chat ID, para a configuração) | ✅ `TelegramAdminBotTest.unknownChat` |
+| Bot num grupo: outro membro clica nos botões | Só conversa privada (`chat.id == from.id`) | ✅ `groupIgnored` |
+| Admin demitido/bloqueado continuar usando o chat | A cada mensagem, a conta precisa ser ADMIN, ativa, não anonimizada e com MFA (se exigido); os avisos também só vão para quem passa nessa regra | ✅ `adminNoLongerAllowed`, `TelegramOrderNotifierTest.newOrder` |
+| Clique acidental ou mensagem antiga executando ação | Toda mudança pede confirmação (`?` pergunta, `!` executa); backlog descartado no start | ✅ `confirmationFirst`, `TelegramBotPollerTest.pollOnce` |
+| Botão forjado (callback_data alterado) | Ações só via serviços do painel, que revalidam tudo; dados desconhecidos → "Comando inválido" | ✅ `forgedCallbacks` |
+| Ação sem autor na auditoria | Admin no `SecurityContext` durante o comando; contexto limpo depois | ✅ `securityContext`, `TelegramBotIntegrationTest` (ator = admin) |
+| Injeção de HTML/links na mensagem (nome de produto, motivo da devolução) | `esc()` em todo texto vindo do banco ou do cliente | ✅ `showOrder`, `showOrderWithReturn` |
+| Token vazado em log (a URL da Bot API contém o token) | Mensagens de erro passam por `redact`; `toString` das propriedades sem o token; arquivo `.env.telegram-admin-bot` com permissão 600 e ignorado pelo Git | ✅ `networkErrorRedactsToken`, `toStringHidesToken`, `test_happy_path_writes_private_env_file` |
+| Configuração errada deixando o bot meio ligado | Token/admins inválidos impedem o startup, sem mostrar o token | ✅ `invalidConfigurationFailsFast` |
+| Dados pessoais no Telegram (terceiro, LGPD) | Mínimo necessário: endereço só cidade/UF; telefone só no detalhe do usuário | Documentado no ADR-024 |
+| ⏳ Conta do Telegram roubada vira admin | Recomendar verificação em duas etapas no Telegram; bloquear a conta no painel corta o acesso na hora | Procedimento no README |
+

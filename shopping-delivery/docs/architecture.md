@@ -149,7 +149,16 @@ controller/admin/                 service/admin/
 ├── AdminProductController    →  AdminProductService     (CRUD, exclusão lógica)
 ├── AdminOrderController      →  AdminOrderService       (listagem global, mudança de status)
 └── AdminUserController       →  AdminUserService        (busca, bloqueio, papel)
+
+telegram/  (opcional, ADR-024: TELEGRAM_ADMIN_BOT_ENABLED=true)
+├── TelegramBotPoller      long polling (getUpdates) numa thread própria
+├── TelegramAdminBot       comandos e botões → os MESMOS serviços acima, com o admin no SecurityContext
+├── TelegramOrderNotifier  OrderEvent (após o commit) → aviso aos admins
+└── TelegramClient         Bot API via RestClient; token nunca nos logs
 ```
+
+Os serviços publicam `event/OrderEvent` (novo pedido, Pix confirmado pelo PSP, cancelamento pelo cliente, devolução,
+Pix expirado). Sem o bot ligado, ninguém escuta e nada muda.
 
 ### Ciclo de vida do pedido
 
@@ -299,6 +308,8 @@ Elimina a necessidade de Docker ou instância de banco para rodar o projeto loca
 ```
 com.sskings.ecommerce/
 ├── config/          # CORS, Security, AdminSeeder, PaymentConfig, ProductionConfigValidator
+├── event/           # OrderEvent (fatos do pedido, ouvidos após o commit)
+├── telegram/        # Bot de administração no Telegram (opcional, ADR-024)
 ├── payment/         # PixBrCode, PixProperties, WebhookSignatureVerifier, IpAllowlist, PixExpirationJob
 ├── security/        # JwtService, JwtAuthFilter, RateLimitFilter, TotpService, CryptoService, SecurityProperties
 ├── model/           # Entidades JPA + enums

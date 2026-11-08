@@ -222,13 +222,13 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 ./mvnw verify    # idem + falha se a cobertura ficar abaixo do mínimo (85% linhas / 80% branches)
 ```
 
-**259 testes**, todos verdes. Cobertura (JaCoCo):
+**304 testes**, todos verdes. Cobertura (JaCoCo):
 
 | Métrica   | Cobertura |
 |-----------|-----------|
-| Linhas    | **97,7%** (1123/1149) |
-| Branches  | **93,1%** (429/461)   |
-| Métodos   | 96,0% (337/351)       |
+| Linhas    | **98,2%** (1529/1557) |
+| Branches  | **93,9%** (661/704)   |
+| Métodos   | 96,7% (413/427)       |
 
 | Suite                          | Tipo              | Cenários cobertos |
 |--------------------------------|-------------------|-------------------|
@@ -237,7 +237,7 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 | `CartServiceTest`              | Unit (Mockito)    | Listar, adicionar, produto inexistente, sem estoque, remover, atualizar; usuário inexistente; **trava o usuário antes de procurar o item** (`InOrder`) |
 | `ConcurrencyIntegrationTest`   | @SpringBootTest   | Corridas achadas no teste de carga, com banco e transações reais (20 rodadas × 8 threads): **mesmo produto no mesmo carrinho ao mesmo tempo** soma as quantidades (antes: 500 por chave duplicada); **checkout × cancelamento** com vários produtos sem deadlock (antes: 500); cadastro simultâneo com o mesmo email cria uma conta só |
 | `StockServiceTest`             | Unit (Mockito)    | Devolução do estoque em ordem de id do produto, a mesma do checkout (evita deadlock) |
-| `OrderServiceTest`             | Unit (Mockito)    | Carrinho vazio, estoque insuficiente (UPDATE atômico recusado), produto desativado, sucesso (cria cobrança Pix), cancelamento pelo cliente, arrependimento (prazo de 7 dias, repetido, antes da entrega); baixa do estoque em ordem de id do produto, não na ordem do carrinho |
+| `OrderServiceTest`             | Unit (Mockito)    | Carrinho vazio, estoque insuficiente (UPDATE atômico recusado), produto desativado, sucesso (cria cobrança Pix), cancelamento pelo cliente, arrependimento (prazo de 7 dias, repetido, antes da entrega); baixa do estoque em ordem de id do produto, não na ordem do carrinho; publica `OrderEvent` (novo pedido, cancelamento, devolução) |
 | `AccountServiceTest`           | Unit (Mockito)    | Perfil, exportação, exclusão/anonimização (endereços com pedido mantidos), senha/MFA na reautenticação, pedidos em andamento, MFA setup/enable/disable; **revisão 2:** senha/código errado na reautenticação conta para o bloqueio, 429 quando bloqueado |
 | `AuditServiceTest`             | Unit              | Ator explícito/implícito, IP, truncamento, busca, máscara de email |
 | `TotpServiceTest`              | Unit              | Vetores oficiais da RFC 6238, Base32, janela ±1 passo, reuso, URI otpauth |
@@ -248,7 +248,7 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 | `ProductionConfigValidatorTest`| Unit              | Configuração forte passa; valores de dev/vazados, CORS aberto, H2, senha fraca são recusados sem expor valores |
 | `IpAllowlistTest`              | Unit              | IP exato, CIDR IPv4/IPv6, entradas inválidas |
 | `SecurityHardeningIntegrationTest` | @SpringBootTest | **10 checkouts simultâneos para 3 unidades → 3 pedidos**; logout revoga tokens; força bruta → 429; token forjado com o segredo vazado → 401; admin só entra no /admin com MFA; exportação e exclusão de conta |
-| `PaymentServiceTest`           | Unit (Mockito)    | Cria cobrança, consulta só do dono, expiração na consulta e no job (estoque devolvido), webhook pago / idempotente / valor errado / assinatura inválida / txid desconhecido / corpo inválido / após cancelamento, confirmação manual, cancelamento |
+| `PaymentServiceTest`           | Unit (Mockito)    | Cria cobrança, consulta só do dono, expiração na consulta e no job (estoque devolvido), webhook pago / idempotente / valor errado / assinatura inválida / txid desconhecido / corpo inválido / após cancelamento, confirmação manual, cancelamento; `OrderEvent` de Pix pago pelo PSP e de Pix expirado (confirmação manual não avisa) |
 | `PixBrCodeTest`                | Unit              | CRC16 com o exemplo oficial do Bacen (`1D3D`), todos os campos EMV, limites de nome/cidade, chave longa, argumentos inválidos |
 | `WebhookSignatureVerifierTest` | Unit              | HMAC válido, corpo/timestamp/segredo adulterados, replay fora da janela de 5 min, cabeçalhos ausentes, segredo não configurado |
 | `PixExpirationJobTest`         | Unit              | Job delega a expiração |
@@ -258,6 +258,12 @@ Veja exemplos completos em [`../docs/api-reference.md`](../docs/api-reference.md
 | `AdminProductServiceTest`      | Unit (Mockito)    | Listar (com inativos), busca, criar, atualizar, exclusão lógica, 404 |
 | `AdminOrderServiceTest`        | Unit (Mockito)    | Transição válida, pular etapas, inválida (SHIPPED → CANCELLED), estado final, cancelamento devolve estoque e cancela o Pix, Pix pendente bloqueia o avanço, Pix pago libera, confirmação manual, `nextStatuses`, filtros, 404 |
 | `AdminUserServiceTest`         | Unit (Mockito)    | Bloquear, promover, auto-alteração proibida, busca, pedidos do usuário |
+| `TelegramAdminBotTest`         | Unit (Mockito)    | Bot de administração (ADR-024): chat fora da lista ignorado, grupo recusado, conta que deixou de ser admin/ativa/com MFA, admin no `SecurityContext` só durante o comando; `/pedidos` (filtros), `/pedido`, `/usuarios`, `/usuario`, `/resumo`; confirmação antes de agir; status, Pix, estorno, bloqueio e papel pelos serviços do painel; botões forjados; HTML escapado |
+| `TelegramClientTest`           | Unit (MockRestServiceServer) | `getUpdates` (offset, timeout), descarte do acumulado, `sendMessage` com teclado, erros do Telegram e de rede **sem o token na mensagem** |
+| `TelegramBotPollerTest`        | Unit              | Offset avança, erro num update não trava a fila, espera crescente, start/stop |
+| `TelegramOrderNotifierTest`    | Unit              | Texto de cada aviso, só para quem ainda é admin, falha num chat não impede os outros |
+| `TelegramBotPropertiesTest`    | Unit              | Lista `chatId:email`, padrões, problemas de configuração sem expor o token |
+| `TelegramBotIntegrationTest`   | @SpringBootTest   | Checkout real → aviso após o commit; cancelamento pelo bot → auditoria com o admin como autor; configuração inválida impede o startup; configuração válida sobe o bot |
 | `AdminDashboardServiceTest`    | Unit (Mockito)    | Agregação dos indicadores |
 | `JwtServiceTest`               | Unit              | Round-trip com versão, expiração configurável, outro segredo, sem versão, outro issuer, lixo |
 | `OrderStatusTest`              | Unit parametrizado| Todas as transições de status e `nextStatuses()` |
