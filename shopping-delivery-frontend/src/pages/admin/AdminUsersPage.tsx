@@ -6,6 +6,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { AdminUser, Order, Page } from '../../types';
 import { formatBRL, formatDate, getErrorMessage, orderStatusConfig } from '../../utils/format';
 
+type Patch = Partial<Pick<AdminUser, 'active' | 'role'>>;
+
 export default function AdminUsersPage() {
   const { user: me } = useAuth();
   const [data, setData] = useState<Page<AdminUser> | null>(null);
@@ -14,6 +16,10 @@ export default function AdminUsersPage() {
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<{ id: number; orders: Order[] | null } | null>(null);
+  // Mudança sensível (trocar papel ou alterar outro admin) pede a senha e o código de quem age (revisão 4, R4-3)
+  const [pending, setPending] = useState<{ user: AdminUser; patch: Patch; label: string } | null>(null);
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
 
   const load = useCallback(() => {
     getAdminUsers(page, query).then(setData).catch(err => setError(getErrorMessage(err)));
@@ -21,14 +27,32 @@ export default function AdminUsersPage() {
 
   useEffect(load, [load]);
 
-  const change = async (u: AdminUser, patch: Partial<Pick<AdminUser, 'active' | 'role'>>) => {
+  const send = async (u: AdminUser, data: Parameters<typeof updateUser>[1]) => {
     setError('');
     try {
-      await updateUser(u.id, patch);
+      await updateUser(u.id, data);
+      setPending(null);
       load();
     } catch (err) {
       setError(getErrorMessage(err));
+    } finally {
+      setPassword('');
+      setCode('');
     }
+  };
+
+  const change = (u: AdminUser, patch: Patch, label: string) => {
+    if (patch.role !== undefined || u.role === 'ADMIN') {
+      setError('');
+      setPending({ user: u, patch, label });
+      return;
+    }
+    return send(u, patch);
+  };
+
+  const confirmSensitive = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pending) return send(pending.user, { ...pending.patch, password, mfaCode: code || undefined });
   };
 
   const toggleOrders = (u: AdminUser) => {
@@ -47,7 +71,36 @@ export default function AdminUsersPage() {
                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
       </form>
 
-      {error && <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
+      {error && <div role="alert" className="mb-4 px-4 py-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
+
+      {pending && (
+        <form onSubmit={confirmSensitive} aria-label="Confirmar mudança sensível"
+              className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm space-y-3">
+          <p className="text-amber-900">
+            <strong>{pending.label}</strong> — {pending.user.name}. Por segurança, confirme sua senha
+            {me?.mfaEnabled ? ' e o código do app autenticador' : ''}. Todos os admins serão avisados.
+          </p>
+          <div className="flex flex-wrap gap-3 items-end">
+            <label className="block">
+              <span className="block text-gray-600 mb-1">Sua senha</span>
+              <input type="password" autoComplete="current-password" required autoFocus value={password}
+                     onChange={e => setPassword(e.target.value)}
+                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </label>
+            {me?.mfaEnabled && (
+              <label className="block">
+                <span className="block text-gray-600 mb-1">Código do app</span>
+                <input inputMode="numeric" autoComplete="one-time-code" required value={code}
+                       onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                       className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </label>
+            )}
+            <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">Confirmar</button>
+            <button type="button" onClick={() => { setPending(null); setPassword(''); setCode(''); }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">Cancelar</button>
+          </div>
+        </form>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm">
@@ -91,11 +144,12 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-3">
                       {isMe ? <div className="text-right text-xs text-gray-400">—</div> : (
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => change(u, { role: u.role === 'ADMIN' ? 'CUSTOMER' : 'ADMIN' })}
+                          <button onClick={() => change(u, { role: u.role === 'ADMIN' ? 'CUSTOMER' : 'ADMIN' },
+                                                        u.role === 'ADMIN' ? 'Tornar cliente' : 'Tornar admin')}
                                   className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 whitespace-nowrap">
                             {u.role === 'ADMIN' ? 'Tornar cliente' : 'Tornar admin'}
                           </button>
-                          <button onClick={() => change(u, { active: !u.active })}
+                          <button onClick={() => change(u, { active: !u.active }, u.active ? 'Bloquear admin' : 'Desbloquear admin')}
                                   className={`px-3 py-1.5 text-xs rounded-lg border ${u.active ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`}>
                             {u.active ? 'Bloquear' : 'Desbloquear'}
                           </button>

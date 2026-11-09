@@ -43,6 +43,11 @@ const backendMessages: Record<string, string> = {
   'Start the MFA setup first': 'Gere o QR Code antes de confirmar o código.',
   'Invalid password': 'Senha incorreta.',
   'New password must be different from the current one': 'A nova senha precisa ser diferente da atual.',
+  'Password confirmation required': 'Confirme sua senha para esta ação.',
+  'Too many unpaid orders in the last 24 hours. Try again later':
+    'Você deixou vários pedidos sem pagar nas últimas 24 horas. Tente de novo mais tarde.',
+  'Too many accounts created from this network today. Try again later':
+    'Muitas contas foram criadas a partir desta rede hoje. Tente de novo amanhã.',
   'Maximum of 10 units per product': 'Limite de 10 unidades por produto.',
   'Maximum of 20 different products in the cart': 'O carrinho aceita no máximo 20 produtos diferentes.',
   'You already have 2 orders awaiting payment. Pay or cancel one before placing a new order':
@@ -68,12 +73,23 @@ function translateTransition(message: string): string | undefined {
   return from && to ? `Não é possível mudar o pedido de ${from} para ${to}.` : undefined;
 }
 
+/** Mensagens do back-end com valores no meio (revisão 4). */
+function translateDynamic(message: string): string | undefined {
+  let m = /^Maximum quantity for this product right now: (\d+) \((.+)\)$/.exec(message);
+  if (m) return `Por enquanto, cada pedido pode levar no máximo ${m[1]} unidade(s) de ${m[2]}.`;
+  m = /^Maximum of 10 units per product across your orders awaiting payment: (.+)$/.exec(message);
+  if (m) return `Limite de 10 unidades de ${m[1]} somando seus pedidos que aguardam pagamento.`;
+  m = /^Image host not allowed\. Allowed: (.+)$/.exec(message);
+  if (m) return `Use uma imagem hospedada em: ${m[1]}.`;
+  return undefined;
+}
+
 /** Extrai uma mensagem legível de um erro do axios. */
 export function getErrorMessage(err: unknown, fallback = 'Ocorreu um erro. Tente novamente.'): string {
   const resp = (err as { response?: { data?: { message?: string; errors?: string[] } } }).response;
   if (!resp) return 'Não foi possível conectar ao servidor. Verifique se o back-end está rodando.';
   const { message, errors } = resp.data ?? {};
   if (errors?.length) return errors.join(' ');
-  if (message) return backendMessages[message] ?? translateTransition(message) ?? message;
+  if (message) return backendMessages[message] ?? translateTransition(message) ?? translateDynamic(message) ?? message;
   return fallback;
 }

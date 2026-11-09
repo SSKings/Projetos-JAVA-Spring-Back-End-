@@ -50,6 +50,7 @@ describe('validateRegister', () => {
     [{ email: 'ana@a' }, 'email', 'Informe um email válido, ex.: nome@dominio.com.'],
     [{ email: 'ana a@a.com' }, 'email', 'Informe um email válido, ex.: nome@dominio.com.'],
     [{ email: `${'a'.repeat(145)}@a.com` }, 'email', 'O email deve ter no máximo 150 caracteres.'],
+    [{ email: 'removed-1@anonymized.INVALID' }, 'email', 'Este domínio de email não é aceito.'],
     [{ password: '', confirmPassword: '' }, 'password', 'Informe uma senha.'],
     [{ password: 'abc1234', confirmPassword: 'abc1234' }, 'password', 'A senha deve ter no mínimo 8 caracteres.'],
     [{ password: `a1${'x'.repeat(71)}` }, 'password', 'A senha deve ter no máximo 72 caracteres.'],
