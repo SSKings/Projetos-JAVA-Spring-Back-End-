@@ -1,29 +1,36 @@
-version: '3.8'
-
+# Uso: crie um .env ao lado deste arquivo (NUNCA versione) com:
+#   POSTGRES_PASSWORD=<openssl rand -base64 24>
+#   JWT_SECRET=<openssl rand -base64 48>
+# e rode: docker compose up -d --build
+#
+# Revisão de segurança 3: antes, o banco usava postgres/postgres e ficava publicado em 0.0.0.0:5432 (qualquer
+# máquina da rede/internet tentava logar), e a API subia sem perfil (H2) e sem segredo JWT próprio.
 services:
   db:
-    image: postgres:alpine3.20
-    container_name: postgres_db
-    restart: always
-    ports:
-      - "5432:5432"
-    expose:
-      - "5432"
+    image: postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=gestor_financeiro
-    cap_add:
-      - "SYS_NICE"
+      POSTGRES_USER: gestor
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: gestor_financeiro
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # sem "ports": o banco só é acessível pela rede interna do compose
 
   app:
     build: ./
-    container_name: api-gestor-financeiro
+    restart: unless-stopped
     depends_on:
       - db
     ports:
-      - "8080:8080"
-    expose:
-      - "8080"
+      - "127.0.0.1:8080:8080"   # exponha para fora só atrás de um proxy com TLS
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/gestor_financeiro
+      SPRING_PROFILES_ACTIVE: production
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/gestor_financeiro
+      SPRING_DATASOURCE_USERNAME: gestor
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env}
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  db-data: {}
