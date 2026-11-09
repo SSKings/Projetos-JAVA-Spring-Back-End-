@@ -27,6 +27,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class CartServiceTest {
@@ -162,5 +163,33 @@ class CartServiceTest {
 
         assertThatThrownBy(() -> cartService.removeItem(99L, 1L))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ---------- revisão 3, A3: limites anti-açambarcamento ----------
+
+    @Test
+    @DisplayName("A3: somar no carrinho além de 10 unidades do mesmo produto é recusado")
+    void addItem_unitsPerProductLimit() {
+        product.setStockQuantity(100);
+        CartItem existing = CartItem.builder().id(1L).user(user).product(product).quantity(8).build();
+        given(productRepository.findByIdAndActiveTrue(10L)).willReturn(Optional.of(product));
+        given(cartItemRepository.findByUserIdAndProductId(1L, 10L)).willReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> cartService.addItem(new AddCartItemRequest(10L, 3), 1L))
+                .isInstanceOf(BusinessException.class).hasMessage("Maximum of 10 units per product");
+        assertThat(existing.getQuantity()).isEqualTo(8);
+        then(cartItemRepository).should(never()).save(any());
+    }
+
+    @Test
+    @DisplayName("A3: o carrinho aceita no máximo 20 produtos diferentes")
+    void addItem_distinctProductsLimit() {
+        given(productRepository.findByIdAndActiveTrue(10L)).willReturn(Optional.of(product));
+        given(cartItemRepository.findByUserIdAndProductId(1L, 10L)).willReturn(Optional.empty());
+        given(cartItemRepository.countByUserId(1L)).willReturn((long) CartService.MAX_DISTINCT_ITEMS);
+
+        assertThatThrownBy(() -> cartService.addItem(new AddCartItemRequest(10L, 1), 1L))
+                .isInstanceOf(BusinessException.class).hasMessage("Maximum of 20 different products in the cart");
+        then(cartItemRepository).should(never()).save(any());
     }
 }

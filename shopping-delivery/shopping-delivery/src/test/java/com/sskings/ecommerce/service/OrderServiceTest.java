@@ -27,6 +27,8 @@ import static org.mockito.BDDMockito.*;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -58,6 +60,42 @@ class OrderServiceTest {
         orderService = new OrderService(orderRepository, cartItemRepository, addressRepository, productRepository,
                 userRepository, paymentService, new StockService(productRepository), auditService,
                 java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC), events);
+        lenient().when(userRepository.findByIdForUpdate(1L)).thenReturn(java.util.Optional.of(user));
+    }
+
+    // ---------- revisão 3, A3: uma conta não pode segurar o estoque da loja ----------
+
+    @Test
+    @DisplayName("A3: com 2 pedidos aguardando pagamento, o 3º checkout é recusado antes de baixar estoque")
+    void checkout_pendingOrdersLimit() {
+        given(orderRepository.countByUserIdAndStatus(1L, OrderStatus.PENDING)).willReturn((long) OrderService.MAX_PENDING_ORDERS);
+
+        assertThatThrownBy(() -> orderService.checkout(new CheckoutRequest(1L), 1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("2 orders awaiting payment");
+        then(productRepository).should(never()).decrementStock(anyLong(), anyInt());
+        then(cartItemRepository).should(never()).findAllByUserId(any());
+    }
+
+    @Test
+    @DisplayName("A3: item de carrinho antigo acima do limite por produto é recusado no checkout")
+    void checkout_unitsPerItemLimit() {
+        cartItem.setQuantity(CartService.MAX_UNITS_PER_ITEM + 1);
+        given(cartItemRepository.findAllByUserId(1L)).willReturn(List.of(cartItem));
+        given(addressRepository.findByIdAndUserId(1L, 1L)).willReturn(java.util.Optional.of(address));
+
+        assertThatThrownBy(() -> orderService.checkout(new CheckoutRequest(1L), 1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Maximum of 10 units per product");
+        then(productRepository).should(never()).decrementStock(anyLong(), anyInt());
+    }
+
+    @Test
+    @DisplayName("A3: o checkout trava o usuário (dois checkouts simultâneos não furam o limite)")
+    void checkout_locksUser() {
+        given(cartItemRepository.findAllByUserId(1L)).willReturn(List.of());
+        assertThatThrownBy(() -> orderService.checkout(new CheckoutRequest(1L), 1L)).hasMessage("Cart is empty");
+        then(userRepository).should().findByIdForUpdate(1L);
     }
 
     @Test
@@ -85,7 +123,6 @@ class OrderServiceTest {
     void checkout_insufficientStock_throws() {
         given(cartItemRepository.findAllByUserId(1L)).willReturn(List.of(cartItem));
         given(addressRepository.findByIdAndUserId(1L, 1L)).willReturn(Optional.of(address));
-        given(userRepository.getReferenceById(1L)).willReturn(user);
         given(productRepository.findByIdAndActiveTrue(10L)).willReturn(Optional.of(product));
         given(productRepository.decrementStock(10L, 2)).willReturn(0);   // o banco recusou: sem estoque
 
@@ -99,7 +136,6 @@ class OrderServiceTest {
     void checkout_inactiveProduct_throws() {
         given(cartItemRepository.findAllByUserId(1L)).willReturn(List.of(cartItem));
         given(addressRepository.findByIdAndUserId(1L, 1L)).willReturn(Optional.of(address));
-        given(userRepository.getReferenceById(1L)).willReturn(user);
         given(productRepository.findByIdAndActiveTrue(10L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderService.checkout(new CheckoutRequest(1L), 1L))
@@ -111,7 +147,6 @@ class OrderServiceTest {
     void checkout_success() {
         given(cartItemRepository.findAllByUserId(1L)).willReturn(List.of(cartItem));
         given(addressRepository.findByIdAndUserId(1L, 1L)).willReturn(Optional.of(address));
-        given(userRepository.getReferenceById(1L)).willReturn(user);
         given(productRepository.findByIdAndActiveTrue(10L)).willReturn(Optional.of(product));
         given(productRepository.decrementStock(10L, 2)).willReturn(1);
         Order savedOrder = Order.builder().id(100L).user(user).address(address)
@@ -140,7 +175,6 @@ class OrderServiceTest {
                 cartItem,
                 CartItem.builder().id(4L).user(user).product(a).quantity(1).build()));
         given(addressRepository.findByIdAndUserId(1L, 1L)).willReturn(Optional.of(address));
-        given(userRepository.getReferenceById(1L)).willReturn(user);
         for (Product p : List.of(a, product, c)) given(productRepository.findByIdAndActiveTrue(p.getId())).willReturn(Optional.of(p));
         given(productRepository.decrementStock(any(), org.mockito.ArgumentMatchers.anyInt())).willReturn(1);
         given(orderRepository.save(any(Order.class))).willAnswer(inv -> inv.getArgument(0));

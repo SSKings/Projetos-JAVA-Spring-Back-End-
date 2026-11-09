@@ -32,8 +32,21 @@ public class OrderService {
     private final java.time.Clock clock;
     private final ApplicationEventPublisher events;
 
+    /**
+     * Pedidos aguardando pagamento por cliente (revisão 3, A3). Cada um segura estoque por até 30 min (Pix);
+     * sem teto, uma conta esgotava a loja com checkouts que nunca pagaria. Junto com CartService.MAX_UNITS_PER_ITEM.
+     */
+    public static final int MAX_PENDING_ORDERS = 2;
+
     @Transactional
     public OrderResponse checkout(CheckoutRequest request, Long userId) {
+        // Trava o usuário: dois checkouts simultâneos não passam juntos pelo limite de pedidos pendentes
+        User user = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (orderRepository.countByUserIdAndStatus(userId, OrderStatus.PENDING) >= MAX_PENDING_ORDERS) {
+            throw new BusinessException("You already have " + MAX_PENDING_ORDERS
+                    + " orders awaiting payment. Pay or cancel one before placing a new order");
+        }
         List<CartItem> cartItems = cartItemRepository.findAllByUserId(userId);
         if (cartItems.isEmpty()) {
             throw new BusinessException("Cart is empty");
@@ -41,7 +54,6 @@ public class OrderService {
         Address address = addressRepository.findByIdAndUserId(request.addressId(), userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Address not found"));
 
-        User user = userRepository.getReferenceById(userId);
         Order order = Order.builder()
                 .user(user)
                 .address(address)
@@ -55,6 +67,10 @@ public class OrderService {
         // Achado no teste de carga (load-tests/prod-like); coberto por ConcurrencyIntegrationTest.
         cartItems = cartItems.stream().sorted(java.util.Comparator.comparing(ci -> ci.getProduct().getId())).toList();
         for (CartItem ci : cartItems) {
+            if (ci.getQuantity() > CartService.MAX_UNITS_PER_ITEM) {   // carrinho anterior ao limite
+                throw new BusinessException("Maximum of " + CartService.MAX_UNITS_PER_ITEM + " units per product: "
+                        + ci.getProduct().getName());
+            }
             // produto desativado depois de ir para o carrinho não pode ser comprado
             Product product = productRepository.findByIdAndActiveTrue(ci.getProduct().getId())
                     .orElseThrow(() -> new BusinessException("Product no longer available: " + ci.getProduct().getName()));
