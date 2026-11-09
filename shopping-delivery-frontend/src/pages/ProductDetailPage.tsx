@@ -5,6 +5,7 @@ import { getProduct } from '../api/products';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import type { Product } from '../types';
+import { LIMITS } from '../utils/validation';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -103,8 +104,9 @@ export default function ProductDetailPage() {
                   >−</button>
                   <span className="px-4 py-2 text-sm font-medium min-w-[40px] text-center">{quantity}</span>
                   <button
-                    onClick={() => setQuantity(q => Math.min(product.stockQuantity, q + 1))}
-                    className="px-3 py-2 text-gray-600 hover:bg-gray-100 font-bold"
+                    onClick={() => setQuantity(q => Math.min(product.stockQuantity, LIMITS.unitsPerItem, q + 1))}
+                    disabled={quantity >= Math.min(product.stockQuantity, LIMITS.unitsPerItem)}
+                    className="px-3 py-2 text-gray-600 hover:bg-gray-100 font-bold disabled:opacity-30"
                   >+</button>
                 </div>
               </div>

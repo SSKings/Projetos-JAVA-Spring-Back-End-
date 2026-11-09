@@ -64,6 +64,10 @@ public class ProductionConfigValidator implements InitializingBean {
         }
         if (pix.webhookSecret() != null && !pix.webhookSecret().isBlank()) {
             secret(p, "PIX_WEBHOOK_SECRET", pix.webhookSecret());
+            // Revisão 3, B4: com o webhook ligado, a allowlist é a 2ª camada se o segredo do HMAC vazar
+            if (pix.webhookAllowedIps().isEmpty()) {
+                p.add("PIX_WEBHOOK_ALLOWED_IPS must list the PSP's IPs/CIDRs when the webhook is enabled");
+            }
         }
         if (pix.key().toLowerCase().endsWith(".example")) {
             p.add("PIX_KEY must be the store's real Pix key");

@@ -30,6 +30,9 @@ public class AuditService {
     public static final String LOGIN_SUCCESS = "LOGIN_SUCCESS";
     public static final String LOGIN_FAILED = "LOGIN_FAILED";
     public static final String ACCOUNT_LOCKED = "ACCOUNT_LOCKED";
+    public static final String LOGIN_ATTACK_SUSPECTED = "LOGIN_ATTACK_SUSPECTED";
+    public static final String PASSWORD_CHANGED = "PASSWORD_CHANGED";
+    public static final String MFA_SETUP_STARTED = "MFA_SETUP_STARTED";
     public static final String LOGOUT = "LOGOUT";
     public static final String REGISTER = "REGISTER";
     public static final String MFA_ENABLED = "MFA_ENABLED";

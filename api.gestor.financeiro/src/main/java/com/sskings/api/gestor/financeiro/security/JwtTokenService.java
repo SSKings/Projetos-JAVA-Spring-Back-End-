@@ -15,8 +15,19 @@ import java.time.ZoneOffset;
 @Service
 public class JwtTokenService {
 
-    @Value("${security.jwt.secret}")
-    private String secret;
+    /** Segredos curtos ou que já foram públicos no repositório permitem forjar tokens (revisão de segurança 3). */
+    static final java.util.Set<String> KNOWN_PUBLIC_SECRETS = java.util.Set.of("secret-key", "secret", "changeit");
+    static final int MIN_SECRET_LENGTH = 32;
+
+    private final String secret;
+
+    public JwtTokenService(@Value("${security.jwt.secret}") String secret) {
+        if (secret == null || secret.length() < MIN_SECRET_LENGTH || KNOWN_PUBLIC_SECRETS.contains(secret)) {
+            throw new IllegalStateException("security.jwt.secret (JWT_SECRET) must be a random value with at least "
+                    + MIN_SECRET_LENGTH + " characters (openssl rand -base64 48)");
+        }
+        this.secret = secret;
+    }
 
     public String generateToken(UsuarioModel usuario){
         try {

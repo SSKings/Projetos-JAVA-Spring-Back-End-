@@ -75,7 +75,8 @@ describe('módulos de API chamam as rotas corretas', () => {
     ['account.update',     () => account.updateProfile({ name: 'A' }),                           'put',  '/api/account'],
     ['account.export',     () => account.exportData(),                                           'get',  '/api/account/data-export'],
     ['account.delete',     () => account.deleteAccount('pw'),                                    'post', '/api/account/delete'],
-    ['account.mfaSetup',   () => account.setupMfa(),                                             'post', '/api/account/mfa/setup'],
+    ['account.mfaSetup',   () => account.setupMfa('pw'),                                         'post', '/api/account/mfa/setup'],
+    ['account.password',   () => account.changePassword('pw', 'nova1234'),                       'post', '/api/account/password'],
     ['account.mfaEnable',  () => account.enableMfa('123456'),                                    'post', '/api/account/mfa/enable'],
     ['account.mfaDisable', () => account.disableMfa('pw', '123456'),                             'post', '/api/account/mfa/disable'],
     ['orders.cancel',      () => orders.cancelOrder(2),                                          'post', '/api/orders/2/cancel'],
@@ -137,6 +138,13 @@ describe('módulos de API chamam as rotas corretas', () => {
     expect(body()).toEqual({ password: 'pw' });          // código vazio não é enviado
     await account.deleteAccount('pw', '654321');
     expect(body()).toEqual({ password: 'pw', mfaCode: '654321' });
+
+    await account.setupMfa('pw');
+    expect(body()).toEqual({ password: 'pw' });
+    await account.changePassword('pw', 'nova1234', '');
+    expect(body()).toEqual({ currentPassword: 'pw', newPassword: 'nova1234' });   // código vazio não é enviado
+    await account.changePassword('pw', 'nova1234', '123456');
+    expect(body()).toEqual({ currentPassword: 'pw', newPassword: 'nova1234', mfaCode: '123456' });
 
     await orders.requestReturn(2);
     expect(body()).toEqual({});

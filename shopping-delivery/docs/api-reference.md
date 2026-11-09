@@ -19,9 +19,14 @@ permissão: a sessão continua. Corpo: `{"status":401,"message":"Authentication 
 
 **Limites.**
 - Login e cadastro: 20 requisições/min por IP (`429 Too many requests` + `Retry-After`).
-- Após 5 senhas erradas, o email fica bloqueado por 15 min (`429 Too many failed attempts. Try again later`).
+- Após 5 senhas erradas, o email fica bloqueado por 15 min **para aquele IP** (`429 Too many failed attempts. Try again later`).
+  O dono, de outro IP, continua entrando: um terceiro não consegue trancar a conta de ninguém (revisão 3, A2).
   Vale **igualmente para emails não cadastrados**, para que a resposta não revele quem tem conta.
-- A reautenticação (`/api/account/delete`, `/api/account/mfa/disable`) conta para esse mesmo bloqueio.
+  Muitas falhas de IPs diferentes na mesma conta geram `LOGIN_ATTACK_SUSPECTED` na auditoria.
+- A reautenticação (`/api/account/delete`, `/password`, `/mfa/setup`, `/mfa/disable`) conta para esse mesmo bloqueio.
+- Carrinho e checkout (revisão 3, A3): até **10 unidades por produto**, **20 produtos** no carrinho e **2 pedidos
+  aguardando pagamento** por cliente.
+- Listagens paginadas: `size` máximo 100 (acima disso, vira 100).
 - Webhook: 120/min por IP.
 - Corpo da requisição: no máximo 64 KB (`security.max-request-bytes`) → acima disso, `413 Request body too large`.
 - Conflito de edição simultânea (lock otimista) ou requisição simultânea que viola uma restrição do banco (por
@@ -139,7 +144,8 @@ Revoga **todos** os tokens do usuário (este e os de outros dispositivos). **204
 | PUT    | `/api/account` | Correção (art. 18, III): `{ "name": "...", "phone": "..." }` |
 | GET    | `/api/account/data-export` | Acesso/portabilidade (art. 18, II e V): JSON com perfil, endereços, pedidos e eventos de segurança (`Content-Disposition: attachment`) |
 | POST   | `/api/account/delete` | Eliminação (art. 18, VI): `{ "password": "...", "mfaCode": "..." }` → **204**. Anonimiza a conta; pedidos ficam sem vínculo pessoal. `400 Account has orders in progress` / `Invalid password` / `Invalid MFA code` · `429` após 5 falhas (mesmo bloqueio do login) |
-| POST   | `/api/account/mfa/setup` | Gera o segredo TOTP: `{ "secret": "BASE32", "otpauthUri": "otpauth://totp/ShopEasy:..." }` (QR Code) |
+| POST   | `/api/account/password` | `{ "currentPassword": "...", "newPassword": "...", "mfaCode": "123456" }` (código só com MFA ativo) → troca a senha, **revoga todas as sessões** e devolve um novo `AuthResponse`. Mesma política do cadastro. `400 Invalid password` / `Invalid MFA code` / `New password must be different from the current one` · `429` (bloqueio) |
+| POST   | `/api/account/mfa/setup` | `{ "password": "..." }` (revisão 3: só o token não basta) → gera o segredo TOTP: `{ "secret": "BASE32", "otpauthUri": "otpauth://totp/ShopEasy:..." }` (QR Code). `400 Invalid password` · `429` |
 | POST   | `/api/account/mfa/enable` | `{ "code": "123456" }` → ativa, revoga sessões antigas e devolve um **novo** `AuthResponse` |
 | POST   | `/api/account/mfa/disable` | `{ "password": "...", "mfaCode": "123456" }` → devolve novo `AuthResponse` |
 
@@ -261,6 +267,8 @@ Adiciona um produto ao carrinho. Se o produto já existir, incrementa a quantida
 |--------|--------|
 | 404    | Produto não encontrado |
 | 400    | Estoque insuficiente |
+| 400    | `quantity` acima de 10, ou a soma no carrinho passaria de 10 (`Maximum of 10 units per product`) |
+| 400    | Já há 20 produtos diferentes no carrinho (`Maximum of 20 different products in the cart`) |
 
 ---
 
@@ -397,6 +405,9 @@ Finaliza a compra. Em uma única transação: valida estoque → decrementa esto
 
 `paymentMethod` é opcional (padrão e único valor hoje: `PIX`). O valor cobrado é sempre o `total` calculado no
 servidor — o cliente não envia valor.
+
+Com **2 pedidos aguardando pagamento**, o próximo checkout é recusado antes de reservar estoque:
+`400 You already have 2 orders awaiting payment. Pay or cancel one before placing a new order`.
 
 **Response 201**
 ```json

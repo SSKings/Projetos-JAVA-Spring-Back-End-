@@ -57,6 +57,17 @@ describe('CartPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /Finalizar Compra/ }));
     expect(await screen.findByText('Escolha o endereço de entrega')).toBeInTheDocument();
   });
+
+  it('não passa de 10 unidades por produto (limite do back-end)', async () => {
+    const cartApi = mockCart(cart({ items: [{ id: 11, productId: 1, productName: 'Caneca', productImageUrl: 'http://img',
+      unitPrice: 29.9, quantity: 10, subtotal: 299 }], itemCount: 10, total: 299 }));
+    renderAt('/cart');
+    const plus = screen.getAllByRole('button')[1];
+    expect(plus).toBeDisabled();
+    expect(plus).toHaveAttribute('title', 'Limite de 10 unidades por produto');
+    await userEvent.click(plus);
+    expect(cartApi.updateItem).not.toHaveBeenCalled();
+  });
 });
 
 describe('CheckoutPage', () => {

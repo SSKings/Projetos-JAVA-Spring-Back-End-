@@ -47,14 +47,16 @@ class TelegramAdminBotTest {
     @Mock AdminOrderService orders;
     @Mock AdminUserService users;
     @Mock AdminDashboardService dashboard;
+    @Mock TelegramSessions sessions;
 
     private TelegramAdminBot bot;
     private final User admin = admin();
 
     @BeforeEach
     void setUp() {
-        bot = new TelegramAdminBot(client, props(), security(true), userRepository, orders, users, dashboard);
+        bot = new TelegramAdminBot(client, props(), security(true), userRepository, orders, users, dashboard, sessions);
         lenient().when(userRepository.findByEmail(ADMIN_EMAIL)).thenReturn(Optional.of(admin));
+        lenient().when(sessions.isOpen(ADMIN_CHAT, admin)).thenReturn(true);   // sessão MFA aberta (ver testes M2)
     }
 
     @AfterEach
@@ -120,10 +122,55 @@ class TelegramAdminBotTest {
         verifyNoInteractions(orders);
     }
 
+    // ---------- revisão 3, M2: o bot exige o código do app autenticador ----------
+
+    @Test
+    @DisplayName("M2: sem sessão MFA aberta, nenhum comando ou botão chega aos serviços")
+    void sessionRequired() {
+        given(sessions.isOpen(ADMIN_CHAT, admin)).willReturn(false);
+
+        bot.handle(message(ADMIN_CHAT, "/pedidos"));
+        bot.handle(click(ADMIN_CHAT, "!st:12:CANCELLED"));
+
+        verify(client, times(2)).sendMessage(eq(ADMIN_CHAT), contains("/entrar 123456"), isNull());
+        verifyNoInteractions(orders, users, dashboard);
+    }
+
+    @Test
+    @DisplayName("M2: /entrar com código certo abre a sessão; errado avisa; bloqueado informa a espera; /sair fecha")
+    void loginAndLogout() {
+        given(sessions.open(ADMIN_CHAT, admin, "123456")).willReturn(true);
+        bot.handle(message(ADMIN_CHAT, "/entrar 123456"));
+        assertThat(lastText()).contains("Sessão aberta por 12 horas", "/pedidos");
+
+        bot.handle(message(ADMIN_CHAT, "/entrar 000000"));
+        assertThat(lastText()).contains("Código inválido");
+
+        given(sessions.open(ADMIN_CHAT, admin, "111111"))
+                .willThrow(new com.sskings.ecommerce.exception.TooManyRequestsException("locked", 600));
+        bot.handle(message(ADMIN_CHAT, "/entrar@ShopEasyBot 111111"));
+        assertThat(lastText()).contains("Muitas tentativas", "10 min");
+
+        bot.handle(message(ADMIN_CHAT, "/sair"));
+        verify(sessions).close(ADMIN_CHAT);
+        assertThat(lastText()).contains("Sessão encerrada");
+        verifyNoInteractions(orders, users, dashboard);
+    }
+
+    @Test
+    @DisplayName("M2: /entrar de chat não autorizado ou de ex-admin nem tenta validar código")
+    void loginOnlyForAllowedAdmins() {
+        bot.handle(message(999, "/entrar 123456"));
+        given(userRepository.findByEmail(ADMIN_EMAIL)).willReturn(Optional.of(
+                User.builder().email(ADMIN_EMAIL).role(Role.CUSTOMER).active(true).mfaEnabled(true).build()));
+        bot.handle(message(ADMIN_CHAT, "/entrar 123456"));
+        verifyNoInteractions(sessions);
+    }
+
     @Test
     @DisplayName("Sem REQUIRE_ADMIN_MFA (dev), admin sem MFA pode usar o bot")
     void mfaNotRequired() {
-        bot = new TelegramAdminBot(client, props(), security(false), userRepository, orders, users, dashboard);
+        bot = new TelegramAdminBot(client, props(), security(false), userRepository, orders, users, dashboard, sessions);
         admin.setMfaEnabled(false);
         given(dashboard.getStats()).willReturn(new DashboardResponse(10, 8, 1, 4, 20, 3, new BigDecimal("1234.50")));
 

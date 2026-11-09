@@ -9,8 +9,12 @@ spring:
       maximum-pool-size: ${DATABASE_POOL_SIZE:10}
 
 server:
-  # atrás de proxy reverso (nginx) que termina o TLS
-  forward-headers-strategy: framework
+  # Atrás de proxy reverso (nginx) que termina o TLS. "native" (RemoteIpValve do Tomcat) só aceita
+  # X-Forwarded-For/-Proto vindos de IPs internos (10/8, 172.16/12, 192.168/16, loopback) — o nginx na rede do
+  # compose. "framework" aceitava de QUALQUER origem: se a API ficasse exposta por outro caminho, o IP usado no
+  # bloqueio de login, no rate limit e na auditoria seria forjável (revisão 3, B6).
+  # Proxy fora dessas faixas: SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES com a regex do IP dele.
+  forward-headers-strategy: native
   tomcat:
     # Marco Civil, art. 15: registros de acesso guardados por 6 meses
     accesslog:

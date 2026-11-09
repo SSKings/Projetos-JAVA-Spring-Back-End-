@@ -1,5 +1,6 @@
 package com.sskings.ecommerce.controller;
 
+import com.sskings.ecommerce.dto.request.ChangePasswordRequest;
 import com.sskings.ecommerce.dto.request.MfaCodeRequest;
 import com.sskings.ecommerce.dto.request.PasswordConfirmationRequest;
 import com.sskings.ecommerce.dto.request.UpdateProfileRequest;
@@ -46,9 +47,18 @@ public class AccountController {
         return ResponseEntity.noContent().build();
     }
 
+    /** Exige a senha atual; encerra as outras sessões e devolve um token novo. */
+    @PostMapping("/password")
+    public ResponseEntity<AuthResponse> changePassword(@AuthenticationPrincipal User user,
+                                                       @Valid @RequestBody ChangePasswordRequest request) {
+        return ResponseEntity.ok(accountService.changePassword(user.getId(), request));
+    }
+
+    /** Exige a senha: com só o token, quem roubou a sessão conseguia ativar o MFA e trancar o dono fora. */
     @PostMapping("/mfa/setup")
-    public ResponseEntity<MfaSetupResponse> setupMfa(@AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(accountService.setupMfa(user.getId()));
+    public ResponseEntity<MfaSetupResponse> setupMfa(@AuthenticationPrincipal User user,
+                                                     @Valid @RequestBody PasswordConfirmationRequest request) {
+        return ResponseEntity.ok(accountService.setupMfa(user.getId(), request));
     }
 
     @PostMapping("/mfa/enable")

@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# segredos locais do docker-compose (revisão de segurança 3)
+.env

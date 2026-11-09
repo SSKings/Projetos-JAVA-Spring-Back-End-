@@ -54,9 +54,29 @@ class AuthServiceTest {
                 new SecurityProperties.Login(3, 15), new SecurityProperties.RateLimit(true, 20, 120));
     }
 
+    private AuthService newService(PasswordEncoder enc, boolean requireAdminMfa, Clock c) {
+        SecurityProperties p = props(requireAdminMfa);
+        return new AuthService(userRepository, enc, jwtService, totp, crypto, auditService, p, c, "2026-11-05",
+                new LoginAttemptService(p, c));
+    }
+
+    /** Simula a requisição vindo de um IP (o bloqueio é por email + IP). */
+    private static void fromIp(String ip) {
+        org.springframework.mock.web.MockHttpServletRequest req = new org.springframework.mock.web.MockHttpServletRequest();
+        req.setRemoteAddr(ip);
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
+                new org.springframework.web.context.request.ServletRequestAttributes(req));
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void clearRequest() {
+        org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+    }
+
     @BeforeEach
     void setUp() {
-        service = new AuthService(userRepository, encoder, jwtService, totp, crypto, auditService, props(true), clock, "2026-11-05");
+        fromIp("203.0.113.10");
+        service = newService(encoder, true, clock);
         user = User.builder().id(1L).name("Ana").email("ana@a.com").password(encoder.encode("senha123")).role(Role.CUSTOMER).build();
         given(userRepository.findByEmail("ana@a.com")).willReturn(Optional.of(user));
         given(userRepository.save(any(User.class))).willAnswer(inv -> inv.getArgument(0));
@@ -98,19 +118,23 @@ class AuthServiceTest {
     @Test
     @DisplayName("Login correto zera o contador de falhas e audita")
     void login_success() {
-        user.setFailedLoginAttempts(2);
+        assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
+        assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
         AuthResponse resp = service.login(new LoginRequest(" ANA@a.com ", "senha123"));
         assertThat(resp.token()).isEqualTo("jwt");
         assertThat(resp.mfaSetupRequired()).isFalse();
-        assertThat(user.getFailedLoginAttempts()).isZero();
-        then(auditService).should().record(user, AuditService.LOGIN_SUCCESS, "USER", 1L, null);
+        // contador zerado: mais 2 erros (limite de teste = 3) ainda não bloqueiam
+        assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
+        assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
+        assertThat(login("senha123").token()).isEqualTo("jwt");
+        then(auditService).should(times(2)).record(user, AuditService.LOGIN_SUCCESS, "USER", 1L, null);
     }
 
     @Test
     @DisplayName("Email inexistente: mesma mensagem e BCrypt executado mesmo assim (anti-enumeração por tempo)")
     void login_unknownEmail() {
         PasswordEncoder spy = spy(encoder);
-        AuthService s = new AuthService(userRepository, spy, jwtService, totp, crypto, auditService, props(true), clock, "v");
+        AuthService s = newService(spy, true, clock);
         given(userRepository.findByEmail("x@x.com")).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> s.login(new LoginRequest("x@x.com", "qualquer1")))
@@ -120,15 +144,14 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Senha errada conta falha; na 3ª a conta fica bloqueada por 15 min, mesmo com a senha certa")
+    @DisplayName("Senha errada conta falha; na 3ª este IP fica bloqueado por 15 min, mesmo com a senha certa")
     void login_lockout() {
         assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
         assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(2);
+        then(auditService).should(never()).recordIndependent(any(), eq(AuditService.ACCOUNT_LOCKED), any(), any(), any());
         assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
 
-        assertThat(user.getLockedUntil()).isEqualTo(LOCAL_NOW.plusMinutes(15));
-        then(auditService).should().recordIndependent(eq(user), eq(AuditService.ACCOUNT_LOCKED), any(), any(), any());
+        then(auditService).should().recordIndependent(eq(user), eq(AuditService.ACCOUNT_LOCKED), any(), any(), contains("IP locked for 15 min"));
 
         assertThatThrownBy(() -> login("senha123"))
                 .isInstanceOf(TooManyRequestsException.class)
@@ -138,9 +161,59 @@ class AuthServiceTest {
     @Test
     @DisplayName("Bloqueio vencido libera o login")
     void login_lockExpired() {
-        user.setLockedUntil(LOCAL_NOW.minusSeconds(1));
+        java.util.concurrent.atomic.AtomicReference<Instant> now = new java.util.concurrent.atomic.AtomicReference<>(NOW);
+        service = newService(encoder, true, movingClock(now));
+        for (int i = 0; i < 3; i++) assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
+        assertThatThrownBy(() -> login("senha123")).isInstanceOf(TooManyRequestsException.class);
+        now.set(NOW.plusSeconds(15 * 60 + 1));
         assertThat(login("senha123").token()).isEqualTo("jwt");
-        assertThat(user.getLockedUntil()).isNull();
+    }
+
+    private static Clock movingClock(java.util.concurrent.atomic.AtomicReference<Instant> now) {
+        return new Clock() {
+            public ZoneId getZone() { return ZoneOffset.UTC; }
+            public Clock withZone(ZoneId zone) { return this; }
+            public Instant instant() { return now.get(); }
+        };
+    }
+
+    // ---------- revisão 3, A2: ninguém consegue trancar o dono da conta ----------
+
+    @Test
+    @DisplayName("A2: falhas de um atacante bloqueiam só o IP dele — o dono, de outro IP, continua entrando")
+    void lockout_isPerIp_ownerNotLockedOut() {
+        fromIp("198.51.100.66");                                           // atacante
+        for (int i = 0; i < 3; i++) assertThatThrownBy(() -> login("chute")).hasMessage("Invalid credentials");
+        assertThatThrownBy(() -> login("senha123")).isInstanceOf(TooManyRequestsException.class);
+
+        fromIp("203.0.113.10");                                            // dono, em casa
+        assertThat(login("senha123").token()).isEqualTo("jwt");
+        fromIp("2001:db8::1");                                             // dono, no celular
+        assertThat(login("senha123").token()).isEqualTo("jwt");
+    }
+
+    @Test
+    @DisplayName("A2: acerto do atacante em um IP não apaga o bloqueio de outro IP")
+    void lockout_successClearsOnlyThatIp() {
+        fromIp("198.51.100.1");
+        for (int i = 0; i < 3; i++) assertThatThrownBy(() -> login("x")).hasMessage("Invalid credentials");
+        fromIp("198.51.100.2");
+        assertThat(login("senha123").token()).isEqualTo("jwt");
+        fromIp("198.51.100.1");
+        assertThatThrownBy(() -> login("senha123")).isInstanceOf(TooManyRequestsException.class);
+    }
+
+    @Test
+    @DisplayName("A2: ataque distribuído (muitos IPs na mesma conta) é auditado uma vez, sem trancar o dono")
+    void lockout_distributedAttackIsAudited() {
+        for (int i = 0; i < LoginAttemptService.ATTACK_THRESHOLD + 5; i++) {
+            fromIp("198.51.100." + i);
+            assertThatThrownBy(() -> login("chute")).hasMessage("Invalid credentials");
+        }
+        then(auditService).should(times(1)).recordIndependent(eq(user), eq(AuditService.LOGIN_ATTACK_SUSPECTED),
+                eq("USER"), eq(1L), contains("a***@a.com"));
+        fromIp("203.0.113.10");
+        assertThat(login("senha123").token()).isEqualTo("jwt");
     }
 
     @Test
@@ -155,7 +228,7 @@ class AuthServiceTest {
     void login_adminWithoutMfa() {
         user.setRole(Role.ADMIN);
         assertThat(login("senha123").mfaSetupRequired()).isTrue();
-        AuthService optional = new AuthService(userRepository, encoder, jwtService, totp, crypto, auditService, props(false), clock, "v");
+        AuthService optional = newService(encoder, false, clock);
         assertThat(optional.login(new LoginRequest("ana@a.com", "senha123")).mfaSetupRequired()).isFalse();
     }
 
@@ -173,7 +246,7 @@ class AuthServiceTest {
     void login_mfa() {
         String secret = enableMfa();
         assertThatThrownBy(() -> login("senha123")).hasMessage("MFA code required");
-        assertThat(user.getFailedLoginAttempts()).isZero(); // pedir o código não é falha
+        then(auditService).should(never()).recordIndependent(any(), eq(AuditService.LOGIN_FAILED), any(), any(), any()); // pedir o código não é falha
 
         String code = totp.currentCode(secret);
         AuthResponse resp = service.login(new LoginRequest("ana@a.com", "senha123", code));
@@ -182,7 +255,7 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> service.login(new LoginRequest("ana@a.com", "senha123", code)))
                 .hasMessage("Invalid MFA code");
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
+        then(auditService).should().recordIndependent(user, AuditService.LOGIN_FAILED, "USER", 1L, "invalid MFA code");
     }
 
     @Test
@@ -191,7 +264,7 @@ class AuthServiceTest {
         enableMfa();
         assertThatThrownBy(() -> service.login(new LoginRequest("ana@a.com", "senha123", "000000")))
                 .hasMessage("Invalid MFA code");
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
+        then(auditService).should().recordIndependent(user, AuditService.LOGIN_FAILED, "USER", 1L, "invalid MFA code");
     }
 
     // ---------- logout ----------
@@ -244,12 +317,7 @@ class AuthServiceTest {
     @DisplayName("R3: bloqueio de email inexistente vence em 15 min e a contagem recomeça do zero")
     void lockout_unknownEmailExpiresAndResets() {
         java.util.concurrent.atomic.AtomicReference<Instant> now = new java.util.concurrent.atomic.AtomicReference<>(NOW);
-        Clock moving = new Clock() {
-            public ZoneId getZone() { return ZoneOffset.UTC; }
-            public Clock withZone(ZoneId zone) { return this; }
-            public Instant instant() { return now.get(); }
-        };
-        service = new AuthService(userRepository, encoder, jwtService, totp, crypto, auditService, props(true), moving, "v");
+        service = newService(encoder, true, movingClock(now));
         given(userRepository.findByEmail(anyString())).willReturn(Optional.empty());
 
         assertThat(attempts("x@a.com", 4)).last().isEqualTo("429");
@@ -263,12 +331,10 @@ class AuthServiceTest {
     @Test
     @DisplayName("R4: API pública de bloqueio usada pela reautenticação")
     void reauthHelpers() {
-        user.setLockedUntil(LOCAL_NOW.plusMinutes(1));
+        for (int i = 0; i < 3; i++) service.registerFailure(user, "reauthentication: wrong password");
         assertThatThrownBy(() -> service.ensureNotLocked(user)).isInstanceOf(TooManyRequestsException.class);
         service.clearFailures(user);
         service.ensureNotLocked(user);   // não lança
-        service.registerFailure(user, "reauthentication: wrong password");
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
-        then(auditService).should().recordIndependent(user, AuditService.LOGIN_FAILED, "USER", 1L, "reauthentication: wrong password");
+        then(auditService).should(times(3)).recordIndependent(user, AuditService.LOGIN_FAILED, "USER", 1L, "reauthentication: wrong password");
     }
 }

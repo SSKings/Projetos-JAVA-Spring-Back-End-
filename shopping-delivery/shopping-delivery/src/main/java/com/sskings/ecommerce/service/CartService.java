@@ -32,6 +32,14 @@ public class CartService {
         return toSummary(cartItemRepository.findAllByUserId(userId));
     }
 
+    /**
+     * Limites anti-açambarcamento (revisão 3, A3): o checkout reserva o estoque enquanto o Pix não é pago (30 min),
+     * então sem teto uma única conta "comprava" o estoque inteiro, deixava expirar e repetia — loja esgotada para todos.
+     * Ver também OrderService.MAX_PENDING_ORDERS.
+     */
+    public static final int MAX_UNITS_PER_ITEM = 10;
+    public static final int MAX_DISTINCT_ITEMS = 20;
+
     @Transactional
     public CartSummaryResponse addItem(AddCartItemRequest request, Long userId) {
         // Trava o usuário antes de "procura o item, senão insere": sem isso, duas adições simultâneas do mesmo produto
@@ -48,14 +56,22 @@ public class CartService {
                 .ifPresentOrElse(
                         existing -> {
                             int newQty = existing.getQuantity() + request.quantity();
+                            if (newQty > MAX_UNITS_PER_ITEM) {
+                                throw new BusinessException("Maximum of " + MAX_UNITS_PER_ITEM + " units per product");
+                            }
                             if (product.getStockQuantity() < newQty) {
                                 throw new BusinessException("Insufficient stock for: " + product.getName());
                             }
                             existing.setQuantity(newQty);
                             cartItemRepository.save(existing);
                         },
-                        () -> cartItemRepository.save(CartItem.builder()
-                                .user(user).product(product).quantity(request.quantity()).build())
+                        () -> {
+                            if (cartItemRepository.countByUserId(userId) >= MAX_DISTINCT_ITEMS) {
+                                throw new BusinessException("Maximum of " + MAX_DISTINCT_ITEMS + " different products in the cart");
+                            }
+                            cartItemRepository.save(CartItem.builder()
+                                    .user(user).product(product).quantity(request.quantity()).build());
+                        }
                 );
         return toSummary(cartItemRepository.findAllByUserId(userId));
     }

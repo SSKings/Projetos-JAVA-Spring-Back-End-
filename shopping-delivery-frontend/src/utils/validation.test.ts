@@ -54,6 +54,7 @@ describe('validateRegister', () => {
     [{ password: 'abc1234', confirmPassword: 'abc1234' }, 'password', 'A senha deve ter no mínimo 8 caracteres.'],
     [{ password: `a1${'x'.repeat(71)}` }, 'password', 'A senha deve ter no máximo 72 caracteres.'],
     [{ password: 'abcdefgh', confirmPassword: 'abcdefgh' }, 'password', 'A senha deve conter letras e números.'],
+    [{ password: `${'ç'.repeat(36)}1` }, 'password', 'A senha é longa demais: letras acentuadas e emojis contam como 2 ou mais caracteres.'],
     [{ password: '12345678', confirmPassword: '12345678' }, 'password', 'A senha deve conter letras e números.'],
     [{ confirmPassword: '' }, 'confirmPassword', 'Confirme a senha.'],
     [{ confirmPassword: 'abc12346' }, 'confirmPassword', 'As senhas não conferem.'],

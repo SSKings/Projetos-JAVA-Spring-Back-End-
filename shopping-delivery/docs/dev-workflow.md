@@ -121,3 +121,17 @@ procedimento da seção 9 do [guia de observabilidade](instrunctions-cloud-impl-
 `npx @tailwindcss/upgrade` converte a configuração: `@tailwindcss/postcss` no lugar de `tailwindcss`/`autoprefixer`,
 `@import "tailwindcss"` no lugar das diretivas `@tailwind` e tema em CSS. Os estilos padrão mudam (cor de borda,
 largura do `ring`, escalas de `shadow`/`rounded`/`blur`), então revise as telas antes de mergear.
+
+## Segurança: checklist de PR
+
+Antes de abrir um PR que toque autenticação, conta, carrinho/pedidos, configuração, Docker ou CI, confira as
+**regras para não repetir** da revisão 3 em [`security-review.md`](security-review.md#regras-para-não-repetir-checklist-de-pr).
+O CI verifica automaticamente:
+
+- **Imagens por digest e actions por SHA:** `python3 scripts/check-pinning.py` (falha listando o que está por tag).
+- **Backup do banco:** `python3 -m unittest discover -s scripts -p 'test_backup_db.py'`.
+- **Regressões dos ataques já encontrados:** `SecurityReview2IntegrationTest` e `SecurityReview3IntegrationTest`.
+
+Para atualizar o digest de uma imagem à mão (o Dependabot faz isso toda semana):
+`docker buildx imagetools inspect <imagem>:<tag> --format '{{json .Manifest.Digest}}'`.
+

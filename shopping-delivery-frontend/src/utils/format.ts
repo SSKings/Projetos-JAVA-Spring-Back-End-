@@ -42,7 +42,12 @@ const backendMessages: Record<string, string> = {
   'MFA is not enabled': 'A verificação em duas etapas não está ativa.',
   'Start the MFA setup first': 'Gere o QR Code antes de confirmar o código.',
   'Invalid password': 'Senha incorreta.',
-  'Too many failed attempts. Try again later': 'Muitas tentativas sem sucesso. A conta foi bloqueada temporariamente; tente mais tarde.',
+  'New password must be different from the current one': 'A nova senha precisa ser diferente da atual.',
+  'Maximum of 10 units per product': 'Limite de 10 unidades por produto.',
+  'Maximum of 20 different products in the cart': 'O carrinho aceita no máximo 20 produtos diferentes.',
+  'You already have 2 orders awaiting payment. Pay or cancel one before placing a new order':
+    'Você já tem 2 pedidos aguardando pagamento. Pague ou cancele um deles antes de fazer outro pedido.',
+  'Too many failed attempts. Try again later': 'Muitas tentativas sem sucesso. Tente de novo em 15 minutos.',
   'Too many requests': 'Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo.',
   'Account has orders in progress': 'Você tem pedidos em andamento. Aguarde a entrega ou cancele-os antes de excluir a conta.',
   'Order can no longer be cancelled': 'Este pedido já foi enviado e não pode mais ser cancelado.',

@@ -49,13 +49,6 @@ public class User implements UserDetails {
     @Builder.Default
     private int tokenVersion = 0;
 
-    @Column(name = "failed_login_attempts", nullable = false)
-    @Builder.Default
-    private int failedLoginAttempts = 0;
-
-    @Column(name = "locked_until")
-    private LocalDateTime lockedUntil;
-
     @Column(name = "mfa_enabled", nullable = false)
     @Builder.Default
     private boolean mfaEnabled = false;

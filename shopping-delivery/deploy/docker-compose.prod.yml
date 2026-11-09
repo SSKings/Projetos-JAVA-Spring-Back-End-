@@ -5,7 +5,8 @@ name: shopeasy
 
 services:
   db:
-    image: postgres:16-alpine
+    # fixada por digest (revisão 3, M4); o Dependabot (docker-compose) propõe as atualizações
+    image: postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DATABASE_NAME:-shopeasy}
@@ -13,7 +14,12 @@ services:
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
       - db-data:/var/lib/postgresql/data
-    networks: [internal]
+    # Só na rede "data" (internal: true): o nginx, exposto à internet, não alcança o banco, e o banco não tem
+    # saída para a internet (revisão 3, M5). Backup: deploy/backup-db.sh (revisão 3, M6).
+    networks: [data]
+    mem_limit: ${DB_MEM_LIMIT:-1g}
+    security_opt: ["no-new-privileges:true"]
+    shm_size: 128m
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${DATABASE_USERNAME}", "-d", "${DATABASE_NAME:-shopeasy}"]
       interval: 10s
@@ -33,7 +39,8 @@ services:
       ACCESS_LOG_DIR: /var/log/shopeasy
     volumes:
       - access-logs:/var/log/shopeasy   # Marco Civil art. 15: guardar por 6 meses (max-days: 190)
-    networks: [internal]
+    # edge: recebe do nginx e sai para a internet (PSP, Telegram); data: fala com o banco
+    networks: [edge, data]
     # Sem limite, a JVM (MaxRAMPercentage=75 no Dockerfile) dimensiona o heap pela RAM da máquina inteira.
     # 1536m: no teste de carga (load-tests/prod-like) o pico foi ~555 MiB. Ajuste API_MEM_LIMIT ao servidor.
     mem_limit: ${API_MEM_LIMIT:-1536m}
@@ -65,11 +72,19 @@ services:
       - ./proxy-api.inc:/etc/nginx/conf.d/proxy-api.inc:ro
       - ./security-headers.inc:/etc/nginx/conf.d/security-headers.inc:ro
       - ./certs:/etc/nginx/certs:ro
-    networks: [internal]
+    networks: [edge]
+    # Mesmo endurecimento da API (revisão 3, B8): nginx-unprivileged roda sem root, escuta em portas altas
+    # e só escreve em /tmp (pid e cache temporário).
+    read_only: true
+    tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: ${WEB_MEM_LIMIT:-256m}
 
 networks:
-  internal: {}
+  edge: {}
+  data:
+    internal: true
 
 volumes:
   db-data: {}

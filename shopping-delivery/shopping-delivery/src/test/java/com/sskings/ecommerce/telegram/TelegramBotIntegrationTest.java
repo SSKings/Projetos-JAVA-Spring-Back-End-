@@ -104,10 +104,15 @@ class TelegramBotIntegrationTest {
                 .withBean(com.sskings.ecommerce.service.admin.AdminOrderService.class, () -> mock(com.sskings.ecommerce.service.admin.AdminOrderService.class))
                 .withBean(com.sskings.ecommerce.service.admin.AdminUserService.class, () -> mock(com.sskings.ecommerce.service.admin.AdminUserService.class))
                 .withBean(com.sskings.ecommerce.service.admin.AdminDashboardService.class, () -> mock(com.sskings.ecommerce.service.admin.AdminDashboardService.class))
+                .withBean(com.sskings.ecommerce.security.TotpService.class, () -> mock(com.sskings.ecommerce.security.TotpService.class))
+                .withBean(com.sskings.ecommerce.security.CryptoService.class, () -> mock(com.sskings.ecommerce.security.CryptoService.class))
+                .withBean(com.sskings.ecommerce.service.AuthService.class, () -> mock(com.sskings.ecommerce.service.AuthService.class))
+                .withBean(java.time.Clock.class, java.time.Clock::systemUTC)
                 .withPropertyValues("app.telegram-bot.enabled=true", "app.telegram-bot.token=" + TOKEN,
                         "app.telegram-bot.admins=1:a@b.com", "app.telegram-bot.api-url=http://127.0.0.1:1")
                 .run(ctx -> {
-                    assertThat(ctx).hasNotFailed().hasSingleBean(TelegramClient.class).hasSingleBean(TelegramOrderNotifier.class);
+                    assertThat(ctx).hasNotFailed().hasSingleBean(TelegramClient.class).hasSingleBean(TelegramOrderNotifier.class)
+                            .hasSingleBean(TelegramSessions.class);
                     assertThat(ctx.getBean(TelegramBotPoller.class).isRunning()).isTrue();
                 });
     }

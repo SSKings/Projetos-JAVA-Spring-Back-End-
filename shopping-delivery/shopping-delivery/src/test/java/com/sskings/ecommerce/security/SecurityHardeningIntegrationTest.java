@@ -150,7 +150,8 @@ class SecurityHardeningIntegrationTest {
         String token = login.get("token").asText();
         call(get("/api/admin/dashboard"), token, null, 403);
 
-        String secret = call(post("/api/account/mfa/setup"), token, null, 200).get("secret").asText();
+        call(post("/api/account/mfa/setup"), token, Map.of("password", "errada1"), 400);   // revisão 3, A1
+        String secret = call(post("/api/account/mfa/setup"), token, Map.of("password", "admin123"), 200).get("secret").asText();
         String withMfa = call(post("/api/account/mfa/enable"), token, Map.of("code", totp.currentCode(secret)), 200).get("token").asText();
         call(get("/api/admin/dashboard"), token, null, 401);          // sessão anterior ao MFA foi revogada
         call(get("/api/admin/dashboard"), withMfa, null, 200);
