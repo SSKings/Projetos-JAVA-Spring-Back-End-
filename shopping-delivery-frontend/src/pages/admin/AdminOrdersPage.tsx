@@ -1,6 +1,8 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { confirmPayment, getAdminOrders, refundPayment, updateOrderStatus } from '../../api/admin';
 import Pagination from '../../components/Pagination';
+import StepUpForm from '../../components/StepUpForm';
+import { useAuth } from '../../contexts/AuthContext';
 import type { AdminOrder, OrderStatus, Page } from '../../types';
 import { ORDER_STATUSES, formatBRL, formatDate, getErrorMessage, orderStatusConfig, paymentStatusConfig } from '../../utils/format';
 
@@ -12,6 +14,9 @@ export default function AdminOrdersPage() {
   const [status, setStatus] = useState<OrderStatus | undefined>();
   const [expanded, setExpanded] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const { user: me } = useAuth();
+  // Confirmar Pix e registrar estorno pedem senha (e MFA) de quem age — revisão 5, R5-2
+  const [pending, setPending] = useState<{ kind: 'pay' | 'refund'; order: AdminOrder } | null>(null);
   const [success, setSuccess] = useState('');
   const [savingId, setSavingId] = useState<number | null>(null);
 
@@ -40,37 +45,36 @@ export default function AdminOrdersPage() {
   };
 
   /** Pix estático: o admin confirma depois de ver o valor e o identificador no extrato do banco. */
-  const handleConfirmPayment = async (order: AdminOrder) => {
+  const handleConfirmPayment = (order: AdminOrder) => {
     setError('');
     setSuccess('');
-    if (!window.confirm(
-      `Confirmar o Pix do pedido #${order.id}? Faça isso só depois de ver ${formatBRL(order.total)} no extrato `
-      + `(identificador ${order.payment?.txid}).`,
-    )) return;
-    setSavingId(order.id);
-    try {
-      await confirmPayment(order.id);
-      setSuccess(`Pagamento do pedido #${order.id} confirmado. O pedido foi para Confirmado.`);
-      load();
-    } catch (err) {
-      setError(getErrorMessage(err, 'Não foi possível confirmar o pagamento.'));
-    } finally {
-      setSavingId(null);
-    }
+    setPending({ kind: 'pay', order });
   };
 
   /** Registra que o Pix foi devolvido pelo app do banco (estorno pendente ou arrependimento). */
-  const handleRefund = async (order: AdminOrder) => {
+  const handleRefund = (order: AdminOrder) => {
     setError('');
     setSuccess('');
-    if (!window.confirm(`Confirmar que o Pix de ${formatBRL(order.total)} do pedido #${order.id} já foi devolvido ao cliente?`)) return;
+    setPending({ kind: 'refund', order });
+  };
+
+  const confirmPending = async (password: string, mfaCode?: string) => {
+    if (!pending) return;
+    const { kind, order } = pending;
+    setError('');
     setSavingId(order.id);
     try {
-      await refundPayment(order.id);
-      setSuccess(`Estorno do pedido #${order.id} registrado.`);
+      if (kind === 'pay') {
+        await confirmPayment(order.id, password, mfaCode);
+        setSuccess(`Pagamento do pedido #${order.id} confirmado. O pedido foi para Confirmado.`);
+      } else {
+        await refundPayment(order.id, password, mfaCode);
+        setSuccess(`Estorno do pedido #${order.id} registrado.`);
+      }
+      setPending(null);
       load();
     } catch (err) {
-      setError(getErrorMessage(err, 'Não foi possível registrar o estorno.'));
+      setError(getErrorMessage(err, kind === 'pay' ? 'Não foi possível confirmar o pagamento.' : 'Não foi possível registrar o estorno.'));
     } finally {
       setSavingId(null);
     }
@@ -93,6 +97,17 @@ export default function AdminOrdersPage() {
       </div>
 
       {error && <div role="alert" className="mb-4 px-4 py-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
+
+      {pending && (
+        <StepUpForm label="Confirmar ação de pagamento" mfa={!!me?.mfaEnabled}
+                    onConfirm={confirmPending} onCancel={() => setPending(null)}>
+          {pending.kind === 'pay'
+            ? <><strong>Confirmar o Pix do pedido #{pending.order.id}</strong> — faça isso só depois de ver{' '}
+                {formatBRL(pending.order.total)} no extrato (identificador {pending.order.payment?.txid}).</>
+            : <><strong>Registrar o estorno do pedido #{pending.order.id}</strong> — só depois de devolver{' '}
+                {formatBRL(pending.order.total)} ao cliente pelo app do banco.</>}
+        </StepUpForm>
+      )}
       {success && <div role="status" className="mb-4 px-4 py-3 bg-green-50 text-green-700 rounded-lg text-sm">{success}</div>}
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">

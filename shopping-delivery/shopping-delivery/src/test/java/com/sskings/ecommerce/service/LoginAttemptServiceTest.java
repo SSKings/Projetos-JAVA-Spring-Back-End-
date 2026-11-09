@@ -127,9 +127,87 @@ class LoginAttemptServiceTest {
         assertThatThrownBy(() -> attempts.ensureLoginAllowed("travado@a.com", true)).isInstanceOf(TooManyRequestsException.class);
         assertThatThrownBy(() -> attempts.ensureReauthAllowed(1L)).isInstanceOf(TooManyRequestsException.class);
 
+        // conta com estouro recente: a limpeza não pode esquecer o bloqueio dela
+        for (int i = 0; i < LoginAttemptService.ACCOUNT_BUDGET; i++) {
+            fromIp("198.51.100." + i);
+            attempts.registerLoginFailure("atacada@a.com");
+        }
+        RequestContextHolder.resetRequestAttributes();
         now.set(T0.plus(Duration.ofMinutes(26)));
         attempts.registerReauthFailure(2L);                                        // dispara a limpeza
+        // o bloqueio venceu, mas o estouro não foi esquecido: o próximo estouro bloqueia 30 min (não 15)
+        for (int i = 0; i < LoginAttemptService.ACCOUNT_BUDGET; i++) {
+            fromIp("192.0.2." + i);
+            attempts.registerLoginFailure("atacada@a.com");
+        }
+        fromIp("203.0.113.200");
+        assertThatThrownBy(() -> attempts.ensureLoginAllowed("atacada@a.com", false))
+                .satisfies(e -> assertThat(((TooManyRequestsException) e).getRetryAfterSeconds()).isEqualTo(30 * 60 + 1));
+        RequestContextHolder.resetRequestAttributes();
         attempts.ensureLoginAllowed("travado@a.com", true);
         assertThat(attempts.registerLoginFailure("u1@a.com").lockedNow()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Revisão 5: a contagem por origem vence 15 min depois da última falha (erros espaçados não bloqueiam)")
+    void clientCountExpires() {
+        fromIp("203.0.113.1");
+        for (int day = 0; day < 10; day++) {
+            assertThat(attempts.registerLoginFailure("v@a.com").lockedNow()).isFalse();
+            now.set(now.get().plus(Duration.ofDays(1)));
+        }
+        attempts.ensureLoginAllowed("v@a.com", false);
+    }
+
+    @Test
+    @DisplayName("R5-1: cada estouro do teto em 24 h dobra o bloqueio da conta para origens novas (15, 30, 60 min...)")
+    void accountBlockGrowsWithEachStrike() {
+        long[] expectedMinutes = {15, 30, 60, 120};
+        Instant t = T0;
+        for (long minutes : expectedMinutes) {
+            now.set(t);
+            for (int i = 0; i < LoginAttemptService.ACCOUNT_BUDGET; i++) {
+                fromIp("198.51.100." + (i % 200));
+                attempts.registerLoginFailure("v@a.com");
+            }
+            fromIp("203.0.113.250");
+            Instant start = t;
+            assertThatThrownBy(() -> attempts.ensureLoginAllowed("v@a.com", false))
+                    .satisfies(e -> assertThat(((TooManyRequestsException) e).getRetryAfterSeconds())
+                            .isEqualTo(minutes * 60 + 1));
+            now.set(start.plus(Duration.ofMinutes(minutes)));
+            attempts.ensureLoginAllowed("v@a.com", false);                // venceu
+            t = start.plus(Duration.ofMinutes(minutes));
+        }
+        // 24 h sem estourar: volta para 15 min
+        now.set(t.plus(Duration.ofHours(25)));
+        for (int i = 0; i < LoginAttemptService.ACCOUNT_BUDGET; i++) {
+            fromIp("192.0.2." + i);
+            attempts.registerLoginFailure("v@a.com");
+        }
+        fromIp("203.0.113.251");
+        assertThatThrownBy(() -> attempts.ensureLoginAllowed("v@a.com", false))
+                .satisfies(e -> assertThat(((TooManyRequestsException) e).getRetryAfterSeconds()).isEqualTo(15 * 60 + 1));
+    }
+
+    @Test
+    @DisplayName("R5-1: o bloqueio da conta tem teto de 24 h; falha de origem confiável durante o bloqueio não abre janela")
+    void accountBlockIsCapped() {
+        long last = 0;
+        for (int strike = 0; strike < 9; strike++) {
+            for (int i = 0; i < LoginAttemptService.ACCOUNT_BUDGET; i++) {
+                fromIp("198.51.100." + i);
+                attempts.registerLoginFailure("w@a.com");
+            }
+            fromIp("192.0.2.1");                                            // origem confiável errando a senha
+            attempts.registerLoginFailure("w@a.com");                       // durante o bloqueio: ignorada na conta
+            fromIp("203.0.113.9");
+            long[] retry = {0};
+            assertThatThrownBy(() -> attempts.ensureLoginAllowed("w@a.com", false))
+                    .satisfies(e -> retry[0] = ((TooManyRequestsException) e).getRetryAfterSeconds());
+            last = retry[0];
+            now.set(now.get().plusSeconds(retry[0]));
+        }
+        assertThat(last).isEqualTo(LoginAttemptService.MAX_ACCOUNT_BLOCK.toSeconds() + 1);   // 15·2^8 min > 24 h
     }
 }

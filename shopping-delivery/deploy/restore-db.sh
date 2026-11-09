@@ -14,7 +14,8 @@ ENV_FILE=${ENV_FILE:-.env.prod}
 conf() { local v; v=$(grep -E "^$1=" "$ENV_FILE" | tail -n 1 | cut -d= -f2-) || true; printf '%s' "${v:-$2}"; }
 
 PASSPHRASE=${BACKUP_PASSPHRASE:-$(conf BACKUP_PASSPHRASE "")}
-DB_USER=$(conf DATABASE_USERNAME "")
+# dono das tabelas (revisão 5, R5-4): o usuário da API não tem permissão de recriar tabelas na restauração
+DB_USER=$(conf DATABASE_MIGRATION_USERNAME "")
 DB_NAME=$(conf DATABASE_NAME shopeasy)
 [ -n "$PASSPHRASE" ] || { echo "BACKUP_PASSPHRASE ausente" >&2; exit 1; }
 

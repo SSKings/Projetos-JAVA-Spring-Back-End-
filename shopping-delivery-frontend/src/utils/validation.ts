@@ -91,6 +91,7 @@ export function validateRegister(v: RegisterValues): FieldErrors<RegisterValues>
   else if (email.length > LIMITS.email) errors.email = `O email deve ter no máximo ${LIMITS.email} caracteres.`;
   else if (!EMAIL_RE.test(email)) errors.email = 'Informe um email válido, ex.: nome@dominio.com.';
   else if (/\.invalid$/i.test(email)) errors.email = 'Este domínio de email não é aceito.';
+  else if (!/^[\x21-\x7E]+$/.test(email)) errors.email = 'Use só letras sem acento, números e símbolos no email.';
 
   const passwordError = validatePassword(v.password);
   if (passwordError) errors.password = passwordError;

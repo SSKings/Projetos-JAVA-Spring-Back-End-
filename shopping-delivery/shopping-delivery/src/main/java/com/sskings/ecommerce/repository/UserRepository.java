@@ -40,4 +40,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // Admin
     Page<User> findAllByNameContainingIgnoreCaseOrEmailContainingIgnoreCase(String name, String email, Pageable pageable);
     long countByRole(Role role);
+
+    /** Admins que ainda podem entrar (revisão 5, R5-6: o último não pode excluir a própria conta). */
+    long countByRoleAndActiveTrueAndAnonymizedAtIsNull(Role role);
 }

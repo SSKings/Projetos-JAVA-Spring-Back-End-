@@ -30,6 +30,7 @@ import static org.mockito.Mockito.lenient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -41,6 +42,10 @@ class AdminOrderServiceTest {
     @Mock ProductRepository productRepository;
     @Mock PaymentService paymentService;
     @Mock com.sskings.ecommerce.service.AuditService auditService;
+    @Mock com.sskings.ecommerce.repository.UserRepository userRepository;
+    @Mock com.sskings.ecommerce.service.AccountService accountService;
+    @Mock org.springframework.context.ApplicationEventPublisher events;
+    private final User admin = User.builder().id(9L).email("chefe@a.com").role(com.sskings.ecommerce.model.enums.Role.ADMIN).build();
     @InjectMocks AdminOrderService service;
     private static final java.time.Instant NOW = java.time.Instant.parse("2026-11-05T12:00:00Z");
 
@@ -60,7 +65,8 @@ class AdminOrderServiceTest {
         lenient().when(orderRepository.findWithItemsById(1L)).thenReturn(Optional.of(order));
         // StockService real (com o ProductRepository mockado) para verificar a devolução do estoque
         service = new AdminOrderService(orderRepository, new StockService(productRepository), paymentService, auditService,
-                java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC));
+                java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC), userRepository, accountService, events);
+        lenient().when(userRepository.findById(9L)).thenReturn(Optional.of(admin));
     }
 
     private void withPayment(PaymentStatus status) {
@@ -115,19 +121,43 @@ class AdminOrderServiceTest {
     }
 
     @Test
-    @DisplayName("Confirmação manual do Pix delega ao PaymentService e devolve o pedido atualizado")
+    @DisplayName("R5-2: confirmação manual do Pix verifica o step-up ANTES, delega ao PaymentService e avisa os admins")
     void confirmPayment() {
-        var resp = service.confirmPayment(1L);
+        var stepUp = com.sskings.ecommerce.service.StepUp.password("minhaSenha1", "123456");
+        var resp = service.confirmPayment(1L, 9L, stepUp);
 
-        verify(paymentService).confirmByAdmin(1L);
+        var inOrder = org.mockito.Mockito.inOrder(accountService, paymentService);
+        inOrder.verify(accountService).verifyStepUp(admin, stepUp);
+        inOrder.verify(paymentService).confirmByAdmin(1L);
         assertThat(resp.id()).isEqualTo(1L);
+        verify(events).publishEvent(org.mockito.ArgumentMatchers.<Object>argThat(e ->
+                e instanceof com.sskings.ecommerce.event.SecurityAlertEvent a
+                        && a.text().contains("Pix do pedido #1") && a.text().contains("manualmente") && a.text().contains("admin #9")));
     }
 
     @Test
-    @DisplayName("Registro de estorno delega ao PaymentService")
+    @DisplayName("R5-2: step-up recusado não confirma Pix nem registra estorno, nem avisa")
+    void paymentsRequireStepUp() {
+        org.mockito.Mockito.doThrow(new BusinessException("Password confirmation required"))
+                .when(accountService).verifyStepUp(eq(admin), any());
+        assertThatThrownBy(() -> service.confirmPayment(1L, 9L, null)).hasMessage("Password confirmation required");
+        assertThatThrownBy(() -> service.refundPayment(1L, 9L, null)).hasMessage("Password confirmation required");
+        verify(paymentService, org.mockito.Mockito.never()).confirmByAdmin(any());
+        verify(paymentService, org.mockito.Mockito.never()).refundByAdmin(any());
+        verify(events, org.mockito.Mockito.never()).publishEvent(any());
+        given(userRepository.findById(404L)).willReturn(Optional.empty());
+        assertThatThrownBy(() -> service.confirmPayment(1L, 404L, null)).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("R5-2: registro de estorno verifica o step-up, delega ao PaymentService e avisa os admins")
     void refundPayment() {
-        assertThat(service.refundPayment(1L).id()).isEqualTo(1L);
+        var stepUp = com.sskings.ecommerce.service.StepUp.mfaCode("123456");
+        assertThat(service.refundPayment(1L, 9L, stepUp).id()).isEqualTo(1L);
+        verify(accountService).verifyStepUp(admin, stepUp);
         verify(paymentService).refundByAdmin(1L);
+        verify(events).publishEvent(org.mockito.ArgumentMatchers.<Object>argThat(e ->
+                e instanceof com.sskings.ecommerce.event.SecurityAlertEvent a && a.text().startsWith("Estorno do Pix do pedido #1")));
     }
 
     @Test

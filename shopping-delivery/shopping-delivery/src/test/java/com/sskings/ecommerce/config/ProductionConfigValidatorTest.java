@@ -79,4 +79,22 @@ class ProductionConfigValidatorTest {
         assertThat(ProductionConfigValidator.problems(security(STRONG, KEY, true, true), pix("k@loja.com.br", null),
                 CORS, null, DB)).hasSize(1);
     }
+
+    @Test
+    @DisplayName("Revisão 5: API com o dono das tabelas ou o superusuário do banco, ou ADMIN_PASSWORD previsível, é recusada")
+    void databaseUsersAndPredictableAdminPassword() {
+        assertThat(ProductionConfigValidator.databaseUserProblems("shopeasy_app", "shopeasy_owner")).isEmpty();
+        assertThat(ProductionConfigValidator.databaseUserProblems("shopeasy", "shopeasy")).singleElement()
+                .asString().contains("DATABASE_MIGRATION_USERNAME");
+        assertThat(ProductionConfigValidator.databaseUserProblems("shopeasy", "")).hasSize(1);
+        assertThat(ProductionConfigValidator.databaseUserProblems("postgres", "owner")).singleElement()
+                .asString().contains("not postgres");
+        assertThat(ProductionConfigValidator.databaseUserProblems(null, null)).hasSize(2);
+        assertThatThrownBy(() -> new ProductionConfigValidator(security(STRONG, KEY, true, true), pix("12345678000199", null),
+                CORS, "SenhaForte2026!", DB, "app", "app").afterPropertiesSet())
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("DATABASE_MIGRATION_USERNAME");
+
+        assertThat(ProductionConfigValidator.problems(security(STRONG, KEY, true, true), pix("k@loja.com.br", null),
+                CORS, "Administrador2026", DB)).singleElement().asString().contains("too predictable");
+    }
 }

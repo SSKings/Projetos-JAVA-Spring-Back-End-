@@ -57,7 +57,7 @@ class SecurityHardeningIntegrationTest {
 
     private String register(String email) throws Exception {
         return call(post("/api/auth/register"), null, Map.of("name", "Cliente Teste", "email", email,
-                "password", "senha12345", "acceptTerms", true), 201).get("token").asText();
+                "password", "Vagalume4821", "acceptTerms", true), 201).get("token").asText();
     }
 
     private static String email() {
@@ -112,14 +112,14 @@ class SecurityHardeningIntegrationTest {
     void logoutRevokesTokens() throws Exception {
         String mail = email();
         String token = register(mail);
-        String second = call(post("/api/auth/login"), null, Map.of("email", mail, "password", "senha12345"), 200).get("token").asText();
+        String second = call(post("/api/auth/login"), null, Map.of("email", mail, "password", "Vagalume4821"), 200).get("token").asText();
         call(get("/api/cart"), token, null, 200);
 
         call(post("/api/auth/logout"), token, null, 204);
 
         call(get("/api/cart"), token, null, 401);
         call(get("/api/cart"), second, null, 401);
-        String fresh = call(post("/api/auth/login"), null, Map.of("email", mail, "password", "senha12345"), 200).get("token").asText();
+        String fresh = call(post("/api/auth/login"), null, Map.of("email", mail, "password", "Vagalume4821"), 200).get("token").asText();
         call(get("/api/cart"), fresh, null, 200);
     }
 
@@ -132,7 +132,7 @@ class SecurityHardeningIntegrationTest {
             call(post("/api/auth/login"), null, Map.of("email", mail, "password", "errada" + i), 400);
         }
         String retryAfter = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json.writeValueAsString(Map.of("email", mail, "password", "senha12345"))))
+                        .content(json.writeValueAsString(Map.of("email", mail, "password", "Vagalume4821"))))
                 .andExpect(status().isTooManyRequests()).andReturn().getResponse().getHeader("Retry-After");
         assertThat(Long.parseLong(retryAfter)).isBetween(1L, 15 * 60L + 1);
     }
@@ -179,10 +179,10 @@ class SecurityHardeningIntegrationTest {
         assertThat(export.get("profile").get("termsVersion").asText()).isNotBlank();
 
         call(post("/api/account/delete"), token, Map.of("password", "errada"), 400);
-        call(post("/api/account/delete"), token, Map.of("password", "senha12345"), 204);
+        call(post("/api/account/delete"), token, Map.of("password", "Vagalume4821"), 204);
 
         call(get("/api/account"), token, null, 401);
-        call(post("/api/auth/login"), null, Map.of("email", mail, "password", "senha12345"), 400);
+        call(post("/api/auth/login"), null, Map.of("email", mail, "password", "Vagalume4821"), 400);
         assertThat(userRepository.findByEmail(mail)).isEmpty();
     }
 }

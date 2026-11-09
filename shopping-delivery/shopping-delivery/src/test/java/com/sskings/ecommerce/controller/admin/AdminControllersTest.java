@@ -244,9 +244,32 @@ class AdminControllersTest {
     @Test
     @DisplayName("POST /api/admin/orders/{id}/payment/refund registra o estorno")
     void refund() throws Exception {
-        given(orderService.refundPayment(5L)).willReturn(order(OrderStatus.CANCELLED));
-        mockMvc.perform(post("/api/admin/orders/5/payment/refund").with(user(ADMIN)))
+        given(orderService.refundPayment(eq(5L), eq(1L), any())).willReturn(order(OrderStatus.CANCELLED));
+        mockMvc.perform(post("/api/admin/orders/5/payment/refund").with(user(ADMIN))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"password\":\"minhaSenha1\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
+        org.mockito.BDDMockito.then(orderService).should().refundPayment(5L, 1L,
+                com.sskings.ecommerce.service.StepUp.password("minhaSenha1", null));
+    }
+
+    @Test
+    @DisplayName("R5-2: confirmar Pix e estornar exigem a senha no corpo (sem corpo/senha → 400, nada é chamado)")
+    void paymentActionsRequirePassword() throws Exception {
+        for (String path : new String[]{"/api/admin/orders/5/payment/confirm", "/api/admin/orders/5/payment/refund"}) {
+            mockMvc.perform(post(path).with(user(ADMIN))).andExpect(status().isBadRequest());
+            mockMvc.perform(post(path).with(user(ADMIN)).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isBadRequest());
+        }
+        org.mockito.BDDMockito.then(orderService).should(org.mockito.Mockito.never()).confirmPayment(any(), any(), any());
+        org.mockito.BDDMockito.then(orderService).should(org.mockito.Mockito.never()).refundPayment(any(), any(), any());
+
+        given(orderService.confirmPayment(eq(5L), eq(1L), any())).willReturn(order(OrderStatus.CONFIRMED));
+        mockMvc.perform(post("/api/admin/orders/5/payment/confirm").with(user(ADMIN))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"minhaSenha1\",\"mfaCode\":\"123456\"}"))
+                .andExpect(status().isOk());
+        org.mockito.BDDMockito.then(orderService).should().confirmPayment(5L, 1L,
+                com.sskings.ecommerce.service.StepUp.password("minhaSenha1", "123456"));
     }
 }

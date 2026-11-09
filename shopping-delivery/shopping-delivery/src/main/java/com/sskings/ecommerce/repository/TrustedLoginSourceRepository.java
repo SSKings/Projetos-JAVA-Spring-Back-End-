@@ -12,4 +12,10 @@ public interface TrustedLoginSourceRepository extends JpaRepository<TrustedLogin
     Optional<TrustedLoginSource> findByUserIdAndSourceKey(Long userId, String sourceKey);
     List<TrustedLoginSource> findAllByUserIdOrderByLastSuccessAtDesc(Long userId);
     void deleteAllByUserId(Long userId);
+
+    /** Retenção (revisão 5, R5-5): origens sem login há mais que o prazo, inclusive de quem nunca mais voltou. */
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("delete from TrustedLoginSource t where t.lastSuccessAt < :before")
+    int deleteOlderThan(@org.springframework.data.repository.query.Param("before") LocalDateTime before);
 }

@@ -84,6 +84,12 @@ public class AccountService {
     public void deleteAccount(Long userId, PasswordConfirmationRequest request) {
         User user = load(userId);
         reauthenticate(user, request);
+        // Revisão 5, R5-6: sem isso a loja ficava sem admin e, no restart, o AdminSeeder recriava a conta com a
+        // ADMIN_PASSWORD que ficou no .env.prod
+        if (user.getRole() == com.sskings.ecommerce.model.enums.Role.ADMIN
+                && userRepository.countByRoleAndActiveTrueAndAnonymizedAtIsNull(com.sskings.ecommerce.model.enums.Role.ADMIN) <= 1) {
+            throw new BusinessException("The last active admin cannot delete the account. Promote another admin first");
+        }
         if (orderRepository.existsByUserIdAndStatusIn(userId, IN_PROGRESS)) {
             throw new BusinessException("Account has orders in progress");
         }
@@ -117,6 +123,8 @@ public class AccountService {
     public AuthResponse changePassword(Long userId, ChangePasswordRequest request) {
         User user = load(userId);
         reauthenticate(user, new PasswordConfirmationRequest(request.currentPassword(), request.mfaCode()));
+        com.sskings.ecommerce.security.PasswordStrength.problem(request.newPassword(), user.getName(), user.getEmail())
+                .ifPresent(p -> { throw new BusinessException(p); });
         if (passwordEncoder.matches(request.newPassword(), user.getPassword())) {
             throw new BusinessException("New password must be different from the current one");
         }
@@ -195,6 +203,30 @@ public class AccountService {
                 authService.registerReauthFailure(user, "reauthentication: invalid MFA code");
                 throw new BusinessException("Invalid MFA code");
             }
+        }
+        authService.clearReauthFailures(user);
+    }
+
+    /**
+     * Step-up para ações de admin com efeito financeiro ou de privilégio (revisões 4 e 5). Sem a confirmação →
+     * "Password confirmation required" (não conta como falha); confirmação errada conta para o bloqueio.
+     */
+    public void verifyStepUp(User user, StepUp stepUp) {
+        if (stepUp == null) throw new BusinessException("Password confirmation required");
+        if (!stepUp.mfaOnly()) {
+            if (stepUp.password() == null || stepUp.password().isBlank()) {
+                throw new BusinessException("Password confirmation required");
+            }
+            reauthenticate(user, new PasswordConfirmationRequest(stepUp.password(), stepUp.mfaCode()));
+            return;
+        }
+        if (!user.isMfaEnabled()) throw new BusinessException("MFA is not enabled");
+        authService.ensureReauthAllowed(user);
+        var step = stepUp.mfaCode() == null || !stepUp.mfaCode().matches("\\d{6}") ? java.util.OptionalLong.empty()
+                : totpService.verify(cryptoService.decrypt(user.getMfaSecret()), stepUp.mfaCode(), user.getMfaLastStep());
+        if (step.isEmpty() || !authService.claimMfaStep(user, step.getAsLong())) {
+            authService.registerReauthFailure(user, "step-up: invalid MFA code");
+            throw new BusinessException("Invalid MFA code");
         }
         authService.clearReauthFailures(user);
     }

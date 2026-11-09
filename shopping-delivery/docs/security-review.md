@@ -4,6 +4,7 @@ Data: 2026-11-05 · Escopo: `shopping-delivery/shopping-delivery` (API) e `shopp
 **Revisão 2: 2026-11-06** (sobre o código já corrigido) — ver [seção 6](#6-revisão-2--2026-11-06).
 **Revisão 3: 2026-11-08/09** (pentest de todo o monorepo, foco em produção) — ver [seção 9](#9-revisão-3--2026-11-0809).
 **Revisão 4: 2026-11-09** (pentest sobre as correções da revisão 3) — ver [seção 10](#10-revisão-4--2026-11-09).
+**Revisão 5: 2026-11-09** (pentest sobre a revisão 4) — ver [seção 11](#11-revisão-5--2026-11-09).
 
 **Método**
 - Revisão do código: autenticação, autorização, validação, pagamento e configuração.
@@ -483,12 +484,30 @@ Cada falha desta revisão virou uma regra. Na dúvida, o PR não entra. O CI já
     antigo deixou de cobrir com a regra nova (não basta ficar verde).
 14. **Limite contra força bruta sempre tem um teto que não depende da origem** (por conta ou por sessão); bloquear o
     dono nunca é a saída — use origens confiáveis, espera ou CAPTCHA (R4-1).
-15. **Ação administrativa que cria ou remove poder** (papel de admin, bloquear admin) exige a senha e o MFA de quem
-    age e avisa os outros admins (R4-3).
+15. **Ação administrativa sensível exige step-up e avisa os outros admins.** "Sensível" = cria/remove poder (papel,
+    bloquear admin — R4-3) **ou move dinheiro/mercadoria** (confirmar Pix, estornar — R5-2). Antes de criar uma ação
+    de admin, pergunte: *com só o token de admin roubado, o atacante ganha algo com isto?* Se sim, `StepUp`.
 16. **Nunca grave uma entidade lida fora da transação** (`save` de objeto antigo desfaz mudanças feitas no meio); para
     campos de controle use `UPDATE` condicional atômico (R4-6/R4-7).
 17. **Estrutura em memória com limite:** a limpeza roda no máximo de tempos em tempos, nunca a cada requisição (cheia
     de entradas válidas, virava O(n) por chamada — revisão 4).
+18. **Senha:** além do formato, recusar senhas comuns, palavras óbvias com números e dados da própria pessoa
+    (`PasswordStrength`); o teto de tentativas por conta é progressivo (R5-1). Senha de fixture de teste nunca é
+    "senha123": use uma que passe na política (`Vagalume4821`).
+19. **Identificador que aparece para humanos (e-mail, nome de usuário) só em ASCII** (ou normalizado): letras de outro
+    alfabeto imitam contas reais (R5-3).
+20. **Privilégio mínimo também no banco:** a API usa um usuário só de DML; migrações com o dono; superusuário só para
+    criar o banco. Segredo que um container não usa não entra nele (R5-4).
+21. **Dado pessoal novo nasce com prazo de retenção, exportação e exclusão** — tabela ou campo com IP, e-mail ou
+    documento entra no `DataRetentionJob`, na exportação LGPD e na anonimização (R5-5).
+22. **Invariantes do sistema:** "sempre existe um admin", "estoque nunca negativo" etc. são checados no serviço, não
+    só na interface (R5-6).
+23. **Verificar-e-depois-agir sobre estado compartilhado é corrida:** use uma operação atômica (`compute`, `UPDATE`
+    condicional, trava de linha) — R4-7, R5-7.
+24. **Toda imagem executada em produção ou no CI, inclusive em scripts, por digest** (`check-pinning.py` cobre
+    `Dockerfile`, compose e `*IMAGE=` em scripts — R5-8).
+25. **Validar a pilha de produção de verdade** (`load-tests/prod-like/prod-like.sh up` + smoke) quando mudar
+    configuração de produção: a revisão 3 deixou o `prod-like` sem subir (allowlist do webhook) por duas revisões.
 
 ---
 
@@ -522,4 +541,48 @@ leitura do código novo da revisão 3, OSV (103 dependências, 0 sem justificati
 - **"3 Pix abandonados"** também conta pedidos sem pagamento cancelados pelo admin; é raro e a janela é de 24 h.
 - **Rate limit do nginx por endereço IPv6 (/128):** a API já agrupa por /64; o nginx continua por endereço.
 - **Continuam da revisão 3:** token no `localStorage`, recuperação de senha e códigos de recuperação do MFA, verificação de e-mail.
+
+---
+
+## 11. Revisão 5 — 2026-11-09
+
+Pentest sobre a `main` com a revisão 4 (`b30923c`), mirando o que um token de admin roubado ainda faz, a política de
+senha, privilégios do banco, CI e os dados pessoais que a própria revisão 4 criou. Cada correção tem teste que
+**falha no código anterior** (conferido) e os ataques das revisões 3, 4 e 5 foram refeitos ao vivo de origens
+distintas. A pilha de produção (PostgreSQL + API `prod` + nginx/TLS) foi **subida e testada** — e assim apareceu que
+ela não subia desde a revisão 3 (regra 25).
+
+### Achados e correções
+
+| # | Severidade | Achado | Evidência (antes) | Correção | Teste |
+|---|------------|--------|-------------------|----------|-------|
+| R5-1 | Média | **Senhas óbvias aceitas**, e o teto de 20 falhas/15 min renovava: ~1.900 chutes/dia por conta | `password1`, `senha123`, `12345678a`, `qwerty123`, `admin123`, `shopeasy1`, `Mudar123` → 201 | `PasswordStrength`: lista de senhas comuns (SecLists, fixada por commit e sha256), palavra fraca com números em volta (inclusive `p4ssw0rd`, `S3nh@`), quase só números, nome da loja/e-mail/nome da pessoa. No cadastro, na troca de senha e na `ADMIN_PASSWORD` de produção. Teto por conta **progressivo**: cada estouro dobra o bloqueio (15, 30, 60 min… até 24 h), esquecido 24 h depois do fim do último | `predictablePasswordsAreRefused`, `PasswordStrengthTest`, `LoginAttemptServiceTest` (R5-1) |
+| R5-2 | Média | **Token de admin roubado marcava o próprio pedido como pago** | `POST /payment/confirm` → 200; depois `SHIPPED` → 200: pedido enviado sem Pix | Confirmar Pix e estornar exigem **step-up** (`StepUp`: senha + MFA no painel; no bot, `/pix 12 <código novo>`) e avisam todos os admins. Mudar status já recusava enviar com Pix pendente | `stolenAdminTokenCannotConfirmPix`, `AdminOrderServiceTest`, `AdminControllersTest`, `TelegramAdminBotTest.payments`, `admin.test.tsx` |
+| R5-3 | Baixa | **E-mail parecido com o do admin** (`аdmin@…` com "а" cirílico) | Cadastro 201; painel com duas contas idênticas | Cadastro só aceita e-mail ASCII (back e front) | `lookalikeEmailIsRefused`, `validation.test.ts` |
+| R5-4 | Baixa | **API usava o superusuário do PostgreSQL** (falha de SQL = controle do banco e do container) | Por análise | Três usuários: superusuário só cria o banco (`deploy/db-init/01-roles.sh`), dono das tabelas só migra (`spring.flyway.user`), API só DML. Callback do Flyway tira da API o histórico de migrações. A senha do superusuário não entra no container da API. `ProductionConfigValidator` recusa usuário da API igual ao dono/`postgres`. Backup/restore com o dono | Script testado em banco novo e antigo (API: `CREATE`/`ALTER`/`DROP`/`COPY PROGRAM` → negado); pilha `prod-like` subida; `ProductionConfigValidatorTest`, `test_backup_db.py` |
+| R5-5 | Baixa | **Dados pessoais sem prazo**: auditoria (IP, e-mail) para sempre; origens confiáveis de quem não volta | Por análise | `DataRetentionJob` diário: auditoria além de `AUDIT_RETENTION_DAYS` (padrão 365, mínimo 180 — Marco Civil) e origens sem login há 90 dias | `DataRetentionJobTest` |
+| R5-6 | Baixa | **O último admin podia excluir a própria conta** (loja sem admin; no restart, conta recriada com a `ADMIN_PASSWORD` do `.env`) | Por análise | Exclusão recusada para o último admin ativo | `lastAdminCannotDeleteAccount`, `AccountServiceTest` |
+| R5-7 | Baixa | **Corrida no limite de cadastros** (verifica, depois registra) | **Confirmado no teste:** no código anterior, com limite 2, passaram **10 de 20** cadastros simultâneos | Reserva atômica da vaga (`RegistrationLimiter.acquire`) | `concurrentRegistrationsRespectTheLimit`, `RegistrationLimiterTest` |
+| R5-8 | Baixa | **Imagem do k6 por tag no CI** (roda com o repositório montado) | Por análise | Fixada por digest; `check-pinning.py` também olha `*IMAGE=` em scripts | `test_check_pinning.py` |
+| — | Baixa (achado na correção) | O `prod-like` **não subia desde a revisão 3**: o webhook ligado exige `PIX_WEBHOOK_ALLOWED_IPS` (B4) e o script gerava vazio | `ProductionConfigValidator` recusava o startup | Script gera a allowlist e os três usuários do banco | pilha subida (regra 25) |
+| — | Baixa (achado na correção) | A contagem de falhas **por origem nunca vencia** antes do bloqueio: um erro por dia bloqueava no 5º dia | Por análise do teste | Contagem vence 15 min depois da última falha | `LoginAttemptServiceTest.clientCountExpires` |
+
+**Falso positivo descartado:** a exportação LGPD não traz a tabela de origens confiáveis, mas os mesmos IPs já saem
+nos eventos de segurança (auditoria) — nenhum dado fica de fora.
+
+### Banco já existente (atualização para a revisão 5)
+O `01-roles.sh` roda sozinho só em volume novo. Num banco que já existe (tabelas do usuário antigo):
+1. No `.env.prod`: `DATABASE_ADMIN_USERNAME` = o usuário antigo (ele é o superusuário do volume) e a senha dele em
+   `DATABASE_ADMIN_PASSWORD`; crie `DATABASE_MIGRATION_*` e um **novo** `DATABASE_USERNAME`/`DATABASE_PASSWORD`.
+2. `docker compose -f docker-compose.prod.yml --env-file .env.prod up -d db`
+3. `docker compose -f docker-compose.prod.yml --env-file .env.prod exec db bash /docker-entrypoint-initdb.d/01-roles.sh`
+   (passa as tabelas para o dono e dá só DML à API; pode rodar de novo).
+4. Suba a API.
+
+### Aceito / pendente
+- **Lista de senhas comuns local** (~370 entradas que passariam no formato): não cobre vazamentos novos. Uma consulta
+  k-anonymity ao Have I Been Pwned exigiria saída para a internet no cadastro; fica como melhoria.
+- **Retenção da auditoria em 365 dias** é um padrão técnico: o prazo final depende do jurídico (defesa em processos x
+  minimização).
+- **Continuam:** token no `localStorage`, verificação de e-mail, recuperação de senha e de MFA, limite IPv6 /64 no nginx.
 

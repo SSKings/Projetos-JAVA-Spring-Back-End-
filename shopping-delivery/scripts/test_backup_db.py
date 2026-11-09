@@ -60,7 +60,7 @@ class BackupScriptsTest(unittest.TestCase):
         shutil.rmtree(self.tmp)
 
     def write_env(self, **extra):
-        values = {"DATABASE_USERNAME": "shopeasy", "DATABASE_NAME": "shopeasy",
+        values = {"DATABASE_USERNAME": "shopeasy_app", "DATABASE_MIGRATION_USERNAME": "shopeasy_owner", "DATABASE_NAME": "shopeasy",
                   "BACKUP_DIR": str(self.backups), "BACKUP_KEEP_DAYS": "14", **extra}
         # linha maliciosa: o script não pode executar o .env.prod (lê com grep, não com source)
         text = "\n".join(f"{k}={v}" for k, v in values.items()) + f"\n$(touch {self.tmp}/pwned)\n"
@@ -88,7 +88,9 @@ class BackupScriptsTest(unittest.TestCase):
         r = self.run_script("restore-db.sh", str(backup), RESTORE_CONFIRM="shopeasy")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual((self.tmp / "restored").read_text(), DUMP)
-        self.assertIn("--single-transaction", (self.tmp / "restored.args").read_text())
+        args = (self.tmp / "restored.args").read_text()
+        self.assertIn("--single-transaction", args)
+        self.assertIn("-U shopeasy_owner", args)   # revisão 5: restaura com o dono, não com o usuário da API
 
     def test_missing_or_short_passphrase_refuses(self):
         self.write_env(BACKUP_PASSPHRASE="curta")

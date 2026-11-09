@@ -11,7 +11,8 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-K6_IMAGE="grafana/k6:1.3.0"
+# Por digest (revisão 5, R5-8). Sem comentário no fim da linha: o CI lê o valor com sed (ci.yml, "k6 inspect").
+K6_IMAGE="grafana/k6:1.3.0@sha256:3ddc8b1a33a2c3d8edc6e99b6a762ae36cba08788463458f5e6a7703e14eb77d"
 
 usage() { sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2; }
 test_name="${1:-}"

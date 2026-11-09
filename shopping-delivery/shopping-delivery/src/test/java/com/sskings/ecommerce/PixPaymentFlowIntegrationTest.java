@@ -44,7 +44,7 @@ class PixPaymentFlowIntegrationTest {
     private String register() throws Exception {
         String email = "pix-" + UUID.randomUUID() + "@teste.com";
         return call(post("/api/auth/register"), null,
-                java.util.Map.of("name", "Cliente Pix", "email", email, "password", "abc12345", "acceptTerms", true), 201).get("token").asText();
+                java.util.Map.of("name", "Cliente Pix", "email", email, "password", "Vagalume4821", "acceptTerms", true), 201).get("token").asText();
     }
 
     private JsonNode checkout(String token) throws Exception {
@@ -114,11 +114,15 @@ class PixPaymentFlowIntegrationTest {
         String admin = admin();
         long first = checkout(customer).get("id").asLong();
 
-        JsonNode confirmed = call(post("/api/admin/orders/" + first + "/payment/confirm"), admin, null, 200);
+        // revisão 5 (R5-2): sem a senha do admin, nada é confirmado
+        call(post("/api/admin/orders/" + first + "/payment/confirm"), admin, java.util.Map.of(), 400);
+        call(post("/api/admin/orders/" + first + "/payment/confirm"), admin, java.util.Map.of("password", "errada123"), 400);
+        JsonNode confirmed = call(post("/api/admin/orders/" + first + "/payment/confirm"), admin,
+                java.util.Map.of("password", adminPassword), 200);
         assertThat(confirmed.get("status").asText()).isEqualTo("CONFIRMED");
         assertThat(confirmed.get("payment").get("status").asText()).isEqualTo("PAID");
         assertThat(confirmed.get("nextStatuses").toString()).isEqualTo("[\"SHIPPED\",\"DELIVERED\",\"CANCELLED\"]");
-        call(post("/api/admin/orders/" + first + "/payment/confirm"), admin, null, 400); // já pago
+        call(post("/api/admin/orders/" + first + "/payment/confirm"), admin, java.util.Map.of("password", adminPassword), 400); // já pago
 
         int stock = stockOfProduct1();
         long second = checkout(customer).get("id").asLong();
@@ -128,6 +132,6 @@ class PixPaymentFlowIntegrationTest {
         assertThat(stockOfProduct1()).isEqualTo(stock);
 
         // cliente não usa a rota de admin
-        call(post("/api/admin/orders/" + second + "/payment/confirm"), customer, null, 403);
+        call(post("/api/admin/orders/" + second + "/payment/confirm"), customer, java.util.Map.of("password", "x"), 403);
     }
 }

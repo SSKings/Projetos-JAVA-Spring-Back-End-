@@ -142,7 +142,7 @@ class ConcurrencyIntegrationTest {
             AtomicInteger created = new AtomicInteger();
 
             List<Throwable> errors = concurrently(() -> {
-                authService.register(new RegisterRequest("Cliente", email, "senha12345", null, true));
+                authService.register(new RegisterRequest("Cliente", email, "Vagalume4821", null, true));
                 return created.incrementAndGet();
             });
 

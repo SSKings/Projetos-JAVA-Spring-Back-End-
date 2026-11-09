@@ -29,7 +29,7 @@ class RegistrationLimitIntegrationTest {
         return mvc.perform(post("/api/auth/register").with(r -> { r.setRemoteAddr(ip); return r; })
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(Map.of("name", "Conta Teste", "email", UUID.randomUUID() + "@teste.com",
-                                "password", "senha12345", "acceptTerms", true))))
+                                "password", "Vagalume4821", "acceptTerms", true))))
                 .andReturn().getResponse().getStatus();
     }
 
@@ -40,5 +40,22 @@ class RegistrationLimitIntegrationTest {
         assertThat(register("2001:db8:aa:1::2")).isEqualTo(201);
         assertThat(register("2001:db8:aa:1::3")).isEqualTo(429);
         assertThat(register("198.51.100.9")).isEqualTo(201);
+    }
+
+    @Test
+    @DisplayName("R5-7: 20 cadastros simultâneos da mesma origem — só 2 passam (reserva atômica)")
+    void concurrentRegistrationsRespectTheLimit() throws Exception {
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(10);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var results = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
+        for (int i = 0; i < 20; i++) {
+            results.add(pool.submit(() -> { start.await(); return register("203.0.113.77"); }));
+        }
+        start.countDown();
+        java.util.List<Integer> statuses = new java.util.ArrayList<>();
+        for (var f : results) statuses.add(f.get(30, java.util.concurrent.TimeUnit.SECONDS));
+        pool.shutdown();
+        assertThat(statuses.stream().filter(s -> s == 201).count()).isEqualTo(2);
+        assertThat(statuses.stream().filter(s -> s == 429).count()).isEqualTo(18);
     }
 }

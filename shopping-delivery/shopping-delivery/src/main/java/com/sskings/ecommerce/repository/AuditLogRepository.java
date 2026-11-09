@@ -10,6 +10,12 @@ import org.springframework.data.repository.query.Param;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
+    /** Retenção (revisão 5, R5-5): apaga eventos mais antigos que o prazo. */
+    @org.springframework.transaction.annotation.Transactional
+    @Modifying
+    @Query("delete from AuditLog a where a.createdAt < :before")
+    int deleteOlderThan(@Param("before") java.time.LocalDateTime before);
+
     Page<AuditLog> findAllByAction(String action, Pageable pageable);
 
     java.util.List<AuditLog> findTop500ByActorIdOrderByCreatedAtDesc(Long actorId);

@@ -33,25 +33,26 @@ public class RegistrationLimiter {
         this.clock = clock;
     }
 
-    /** 429 se esta origem já criou o máximo de contas nas últimas 24 h. */
-    public void check(String source) {
-        if ("-".equals(source)) return;
-        Instant now = clock.instant();
-        Window w = bySource.get(source);
-        if (w != null && w.start().plus(Duration.ofDays(1)).isAfter(now) && w.count() >= perDay) {
-            throw new TooManyRequestsException("Too many accounts created from this network today. Try again later",
-                    Duration.between(now, w.start().plus(Duration.ofDays(1))).toSeconds() + 1);
-        }
-    }
-
-    public void record(String source) {
+    /**
+     * Reserva uma vaga de cadastro para a origem numa operação só (revisão 5, R5-7): "verificar e depois registrar"
+     * deixava cadastros simultâneos da mesma origem passarem juntos do limite. A vaga é gasta mesmo se o cadastro
+     * falhar depois (email em uso, senha fraca): tentativas também contam.
+     * @throws TooManyRequestsException se a origem já usou as vagas das últimas 24 h
+     */
+    public void acquire(String source) {
         if ("-".equals(source)) return;
         Instant now = clock.instant();
         if (bySource.size() >= MAX_TRACKED && (lastEviction == null || !lastEviction.plusSeconds(60).isAfter(now))) {
-            lastEviction = now;   // no máximo 1 varredura por minuto (senão, cheio, cada cadastro varria o mapa inteiro)
+            lastEviction = now;   // no máximo 1 varredura por minuto
             bySource.entrySet().removeIf(e -> !e.getValue().start().plus(Duration.ofDays(1)).isAfter(now));
         }
-        bySource.compute(source, (k, w) -> w == null || !w.start().plus(Duration.ofDays(1)).isAfter(now)
-                ? new Window(now, 1) : new Window(w.start(), w.count() + 1));
+        bySource.compute(source, (k, w) -> {
+            if (w == null || !w.start().plus(Duration.ofDays(1)).isAfter(now)) return new Window(now, 1);
+            if (w.count() >= perDay) {
+                throw new TooManyRequestsException("Too many accounts created from this network today. Try again later",
+                        Duration.between(now, w.start().plus(Duration.ofDays(1))).toSeconds() + 1);
+            }
+            return new Window(w.start(), w.count() + 1);
+        });
     }
 }

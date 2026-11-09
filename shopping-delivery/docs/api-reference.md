@@ -27,6 +27,11 @@ permissão: a sessão continua. Corpo: `{"status":401,"message":"Authentication 
   As duas regras valem **igualmente para emails não cadastrados**, para que a resposta não revele quem tem conta.
 - A reautenticação (`/api/account/delete`, `/password`, `/mfa/setup`, `/mfa/disable`, `PATCH /api/admin/users/{id}`
   sensível, `/entrar` do bot) tem bloqueio próprio **por conta**, de qualquer IP: 5 falhas → 15 min. Não afeta o login.
+- Senha (cadastro e troca): além de 8+ caracteres com letras e números, recusa senha comum, palavra óbvia com números
+  em volta ("senha123", "Admin2026!", "p4ssw0rd") e senha com o nome da loja, o e-mail ou o nome da pessoa →
+  `400 Password is too common. Choose a less predictable one` / `Password must not contain your name, your email or
+  the store name` (revisão 5, R5-1). O teto por conta é progressivo: cada estouro dobra o bloqueio (até 24 h).
+- E-mail do cadastro só em ASCII (`Email must use only unaccented letters, numbers and symbols`, R5-3).
 - Cadastro: no máximo 10 contas novas por origem em 24 h (`REGISTRATIONS_PER_DAY`) → `429 Too many accounts created
   from this network today. Try again later`. E-mails do domínio reservado `.invalid` são recusados (`Email domain is not allowed`).
 - Carrinho e checkout (revisões 3 e 4): até **10 unidades por produto** (somando os pedidos que aguardam pagamento),
@@ -149,7 +154,7 @@ Revoga **todos** os tokens do usuário (este e os de outros dispositivos). **204
 | GET    | `/api/account` | Perfil: nome, email, telefone, papel, MFA, versão e data do aceite dos termos |
 | PUT    | `/api/account` | Correção (art. 18, III): `{ "name": "...", "phone": "..." }` |
 | GET    | `/api/account/data-export` | Acesso/portabilidade (art. 18, II e V): JSON com perfil, endereços, pedidos e eventos de segurança (`Content-Disposition: attachment`) |
-| POST   | `/api/account/delete` | Eliminação (art. 18, VI): `{ "password": "...", "mfaCode": "..." }` → **204**. Anonimiza a conta; pedidos ficam sem vínculo pessoal. `400 Account has orders in progress` / `Invalid password` / `Invalid MFA code` · `429` após 5 falhas (mesmo bloqueio do login) |
+| POST   | `/api/account/delete` | Eliminação (art. 18, VI): `{ "password": "...", "mfaCode": "..." }` → **204**. Anonimiza a conta; pedidos ficam sem vínculo pessoal. `400 Account has orders in progress` / `Invalid password` / `Invalid MFA code` / `The last active admin cannot delete the account. Promote another admin first` (R5-6) · `429` após 5 falhas (bloqueio de reautenticação) |
 | POST   | `/api/account/password` | `{ "currentPassword": "...", "newPassword": "...", "mfaCode": "123456" }` (código só com MFA ativo) → troca a senha, **revoga todas as sessões** e devolve um novo `AuthResponse`. Mesma política do cadastro. `400 Invalid password` / `Invalid MFA code` / `New password must be different from the current one` · `429` (bloqueio) |
 | POST   | `/api/account/mfa/setup` | `{ "password": "..." }` (revisão 3: só o token não basta) → gera o segredo TOTP: `{ "secret": "BASE32", "otpauthUri": "otpauth://totp/ShopEasy:..." }` (QR Code). `400 Invalid password` · `429` |
 | POST   | `/api/account/mfa/enable` | `{ "code": "123456" }` → ativa, revoga sessões antigas e devolve um **novo** `AuthResponse` |
@@ -617,7 +622,7 @@ Clientes comuns recebem **403**. O login/registro agora também retornam `role` 
 | GET    | `/api/admin/orders?status=&page=&size=` | Lista todos os pedidos (com cliente) |
 | GET    | `/api/admin/orders/{id}` | Detalhe |
 | PATCH  | `/api/admin/orders/{id}/status` | Body `{ "status": "SHIPPED" }` |
-| POST   | `/api/admin/orders/{id}/payment/confirm` | Confirma o Pix manualmente (após conferir o extrato); pedido → `CONFIRMED`. 400 `Payment is not pending` |
+| POST   | `/api/admin/orders/{id}/payment/confirm` | Confirma o Pix manualmente (após conferir o extrato); pedido → `CONFIRMED`. Body **obrigatório** com o step-up do admin: `{ "password": "...", "mfaCode": "123456" }` (revisão 5, R5-2) → `400 Password confirmation required` / `Invalid password` / `Invalid MFA code`; avisa todos os admins no Telegram. 400 `Payment is not pending` |
 
 Pedido com Pix **não pago** só pode ir para `CANCELLED` (`nextStatuses = ["CANCELLED"]`); outra transição
 retorna 400 `Order payment is pending`. Cancelar com Pix pendente cancela a cobrança; com Pix pago, marca
@@ -642,7 +647,7 @@ Toda resposta de pedido do admin traz `nextStatuses` — as transições permiti
   "nextStatuses": ["SHIPPED", "DELIVERED", "CANCELLED"] }
 ```
 
-Estorno: `POST /api/admin/orders/{id}/payment/refund` — registra que o Pix foi devolvido (pagamento
+Estorno: `POST /api/admin/orders/{id}/payment/refund` — mesmo body de step-up do confirm (R5-2) — registra que o Pix foi devolvido (pagamento
 `REFUND_PENDING`, ou `PAID` com devolução solicitada) → `REFUNDED`. `400 Payment cannot be refunded`.
 Marcar `DELIVERED` grava `deliveredAt` (início do prazo de arrependimento). A resposta inclui `returnRequestedAt`
 e `returnReason`.

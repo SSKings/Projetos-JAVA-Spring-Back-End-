@@ -76,6 +76,10 @@ app:
   # Hosts permitidos para imagens de produto (separados por vírgula). Ao mudar, atualize o img-src em
   # deploy/security-headers.inc (revisão 4, R4-8).
   product-image-hosts: ${PRODUCT_IMAGE_HOSTS:images.unsplash.com}
+  retention:
+    # Dias que a auditoria (com IP e e-mail) é guardada; mínimo 180 (Marco Civil). Revisão 5, R5-5 — combine o prazo
+    # final com o advogado/DPO.
+    audit-days: ${AUDIT_RETENTION_DAYS:365}
   admin:
     name: ${ADMIN_NAME:Administrador}
     email: ${ADMIN_EMAIL}

@@ -638,6 +638,8 @@ o computador. Já havia um bot do Telegram, mas só para os alertas técnicos do
   bot** (só pelo painel); o bot bloqueia/desbloqueia clientes. O bot também recebe **alertas de segurança**
   (`SecurityAlertEvent`): ataque de senha em andamento, promoção a admin, admin bloqueado/rebaixado. A sessão aberta
   com `/entrar` grava só o passo TOTP (`UPDATE` condicional), nunca a conta inteira (R4-6).
+- **Revisão 5 (R5-2):** confirmar Pix e registrar estorno exigem um **código novo** do app autenticador na hora
+  (`/pix 12 123456`, `/estorno 12 123456`), não só a sessão de 12 h; os botões de Pix só mostram o comando.
 - **Toda ação que muda dados pede confirmação**: o botão `?…` só pergunta; o `!…` executa.
 
 **Consequências**

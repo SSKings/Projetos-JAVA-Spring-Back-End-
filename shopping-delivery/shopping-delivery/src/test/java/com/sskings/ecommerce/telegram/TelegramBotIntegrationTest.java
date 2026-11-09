@@ -58,7 +58,7 @@ class TelegramBotIntegrationTest {
     @DisplayName("Checkout avisa o admin no Telegram; cancelamento pelo bot devolve o pedido e fica auditado com o admin")
     void checkoutNotifiesAndBotCancels() throws Exception {
         String token = call(post("/api/auth/register"), null, Map.of("name", "Cliente Bot", "email",
-                "bot-" + UUID.randomUUID() + "@teste.com", "password", "abc12345", "acceptTerms", true), 201).get("token").asText();
+                "bot-" + UUID.randomUUID() + "@teste.com", "password", "Vagalume4821", "acceptTerms", true), 201).get("token").asText();
         call(post("/api/cart/items"), token, Map.of("productId", 1, "quantity", 1), 200);
         long addressId = call(post("/api/addresses"), token, Map.of("zipCode", "01000-000", "street", "Rua A",
                 "number", "1", "neighborhood", "Centro", "city", "Sao Paulo", "state", "SP"), 201).get("id").asLong();
