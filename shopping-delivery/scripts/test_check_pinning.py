@@ -71,6 +71,19 @@ jobs:
         self.assertEqual(len(problems), 2, problems)
         self.assertTrue(any("não existe" in p for p in problems))
 
+    def test_ci_reads_the_pinned_k6_image(self):
+        """O CI extrai K6_IMAGE do run.sh com sed (ci.yml); um comentário no fim da linha deixava o valor vazio e o
+        passo "k6 inspect" falhava (revisão 5). Roda o MESMO sed do ci.yml contra o run.sh real."""
+        import re
+        import subprocess
+        root = SCRIPT.resolve().parents[2]
+        ci = (root / ".github/workflows/ci.yml").read_text()
+        m = re.search(r"K6_IMAGE=\$\(sed -n '([^']+)' run\.sh\)", ci)
+        self.assertIsNotNone(m, "o ci.yml não lê mais K6_IMAGE do run.sh com sed: atualize este teste")
+        out = subprocess.run(["sed", "-n", m.group(1), str(root / "shopping-delivery/load-tests/run.sh")],
+                             capture_output=True, text=True, check=True).stdout.strip()
+        self.assertRegex(out, r"^grafana/k6:[^\s@]+@sha256:[0-9a-f]{64}$")
+
     def test_real_repository_is_pinned(self):
         self.assertEqual(pinning.check(SCRIPT.resolve().parents[2]), [])
 
