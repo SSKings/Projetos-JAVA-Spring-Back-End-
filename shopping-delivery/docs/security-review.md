@@ -2,6 +2,7 @@
 
 Data: 2026-11-05 · Escopo: `shopping-delivery/shopping-delivery` (API) e `shopping-delivery-frontend` (SPA).
 **Revisão 2: 2026-11-06** (sobre o código já corrigido) — ver [seção 6](#6-revisão-2--2026-11-06).
+**Revisão 3: 2026-11-08/09** (pentest de todo o monorepo, foco em produção) — ver [seção 9](#9-revisão-3--2026-11-0809).
 
 **Método**
 - Revisão do código: autenticação, autorização, validação, pagamento e configuração.
@@ -404,5 +405,75 @@ O bot dá acesso de admin pelo Telegram. Controles:
 | Token vazado em log (a URL da Bot API contém o token) | Mensagens de erro passam por `redact`; `toString` das propriedades sem o token; arquivo `.env.telegram-admin-bot` com permissão 600 e ignorado pelo Git | ✅ `networkErrorRedactsToken`, `toStringHidesToken`, `test_happy_path_writes_private_env_file` |
 | Configuração errada deixando o bot meio ligado | Token/admins inválidos impedem o startup, sem mostrar o token | ✅ `invalidConfigurationFailsFast` |
 | Dados pessoais no Telegram (terceiro, LGPD) | Mínimo necessário: endereço só cidade/UF; telefone só no detalhe do usuário | Documentado no ADR-024 |
-| ⏳ Conta do Telegram roubada vira admin | Recomendar verificação em duas etapas no Telegram; bloquear a conta no painel corta o acesso na hora | Procedimento no README |
+| Telegram aberto (celular desbloqueado, sessão esquecida) vira admin sem o 2º fator | Revisão 3, M2: admin com MFA abre a sessão com `/entrar 123456` (TOTP); vale 12 h e cai com logout/troca de senha/bloqueio no painel; códigos errados contam para o bloqueio do login | ✅ `TelegramSessionsTest`, `TelegramAdminBotTest` (M2) |
+| ⏳ Conta do Telegram roubada vira admin | Agora exige também o código do app autenticador; recomendar verificação em duas etapas no Telegram; bloquear a conta no painel corta o acesso na hora | Procedimento no README |
+
+---
+
+## 9. Revisão 3 — 2026-11-08/09
+
+Pentest de todo o monorepo, feito sobre a `main` com o bot do Telegram (`7b9f348`), pensando no ambiente de produção.
+
+**Método**
+- Leitura de código e configuração: API, front, nginx, Docker, CI, scripts, bot e os outros projetos do repositório.
+- Ataques dinâmicos contra a API rodando, com contas descartáveis: MFA, bloqueio, carrinho/checkout, rede local.
+- `npm audit` e OSV (103 dependências do backend): 0 vulnerabilidades sem justificativa.
+- Busca de segredos no histórico do Git: nada novo.
+
+Os testes de `SecurityReview3IntegrationTest` repetem cada ataque confirmado contra a aplicação inteira.
+
+### Achados e correções
+
+| # | Severidade | Achado | Evidência (antes) | Correção | Teste |
+|---|------------|--------|-------------------|----------|-------|
+| A1 | Alta | **Token roubado virava sequestro permanente da conta.** `/api/account/mfa/setup` e `/enable` aceitavam só o JWT: o atacante ativava o MFA com o app **dele** e o dono, sem o código, nunca mais entrava (não há recuperação de conta) | Com o token de uma conta de teste: setup **200**, enable **200**; login do dono → `400 MFA code required` | `setup` exige a senha (mesma reautenticação do disable/exclusão: falha conta para o bloqueio, bloqueado → 429). Sem o segredo devolvido no setup, o enable não tem como ser concluído por outra pessoa. Auditoria `MFA_SETUP_STARTED` | `stolenTokenCannotEnrollMfa`, `AccountServiceTest.mfaSetup_requiresPassword`, `AccountControllerTest.mfa`, front `privacy-security.test.tsx` |
+| A2 | Alta | **Qualquer pessoa trancava qualquer conta, inclusive a do admin.** O bloqueio (5 falhas → 15 min) era da conta inteira; 1 tentativa a cada 3 min mantinha o dono fora para sempre, abaixo dos rate limits do nginx e da API | 5 senhas erradas de terceiro → a senha **certa** recebia `429 Retry-After: 900` (também em `admin@shopeasy.com`) | `LoginAttemptService`: bloqueio por **email + IP**, em memória (mesma regra para email inexistente, R3). O dono, de outro IP, entra normalmente. Falhas somadas de vários IPs (≥ 20 na janela) geram `LOGIN_ATTACK_SUSPECTED` na auditoria, sem trancar o dono. Colunas `failed_login_attempts`/`locked_until` removidas (V6) | `attackerCannotLockOwnerOut`, `AuthServiceTest` (A2), `LoginAttemptServiceTest` |
+| A3 | Alta | **Uma conta esgotava o estoque da loja.** O checkout reserva o estoque enquanto o Pix não é pago (30 min), sem limite de pedidos pendentes nem de unidades: um script comprava tudo, deixava expirar e repetia | Por análise (o único teto era o próprio estoque) | Máximo de **10 unidades por produto** (DTO + soma no carrinho + checkout), **20 produtos** no carrinho e **2 pedidos aguardando Pix** por conta; o checkout trava o usuário (dois checkouts simultâneos não furam o limite). Front limita os botões de quantidade | `oneAccountCannotHoardStock`, `OrderServiceTest` (A3), `CartServiceTest` (A3), `shop.test.tsx`, `cart-checkout.test.tsx` |
+| A4 | Alta (dev) | **Console H2 e Swagger abertos para a rede local.** A API de dev escuta em todas as interfaces (o front é testado de outros aparelhos); o console H2 executa SQL e, via `CREATE ALIAS`, código Java no servidor | `GET http://<ip-da-rede>:8080/h2-console/` → página do console; `/v3/api-docs` → 200 | Cadeia de segurança própria para as ferramentas de dev: só respondem para loopback (`127.0.0.1`/`::1`); pela rede → 403. Em prod continuam desligadas e o nginx devolve 404 | `devToolsOnlyFromLocalhost`, `SecurityConfigTest` |
+| C1 | Crítica (outro projeto) | **`api.gestor.financeiro`: token forjável e admin de exemplo em produção.** `security.jwt.secret=${JWT_SECRET:secret-key}` (padrão público); banco `postgres/postgres` fixo e publicado na porta 5432; `data.sql` com usuários de exemplo (inclusive ADMIN) rodando em produção (`sql.init.mode=always`); imagem `openjdk:17` descontinuada | Por análise | Sem valor padrão em produção; `JwtTokenService` recusa segredo ausente, curto (< 32) ou já público; dev usa segredo aleatório. Credenciais do banco vindas do ambiente; compose sem porta do banco e com `.env` (ignorado pelo Git). Usuários de demonstração movidos para `data-demo.sql` (só dev e test). Imagens Temurin fixadas por digest | `JwtTokenServiceTest` |
+| M1 | Média | **Sem troca de senha.** Senha vazada nunca podia ser trocada; a `ADMIN_PASSWORD` do `.env.prod` virava senha permanente | — | `POST /api/account/password`: exige a senha atual (e o MFA, se ativo), mesma política do cadastro, revoga todas as sessões e devolve token novo; auditoria `PASSWORD_CHANGED`. Tela em **Minha conta → Segurança** | `passwordChange`, `AccountServiceTest` (M1), `AccountControllerTest.changePassword`, `privacy-security.test.tsx` |
+| M2 | Média | **Bot do Telegram dispensava o 2º fator do admin** | Por análise | Sessão do bot aberta com `/entrar <código TOTP>` (ver seção 8) | `TelegramSessionsTest`, `TelegramAdminBotTest` (M2) |
+| M4 | Média | **Imagens por tag, uma fora de suporte.** `nginx-unprivileged:1.27` (linha sem correções), `postgres`, `temurin` e `node` por tag (pode ser republicada) | — | nginx **1.30** (estável); todas as imagens de produção por **digest**; Dependabot cobre também o compose; Maven com `-C` (checksum obrigatório) no build | `check-pinning.py` no CI + `test_check_pinning.py` |
+| M5 | Média | **Uma rede Docker para tudo:** o nginx (exposto) alcançava o PostgreSQL, e o banco tinha saída para a internet | — | Redes `edge` (nginx ↔ API) e `data` (API ↔ banco, `internal: true`) | `docker compose config`; conferido com a pilha montada |
+| M6 | Média | **Sem backup do banco** (pedidos, dados fiscais, LGPD) | — | `deploy/backup-db.sh` (pg_dump cifrado AES-256/PBKDF2, conferido com `pg_restore --list`, retenção configurável, pasta 700/arquivos 600) e `deploy/restore-db.sh` (exige digitar o nome do banco). Cron e cópia para fora do servidor documentados | `test_backup_db.py` (5 testes: cifrado, restaurável, falha não deixa arquivo, retenção, senha errada) |
+| M7 | Média | **CI com permissões padrão e actions por tag** | — | `permissions: contents: read` no workflow; actions fixadas por SHA (Dependabot atualiza) | `check-pinning.py` no CI |
+| B2 | Baixa | Limite de 72 da senha contava caracteres; o BCrypt corta em 72 **bytes** (acentos ocupam 2+) | Por análise | `@BcryptSafe` no cadastro e na troca de senha; o front avisa antes | `register_passwordOver72Bytes_returns400`, `validation.test.ts` |
+| B4 | Baixa | Webhook Pix podia ficar sem allowlist de IPs em produção | — | `ProductionConfigValidator`: webhook ligado exige `PIX_WEBHOOK_ALLOWED_IPS`; nginx com `limit_req` próprio no webhook | `ProductionConfigValidatorTest.webhookAllowlist` |
+| B5 | Baixa | `/api/products` (público) aceitava `size=2000` | `size` 2000 na resposta | `spring.data.web.pageable.max-page-size: 100` | `pageSizeCapped` |
+| B6 | Baixa | `forward-headers-strategy: framework` aceitava `X-Forwarded-For` de qualquer origem: com a API exposta por outro caminho, o IP do bloqueio/rate limit/auditoria seria forjável | Por análise | `native` (RemoteIpValve): só de IPs internos (rede do compose) | Documentado no `application-prod.yml` |
+| B7 | Baixa | TLS sem lista de cifras e com session tickets | — | Perfil *intermediate* da Mozilla, `ssl_session_tickets off` | Conferido: cifra fraca (`AES128-SHA`) → handshake recusado |
+| B8 | Baixa | Container do nginx sem o endurecimento da API; banco sem limite de memória | — | nginx `read_only`, `tmpfs /tmp`, `cap_drop: ALL`, limite de memória; banco com `mem_limit` | nginx 1.30 sobe e serve assim (conferido) |
+| B9 | Baixa | Rotas autenticadas pesadas só com o limite geral (100 req/s) | — | nginx: `/api/account/data-export` a 6/min por IP | `nginx -t` |
+| — | Baixa (outro projeto) | `web-api`/`web-security`: senha do MySQL (`12345`) no repositório | — | Credenciais via `DB_USERNAME`/`DB_PASSWORD` | build do CI |
+
+### Testado e sem problema
+- IDOR: todas as consultas de pedido, endereço e carrinho filtram pelo dono.
+- Preço e estoque calculados no servidor. Campos extras no cadastro (`role`, `active`) são ignorados.
+- Webhook: HMAC com comparação em tempo constante e janela de 5 min.
+- Actuator: `/actuator/env` e `/actuator/prometheus` → 401 sem login.
+- nginx sobrescreve `X-Forwarded-For`. CSP rígida.
+
+### Aceito / pendente
+- **Token no `localStorage` (M3):** qualquer XSS rouba a sessão. A CSP rígida reduz o risco; o token dura 2 h e é revogável. A mudança para cookie `HttpOnly` + CSRF é grande (front e back) e fica planejada.
+- **Recuperação de senha por e-mail e códigos de recuperação do MFA:** dependem de um provedor de e-mail (SMTP). Até lá, quem perde o celular depende do suporte, que precisa desativar o MFA direto no banco.
+- **"Email já em uso" no cadastro (B3) e respostas que confirmam a senha** ("Account is blocked", "MFA code required", B1): a correção completa é a verificação de e-mail. Mitigado pelos rate limits.
+- **Ataque distribuído contra uma conta:** cada IP tem 5 tentativas a cada 15 min. O evento `LOGIN_ATTACK_SUSPECTED` vai para a auditoria; com muitos IPs, o bloqueio é papel de WAF/CDN. Senha forte e MFA continuam sendo a defesa.
+- **Rastreamento de tentativas em memória:** vale por instância e zera no restart, como o rate limit.
+- **Rotação da chave que cifra os segredos de MFA (`APP_ENCRYPTION_KEY`):** chave única, sem versão.
+
+### Regras para não repetir (checklist de PR)
+
+Cada falha desta revisão virou uma regra. Na dúvida, o PR não entra. O CI já verifica as regras 7 e 8.
+
+1. **Mudou credencial ou 2º fator → reautenticação.** Senha, MFA (ativar/desativar), e-mail, exclusão de conta: exigir a senha atual (e o MFA, se ativo) pelo `reauthenticate` do `AccountService`. Só o JWT nunca basta (A1, M1).
+2. **Bloqueio nunca pela identidade da vítima sozinha.** Contar falhas por *identidade + origem* (`LoginAttemptService`); quem erra tranca a si mesmo (A2).
+3. **Reservou recurso para um usuário → teto por usuário.** Estoque, cupons, horários, qualquer coisa que outro cliente deixa de poder usar enquanto está reservada (A3).
+4. **Ferramenta de dev só em loopback.** Console de banco, Swagger, actuator extra: nunca pela rede, nem em dev (A4).
+5. **Segredo sem valor padrão em produção** (`${X}`, nunca `${X:algo}`) e validado no start (C1; `ProductionConfigValidator`, `JwtTokenService` do gestor).
+6. **Dado de exemplo nunca roda em produção:** seeds de usuários só em perfis dev/test (C1).
+7. **Imagem por digest, action por SHA** (M4, M7; `check-pinning.py`).
+8. **Workflow com permissão mínima** (`permissions: contents: read`; M7).
+9. **Novo serviço no compose:** rede mínima (`data` é `internal`), `read_only`, `cap_drop: ALL`, `no-new-privileges`, `mem_limit` (M5, B8).
+10. **Endpoint público com paginação ou corpo:** teto de tamanho (B5; `RequestSizeLimitFilter`).
+11. **Cada achado de segurança ganha teste de regressão** que reproduz o ataque (`SecurityReview{2,3}IntegrationTest`).
 

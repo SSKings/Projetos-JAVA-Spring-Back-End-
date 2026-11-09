@@ -112,8 +112,9 @@ O Vite escuta em todas as interfaces (`server.host: true` em `vite.config.ts`) e
    ```
 
 > ⚠️ Em rede compartilhada, o ambiente de dev fica visível para as outras máquinas. O segredo JWT e a senha
-> do admin são aleatórios a cada start (revisão de segurança 2), mas o Swagger e o webhook de dev (segredo
-> público, para o script de simulação) continuam abertos. Não use o perfil `dev` em rede pública.
+> do admin são aleatórios a cada start (revisão de segurança 2), e o console H2 e o Swagger só respondem na própria
+> máquina (revisão 3). O webhook de dev (segredo público, para o script de simulação) continua aberto.
+> Não use o perfil `dev` em rede pública.
 
 ## Pagamento via Pix
 
@@ -164,7 +165,8 @@ usuários pelo celular** (ADR-024). Ele roda dentro da API, só com conexões de
    ./scripts/telegram-admin-bot-setup.sh
    ```
 3. Reinicie a API (`./scripts/run-backend.sh`). O log mostra `Telegram: bot de administração iniciado`.
-4. No Telegram, mande `/ajuda` para o bot.
+4. No Telegram, mande `/entrar 123456` com o código do app autenticador da sua conta admin (com MFA ativo). A sessão
+   vale 12 horas; `/sair` encerra antes.
 
 Para outro admin usar, rode o assistente de novo com o mesmo token: ele **adiciona** o chat à lista.
 
@@ -180,7 +182,8 @@ Pix já tinha sido pago), pedido de devolução e Pix expirado. Cada aviso traz 
 | `/resumo` | Pedidos, faturamento, clientes e produtos |
 
 **Segurança:** só os chats da lista `TELEGRAM_ADMIN_BOT_ADMINS` (`chatId:email`), em conversa privada. A cada
-mensagem, a conta precisa continuar ADMIN e ativa (em produção, também com MFA). Toda ação pede confirmação, segue as
+mensagem, a conta precisa continuar ADMIN e ativa (em produção, também com MFA). Admin com MFA abre a sessão com o
+código do app (`/entrar`); ela cai com logout, troca de senha ou bloqueio no painel. Toda ação pede confirmação, segue as
 mesmas regras do painel e fica na **auditoria** com o nome do admin. Para cortar o acesso de alguém, bloqueie a conta
 no painel ou tire o chat da lista. Quem usa o bot deve ativar a verificação em duas etapas no Telegram.
 
@@ -202,12 +205,23 @@ mkdir certs && cp /caminho/fullchain.pem /caminho/privkey.pem certs/
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
-Sobe PostgreSQL (sem porta exposta), API em perfil `prod` (container read-only, sem root) e nginx com TLS,
-HSTS, CSP, rate limit (login 10/min e API 100 req/s por IP) e proxy de `/api` na mesma origem. A API tem limite de
+Sobe PostgreSQL (sem porta exposta, numa rede interna sem saída para a internet), API em perfil `prod` (container
+read-only, sem root) e nginx (também read-only, sem capabilities) com TLS, HSTS, CSP, rate limit (login 10/min e API
+100 req/s por IP) e proxy de `/api` na mesma origem. Imagens fixadas por digest. A API tem limite de
 memória (`API_MEM_LIMIT`, padrão 1536m) e pool de conexões configurável (`DATABASE_POOL_SIZE`). A API **não inicia** com segredos ausentes, fracos ou
 de desenvolvimento, CORS aberto ou banco H2 (`ProductionConfigValidator`). Detalhes: ADR-017 a ADR-019 e
 [`docs/security-review.md`](docs/security-review.md) (status de cada correção e o que ainda depende da empresa:
 CNPJ e textos legais revisados, PSP para Pix dinâmico, NF-e, email transacional).
+
+**Backup** (obrigatório antes de abrir a loja): preencha `BACKUP_PASSPHRASE` no `.env.prod`, guarde-a fora do
+servidor e agende o backup cifrado no cron:
+
+```bash
+0 3 * * *  /caminho/para/deploy/backup-db.sh >> /var/log/shopeasy-backup.log 2>&1
+```
+
+Copie `BACKUP_DIR` para fora do servidor e teste a restauração (`deploy/restore-db.sh <arquivo>`) em homologação
+uma vez por mês.
 
 ## Fluxo principal
 
@@ -238,14 +252,15 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 304    | 98,2%  | 93,9%    |
-| Frontend  | `npm run coverage`      | 299    | 99,0%  | 95,8%    |
-| Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 35 | — | — |
+| Backend   | `./mvnw verify`         | 337    | 98,3%  | 94,4%    |
+| Frontend  | `npm run coverage`      | 307    | 99,0%  | 95,9%    |
+| Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 44 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
 | API rodando (k6) | `./load-tests/run.sh smoke` | 23 verificações | — | — |
 
-Os 35 testes Python cobrem o verificador de CVEs (4), a validação de dashboards, alertas e Telegram (25) e o
-assistente do bot de administração (6, contra um Telegram falso).
+Os 44 testes Python cobrem o verificador de CVEs (4), a validação de dashboards, alertas e Telegram (25), o
+assistente do bot de administração (6, contra um Telegram falso), o backup cifrado do banco (5) e o verificador de
+imagens/actions fixadas por hash (4).
 
 Os dois comandos **falham se a cobertura cair** abaixo do mínimo (backend 85% linhas / 80% branches;
 frontend 90% linhas / 85% branches) e rodam no CI a cada push. No front, o CI também roda `tsc -b`, `lint` e

@@ -630,13 +630,17 @@ o computador. Já havia um bot do Telegram, mas só para os alertas técnicos do
   - A cada mensagem, a conta precisa continuar ADMIN, ativa, não anonimizada e, com `REQUIRE_ADMIN_MFA`, com MFA.
     Bloquear o admin no painel corta o bot na hora.
   - O admin vai para o `SecurityContext` durante o comando, então a auditoria registra quem fez.
+  - **Sessão com o 2º fator** (revisão de segurança 3, M2): admin com MFA manda `/entrar 123456` (código do app
+    autenticador) antes de usar o bot. A sessão (`TelegramSessions`, em memória) vale 12 h, é ligada ao chat e ao
+    usuário e cai junto com os tokens do painel (logout, troca de senha, MFA, bloqueio). Código errado conta para o
+    bloqueio do login; `/sair` encerra. Os avisos de pedidos continuam chegando sem sessão.
 - **Toda ação que muda dados pede confirmação**: o botão `?…` só pergunta; o `!…` executa.
 
 **Consequências**
 - O admin recebe os pedidos no celular e resolve o dia a dia sem abrir o painel; o painel continua sendo o lugar das
   tarefas longas (produtos, auditoria, endereço completo).
 - **A conta do Telegram passa a valer como acesso de admin.** Mitigações: lista fechada de chats, revalidação da
-  conta a cada mensagem, confirmação, auditoria. Recomendação: verificação em duas etapas no Telegram de quem usa.
+  conta a cada mensagem, sessão aberta com o código TOTP, confirmação, auditoria. Recomendação: verificação em duas etapas no Telegram de quem usa.
 - **Dados pessoais vão para um terceiro (Telegram).** As mensagens levam o mínimo: nome, e-mail, total, itens e só
   cidade/UF do endereço. Tudo que vem do banco ou do cliente é escapado (HTML do Telegram).
 - O token fica fora do código: `.env.telegram-admin-bot` (ignorado pelo Git, permissão 600) em dev e `.env.prod` em
@@ -644,7 +648,9 @@ o computador. Já havia um bot do Telegram, mas só para os alertas técnicos do
   logar. Configuração inválida impede o startup.
 - Uma instância por token: duas APIs com o mesmo bot disputariam o `getUpdates` (o Telegram responde 409). Com
   várias réplicas, seria preciso um webhook ou eleger uma instância.
-- Testes: `TelegramAdminBotTest` (autorização, comandos, confirmação, botões forjados, escape de HTML),
+- Sessões em memória: um restart da API pede `/entrar` de novo.
+- Testes: `TelegramAdminBotTest` (autorização, sessão MFA, comandos, confirmação, botões forjados, escape de HTML),
+  `TelegramSessionsTest` (código certo/errado/reutilizado, expiração, revogação),
   `TelegramClientTest`, `TelegramBotPollerTest`, `TelegramOrderNotifierTest`, `TelegramBotPropertiesTest`,
   `TelegramBotIntegrationTest` (checkout real → aviso; cancelamento pelo bot → auditoria com o admin) e
   `scripts/test_telegram_admin_bot_setup.py` (assistente contra um Telegram falso).
