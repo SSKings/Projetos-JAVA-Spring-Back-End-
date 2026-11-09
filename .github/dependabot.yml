@@ -35,6 +35,18 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
+  # Imagem do PostgreSQL no compose de produção (fixada por digest; revisão 3, M4)
+  - package-ecosystem: docker-compose
+    directory: /shopping-delivery/deploy
+    schedule: { interval: weekly }
+    groups:
+      compose-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Actions fixadas por SHA (revisão 3, M7): o Dependabot atualiza o SHA e o comentário da versão
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: monthly }
