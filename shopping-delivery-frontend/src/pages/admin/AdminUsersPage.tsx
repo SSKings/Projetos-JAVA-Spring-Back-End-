@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
 import { getAdminUsers, getUserOrders, updateUser } from '../../api/admin';
 import Pagination from '../../components/Pagination';
+import StepUpForm from '../../components/StepUpForm';
 import { useAuth } from '../../contexts/AuthContext';
 import type { AdminUser, Order, Page } from '../../types';
 import { formatBRL, formatDate, getErrorMessage, orderStatusConfig } from '../../utils/format';
@@ -18,8 +19,6 @@ export default function AdminUsersPage() {
   const [expanded, setExpanded] = useState<{ id: number; orders: Order[] | null } | null>(null);
   // Mudança sensível (trocar papel ou alterar outro admin) pede a senha e o código de quem age (revisão 4, R4-3)
   const [pending, setPending] = useState<{ user: AdminUser; patch: Patch; label: string } | null>(null);
-  const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
 
   const load = useCallback(() => {
     getAdminUsers(page, query).then(setData).catch(err => setError(getErrorMessage(err)));
@@ -35,9 +34,6 @@ export default function AdminUsersPage() {
       load();
     } catch (err) {
       setError(getErrorMessage(err));
-    } finally {
-      setPassword('');
-      setCode('');
     }
   };
 
@@ -50,10 +46,8 @@ export default function AdminUsersPage() {
     return send(u, patch);
   };
 
-  const confirmSensitive = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pending) return send(pending.user, { ...pending.patch, password, mfaCode: code || undefined });
-  };
+  const confirmSensitive = (password: string, mfaCode?: string) =>
+    pending ? send(pending.user, { ...pending.patch, password, mfaCode }) : undefined;
 
   const toggleOrders = (u: AdminUser) => {
     if (expanded?.id === u.id) return setExpanded(null);
@@ -74,32 +68,10 @@ export default function AdminUsersPage() {
       {error && <div role="alert" className="mb-4 px-4 py-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
 
       {pending && (
-        <form onSubmit={confirmSensitive} aria-label="Confirmar mudança sensível"
-              className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm space-y-3">
-          <p className="text-amber-900">
-            <strong>{pending.label}</strong> — {pending.user.name}. Por segurança, confirme sua senha
-            {me?.mfaEnabled ? ' e o código do app autenticador' : ''}. Todos os admins serão avisados.
-          </p>
-          <div className="flex flex-wrap gap-3 items-end">
-            <label className="block">
-              <span className="block text-gray-600 mb-1">Sua senha</span>
-              <input type="password" autoComplete="current-password" required autoFocus value={password}
-                     onChange={e => setPassword(e.target.value)}
-                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </label>
-            {me?.mfaEnabled && (
-              <label className="block">
-                <span className="block text-gray-600 mb-1">Código do app</span>
-                <input inputMode="numeric" autoComplete="one-time-code" required value={code}
-                       onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                       className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </label>
-            )}
-            <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">Confirmar</button>
-            <button type="button" onClick={() => { setPending(null); setPassword(''); setCode(''); }}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">Cancelar</button>
-          </div>
-        </form>
+        <StepUpForm label="Confirmar mudança sensível" mfa={!!me?.mfaEnabled}
+                    onConfirm={confirmSensitive} onCancel={() => setPending(null)}>
+          <strong>{pending.label}</strong> — {pending.user.name}.
+        </StepUpForm>
       )}
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">

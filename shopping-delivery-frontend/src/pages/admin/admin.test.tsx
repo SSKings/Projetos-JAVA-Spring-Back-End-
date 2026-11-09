@@ -236,33 +236,42 @@ describe('AdminOrdersPage', () => {
       adminOrder({ nextStatuses: ['CANCELLED'], payment: payment({ txid: 'TXABC' }) }),
     ]));
     vi.mocked(adminApi.confirmPayment).mockResolvedValue(adminOrder({ status: 'CONFIRMED', payment: payment({ status: 'PAID' }) }));
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    localStorage.setItem('user', JSON.stringify({ name: 'Chefe', email: 'admin@x.com', role: 'ADMIN', mfaEnabled: true }));
     renderWithProviders(<AdminOrdersPage />);
 
     expect(await screen.findByText('Aguardando Pix')).toBeInTheDocument();
     const select = screen.getByRole('combobox', { name: 'Status do pedido #3' });
     expect(optionsOf(select).filter(o => !o.disabled).map(o => o.label)).toEqual(['Pendente (atual)', 'Cancelado']);
 
+    // R5-2: pede senha e código; cancelar não confirma nada
     await userEvent.click(screen.getByRole('button', { name: 'Confirmar Pix' }));
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('TXABC'));
+    const form = screen.getByRole('form', { name: 'Confirmar ação de pagamento' });
+    expect(form).toHaveTextContent('TXABC');
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(adminApi.confirmPayment).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole('button', { name: 'Confirmar Pix' }));
-    expect(adminApi.confirmPayment).toHaveBeenCalledWith(3);
+    await userEvent.type(screen.getByLabelText('Sua senha'), 'minhaSenha1');
+    await userEvent.type(screen.getByLabelText('Código do app'), '654321');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    expect(adminApi.confirmPayment).toHaveBeenCalledWith(3, 'minhaSenha1', '654321');
     expect(await screen.findByRole('status')).toHaveTextContent('Pagamento do pedido #3 confirmado');
+    expect(screen.queryByRole('form', { name: 'Confirmar ação de pagamento' })).not.toBeInTheDocument();
     await waitFor(() => expect(adminApi.getAdminOrders).toHaveBeenCalledTimes(2));
-    confirm.mockRestore();
   });
 
   it('erro ao confirmar Pix aparece traduzido', async () => {
     vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder({ nextStatuses: ['CANCELLED'], payment: payment() })]));
-    vi.mocked(adminApi.confirmPayment).mockRejectedValue(httpError('Payment is not pending'));
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.mocked(adminApi.confirmPayment).mockRejectedValue(httpError('Invalid password'));
     renderWithProviders(<AdminOrdersPage />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Confirmar Pix' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Este pagamento não está mais pendente.');
-    confirm.mockRestore();
+    expect(screen.queryByLabelText('Código do app')).not.toBeInTheDocument();   // admin sem MFA (dev)
+    await userEvent.type(screen.getByLabelText('Sua senha'), 'errada');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    expect(adminApi.confirmPayment).toHaveBeenCalledWith(3, 'errada', undefined);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Senha incorreta.');
+    expect(screen.getByRole('form', { name: 'Confirmar ação de pagamento' })).toBeInTheDocument();   // pode tentar de novo
   });
 
   it('detalhe mostra pagamento; estorno pendente tem aviso', async () => {
@@ -286,7 +295,6 @@ describe('AdminOrdersPage', () => {
       adminOrder({ id: 5, status: 'DELIVERED', payment: payment({ status: 'PAID' }) }),
     ]));
     vi.mocked(adminApi.refundPayment).mockResolvedValue(adminOrder());
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValue(true);
     renderWithProviders(<AdminOrdersPage />);
 
     expect(await screen.findByText('Devolução solicitada')).toBeInTheDocument();
@@ -294,24 +302,25 @@ describe('AdminOrdersPage', () => {
     expect(refunds).toHaveLength(2);   // pedido 5 (pago, sem devolução) não tem estorno
 
     await userEvent.click(refunds[0]);
+    expect(screen.getByRole('form', { name: 'Confirmar ação de pagamento' })).toHaveTextContent('Registrar o estorno do pedido #3');
     expect(adminApi.refundPayment).not.toHaveBeenCalled();
-    await userEvent.click(refunds[0]);
-    expect(adminApi.refundPayment).toHaveBeenCalledWith(3);
+    await userEvent.type(screen.getByLabelText('Sua senha'), 'minhaSenha1');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    expect(adminApi.refundPayment).toHaveBeenCalledWith(3, 'minhaSenha1', undefined);
     expect(await screen.findByRole('status')).toHaveTextContent('Estorno do pedido #3 registrado.');
 
     await userEvent.click(screen.getByText('#3'));
     expect(screen.getByText('Motivo da devolução: Não serviu')).toBeInTheDocument();
-    confirm.mockRestore();
   });
 
   it('erro ao registrar estorno', async () => {
     vi.mocked(adminApi.getAdminOrders).mockResolvedValue(page([adminOrder({ status: 'CANCELLED', payment: payment({ status: 'REFUND_PENDING' }) })]));
     vi.mocked(adminApi.refundPayment).mockRejectedValue(httpError('Payment cannot be refunded'));
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderWithProviders(<AdminOrdersPage />);
     await userEvent.click(await screen.findByRole('button', { name: 'Registrar estorno' }));
+    await userEvent.type(screen.getByLabelText('Sua senha'), 'minhaSenha1');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('não pode ser estornado');
-    confirm.mockRestore();
   });
 
   it('erro ao carregar a lista', async () => {

@@ -44,6 +44,12 @@ const backendMessages: Record<string, string> = {
   'Invalid password': 'Senha incorreta.',
   'New password must be different from the current one': 'A nova senha precisa ser diferente da atual.',
   'Password confirmation required': 'Confirme sua senha para esta ação.',
+  'Password is too common. Choose a less predictable one':
+    'Essa senha é muito comum e fácil de adivinhar. Escolha outra (evite palavras como "senha" ou "admin" com números).',
+  'Password must not contain your name, your email or the store name':
+    'A senha não pode conter seu nome, seu email ou o nome da loja.',
+  'The last active admin cannot delete the account. Promote another admin first':
+    'Você é o último administrador ativo: promova outro admin antes de excluir sua conta.',
   'Too many unpaid orders in the last 24 hours. Try again later':
     'Você deixou vários pedidos sem pagar nas últimas 24 horas. Tente de novo mais tarde.',
   'Too many accounts created from this network today. Try again later':

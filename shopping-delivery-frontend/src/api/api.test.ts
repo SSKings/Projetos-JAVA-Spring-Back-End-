@@ -81,7 +81,7 @@ describe('módulos de API chamam as rotas corretas', () => {
     ['account.mfaDisable', () => account.disableMfa('pw', '123456'),                             'post', '/api/account/mfa/disable'],
     ['orders.cancel',      () => orders.cancelOrder(2),                                          'post', '/api/orders/2/cancel'],
     ['orders.return',      () => orders.requestReturn(2, 'motivo'),                              'post', '/api/orders/2/return'],
-    ['admin.refund',       () => admin.refundPayment(5),                                         'post', '/api/admin/orders/5/payment/refund'],
+    ['admin.refund',       () => admin.refundPayment(5, 'pw'),                                   'post', '/api/admin/orders/5/payment/refund'],
     ['admin.audit',        () => admin.getAuditLogs(1, 'LOGIN_FAILED'),                          'get',  '/api/admin/audit'],
     ['auth.login',         () => auth.login({ email: 'a@a', password: 'x' }),                   'post', '/api/auth/login'],
     ['products.list',      () => products.getProducts(1, 12, 'tv'),                             'get',  '/api/products'],
@@ -95,7 +95,7 @@ describe('módulos de API chamam as rotas corretas', () => {
     ['orders.list',        () => orders.getOrders(),                                             'get',  '/api/orders'],
     ['orders.get',         () => orders.getOrder(2),                                             'get',  '/api/orders/2'],
     ['orders.payment',     () => orders.getPayment(2),                                           'get',  '/api/orders/2/payment'],
-    ['admin.confirmPix',   () => admin.confirmPayment(5),                                        'post', '/api/admin/orders/5/payment/confirm'],
+    ['admin.confirmPix',   () => admin.confirmPayment(5, 'pw', '123456'),                        'post', '/api/admin/orders/5/payment/confirm'],
     ['addresses.list',     () => addresses.getAddresses(),                                       'get',  '/api/addresses'],
     ['addresses.create',   () => addresses.createAddress({ zipCode: '1', street: 'r', number: '1', neighborhood: 'n', city: 'c', state: 'SP' }), 'post', '/api/addresses'],
     ['addresses.delete',   () => addresses.deleteAddress(4),                                     'delete', '/api/addresses/4'],
@@ -138,6 +138,11 @@ describe('módulos de API chamam as rotas corretas', () => {
     expect(body()).toEqual({ password: 'pw' });          // código vazio não é enviado
     await account.deleteAccount('pw', '654321');
     expect(body()).toEqual({ password: 'pw', mfaCode: '654321' });
+
+    await admin.confirmPayment(5, 'pw', '123456');
+    expect(body()).toEqual({ password: 'pw', mfaCode: '123456' });   // revisão 5: step-up no corpo
+    await admin.refundPayment(5, 'pw');
+    expect(body()).toEqual({ password: 'pw' });
 
     await account.setupMfa('pw');
     expect(body()).toEqual({ password: 'pw' });
