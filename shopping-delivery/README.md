@@ -177,6 +177,7 @@ Pix já tinha sido pago), pedido de devolução e Pix expirado. Cada aviso traz 
 |---|---|
 | `/pedidos` · `/pedidos pendentes` | Últimos 10 pedidos, ou só os de um status (pendentes, confirmados, enviados, entregues, cancelados) |
 | `/pedido 12` (ou toque em `/pedido_12`) | Detalhes do pedido, com botões: mudar status, confirmar Pix, registrar estorno |
+| `/pix 12 123456` · `/estorno 12 123456` | Confirma o Pix / registra o estorno do pedido #12 — pede um **código novo** do app autenticador (dinheiro: a sessão não basta) |
 | `/usuarios` · `/usuarios ana` | Últimos cadastros, ou busca por nome/e-mail |
 | `/usuario 5` | Detalhes, com botões: bloquear/desbloquear cliente e ver pedidos (trocar papel e mexer em admin: só no painel, com senha e código) |
 | `/resumo` | Pedidos, faturamento, clientes e produtos |
@@ -206,7 +207,9 @@ mkdir certs && cp /caminho/fullchain.pem /caminho/privkey.pem certs/
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
-Sobe PostgreSQL (sem porta exposta, numa rede interna sem saída para a internet), API em perfil `prod` (container
+Sobe PostgreSQL (sem porta exposta, numa rede interna sem saída para a internet, com **três usuários**: o
+superusuário só cria o banco, o dono das tabelas só roda as migrações e a API só lê e grava dados —
+`deploy/db-init/01-roles.sh`; banco já existente: ver `docs/security-review.md`, seção 11), API em perfil `prod` (container
 read-only, sem root) e nginx (também read-only, sem capabilities) com TLS, HSTS, CSP, rate limit (login 10/min e API
 100 req/s por IP) e proxy de `/api` na mesma origem. Imagens fixadas por digest. A API tem limite de
 memória (`API_MEM_LIMIT`, padrão 1536m) e pool de conexões configurável (`DATABASE_POOL_SIZE`). A API **não inicia** com segredos ausentes, fracos ou
@@ -253,8 +256,8 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 367    | 98,3%  | 94,2%    |
-| Frontend  | `npm run coverage`      | 317    | 99,1%  | 95,9%    |
+| Backend   | `./mvnw verify`         | 402    | 98,3%  | 94,1%    |
+| Frontend  | `npm run coverage`      | 321    | 99,1%  | 95,9%    |
 | Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 44 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
 | API rodando (k6) | `./load-tests/run.sh smoke` | 23 verificações | — | — |

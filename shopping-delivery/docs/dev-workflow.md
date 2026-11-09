@@ -130,8 +130,14 @@ O CI verifica automaticamente:
 
 - **Imagens por digest e actions por SHA:** `python3 scripts/check-pinning.py` (falha listando o que está por tag).
 - **Backup do banco:** `python3 -m unittest discover -s scripts -p 'test_backup_db.py'`.
-- **Regressões dos ataques já encontrados:** `SecurityReview2IntegrationTest`, `SecurityReview3IntegrationTest` e
-  `SecurityReview4IntegrationTest` (este ataca sempre de origens diferentes, inclusive IPv6 no mesmo /64).
+- **Regressões dos ataques já encontrados:** `SecurityReview{2,3,4,5}IntegrationTest` (a partir da 4, sempre de
+  origens diferentes, inclusive IPv6 no mesmo /64).
+
+Mudou configuração de produção (compose, `application-prod.yml`, validador, nginx)? Suba a pilha de verdade:
+`./load-tests/prod-like/prod-like.sh up && ./load-tests/prod-like/prod-like.sh smoke` (e `down` no fim). Ela ficou
+sem subir por duas revisões sem ninguém perceber (revisão 5).
+
+Senha de teste: use uma que passe na política (`Vagalume4821`); "senha123" e parecidas são recusadas no cadastro.
 
 Mudou um controle de segurança? Rode os ataques de todas as revisões e confira o que cada teste antigo deixou de
 cobrir com a regra nova. Antes de dar a correção por pronta, rode o teste novo **contra o código antigo** (ele tem que
