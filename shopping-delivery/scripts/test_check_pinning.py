@@ -38,6 +38,7 @@ jobs:
                    f"services:\n  db:\n    image: postgres:16-alpine@{DIGEST}\n  api:\n    build: .\n")
         self.write("api.gestor.financeiro/Dockerfile", f"FROM maven:3.9@{DIGEST} AS build\nFROM eclipse-temurin:17-jre@{DIGEST}\n")
         self.write("api.gestor.financeiro/docker-compose.yml", f"services:\n  db:\n    image: 'postgres:16@{DIGEST}'\n")
+        self.write("shopping-delivery/load-tests/run.sh", f'#!/bin/bash\nK6_IMAGE="grafana/k6:1.3.0@{DIGEST}"   # comentário\n')
 
     def tearDown(self):
         shutil.rmtree(self.root)
@@ -55,11 +56,12 @@ jobs:
                    "steps:\n  - uses: actions/setup-node@v4\n  - uses: actions/x@main\n  - uses: docker://alpine:3\n")
         self.write("shopping-delivery-frontend/Dockerfile", "FROM node:24-alpine AS build\nFROM nginxinc/nginx-unprivileged:1.27-alpine\n")
         self.write("shopping-delivery/deploy/docker-compose.prod.yml", "services:\n  db:\n    image: \"postgres:16-alpine\"\n")
+        self.write("shopping-delivery/load-tests/run.sh", 'K6_IMAGE="grafana/k6:1.3.0"\n')
         problems = pinning.check(self.root)
-        self.assertEqual(len(problems), 6, problems)
+        self.assertEqual(len(problems), 7, problems)
         joined = "\n".join(problems)
         for ref in ("actions/setup-node@v4", "actions/x@main", "docker://alpine:3", "node:24-alpine",
-                    "nginx-unprivileged:1.27-alpine", "postgres:16-alpine"):
+                    "nginx-unprivileged:1.27-alpine", "postgres:16-alpine", "grafana/k6:1.3.0"):
             self.assertIn(ref, joined)
 
     def test_short_sha_or_missing_file_fails(self):

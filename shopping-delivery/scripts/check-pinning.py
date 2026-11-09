@@ -16,6 +16,7 @@ from pathlib import Path
 USES = re.compile(r"^\s*-?\s*uses:\s*([^\s#]+)")
 FROM = re.compile(r"^\s*FROM\s+(?:--platform=\S+\s+)?(\S+)", re.IGNORECASE)
 IMAGE = re.compile(r"^\s*image:\s*['\"]?([^\s'\"#]+)")
+SHELL_IMAGE = re.compile(r"^\s*[A-Z0-9_]*IMAGE=['\"]?([^\s'\"#]+)")
 SHA = re.compile(r"@[0-9a-f]{40}$")
 DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
 
@@ -25,6 +26,8 @@ PRODUCTION_FILES = [
     "shopping-delivery/deploy/docker-compose.prod.yml",
     "api.gestor.financeiro/Dockerfile",
     "api.gestor.financeiro/docker-compose.yml",
+    # roda no CI com o repositório montado (revisão 5, R5-8)
+    "shopping-delivery/load-tests/run.sh",
 ]
 
 
@@ -49,7 +52,7 @@ def check_workflow(path: Path) -> list[str]:
 def check_images(path: Path) -> list[str]:
     problems, stages = [], set()
     for n, line in enumerate(path.read_text().splitlines(), 1):
-        m = FROM.match(line) if path.name == "Dockerfile" else IMAGE.match(line)
+        m = FROM.match(line) if path.name == "Dockerfile" else SHELL_IMAGE.match(line) if path.suffix == ".sh" else IMAGE.match(line)
         if not m:
             continue
         image = m.group(1)

@@ -10,10 +10,16 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DATABASE_NAME:-shopeasy}
-      POSTGRES_USER: ${DATABASE_USERNAME}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      # Superusuário: só para criar o banco e os papéis (db-init/01-roles.sh); a API nunca o usa (revisão 5, R5-4)
+      POSTGRES_USER: ${DATABASE_ADMIN_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_ADMIN_PASSWORD}
+      DATABASE_MIGRATION_USERNAME: ${DATABASE_MIGRATION_USERNAME}
+      DATABASE_MIGRATION_PASSWORD: ${DATABASE_MIGRATION_PASSWORD}
+      DATABASE_USERNAME: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
       - db-data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
     # Só na rede "data" (internal: true): o nginx, exposto à internet, não alcança o banco, e o banco não tem
     # saída para a internet (revisão 3, M5). Backup: deploy/backup-db.sh (revisão 3, M6).
     networks: [data]
@@ -21,7 +27,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     shm_size: 128m
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${DATABASE_USERNAME}", "-d", "${DATABASE_NAME:-shopeasy}"]
+      test: ["CMD", "pg_isready", "-U", "${DATABASE_ADMIN_USERNAME:-postgres}", "-d", "${DATABASE_NAME:-shopeasy}"]
       interval: 10s
       retries: 10
     # sem "ports": o banco não fica exposto fora da rede interna
@@ -36,6 +42,8 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DATABASE_URL: jdbc:postgresql://db:5432/${DATABASE_NAME:-shopeasy}
+      # o env_file traz o .env.prod inteiro: a senha do superusuário do banco não entra na API (revisão 5, R5-4)
+      DATABASE_ADMIN_PASSWORD: ""
       ACCESS_LOG_DIR: /var/log/shopeasy
     volumes:
       - access-logs:/var/log/shopeasy   # Marco Civil art. 15: guardar por 6 meses (max-days: 190)

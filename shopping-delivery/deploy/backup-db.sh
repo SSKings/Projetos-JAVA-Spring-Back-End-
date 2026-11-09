@@ -21,7 +21,8 @@ conf() { local v; v=$(grep -E "^$1=" "$ENV_FILE" | tail -n 1 | cut -d= -f2-) || 
 PASSPHRASE=${BACKUP_PASSPHRASE:-$(conf BACKUP_PASSPHRASE "")}
 DIR=${BACKUP_DIR:-$(conf BACKUP_DIR /var/backups/shopeasy)}
 KEEP_DAYS=${BACKUP_KEEP_DAYS:-$(conf BACKUP_KEEP_DAYS 14)}
-DB_USER=$(conf DATABASE_USERNAME "")
+# dono das tabelas (revisão 5, R5-4): o usuário da API não tem permissão de recriar tabelas na restauração
+DB_USER=$(conf DATABASE_MIGRATION_USERNAME "")
 DB_NAME=$(conf DATABASE_NAME shopeasy)
 
 if [ ${#PASSPHRASE} -lt 20 ]; then

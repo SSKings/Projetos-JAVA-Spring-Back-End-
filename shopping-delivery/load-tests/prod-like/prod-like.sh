@@ -25,12 +25,22 @@ secret() { openssl rand -base64 "$1" | tr -d '\n'; }
 
 generate() {
   mkdir -p "$GEN/certs"; chmod 700 "$GEN"
+  # .env de antes da revisão 5 (sem os três usuários do banco): gere de novo (rode "down" antes, para o volume do
+  # banco ser recriado com os papéis novos)
+  if [[ -f "$GEN/.env.loadtest" ]] && ! grep -q '^DATABASE_MIGRATION_USERNAME=' "$GEN/.env.loadtest"; then
+    echo "generated/.env.loadtest é anterior à revisão 5: rode '$0 down' e depois '$0 up'" >&2
+    exit 1
+  fi
   if [[ ! -f "$GEN/.env.loadtest" ]]; then
     umask 077
     cat > "$GEN/.env.loadtest" <<ENV
 # Gerado por prod-like.sh — descartável, só para teste de carga local. NÃO usar em produção.
 DATABASE_NAME=shopeasy
-DATABASE_USERNAME=shopeasy
+DATABASE_ADMIN_USERNAME=postgres
+DATABASE_ADMIN_PASSWORD=$(secret 24)
+DATABASE_MIGRATION_USERNAME=shopeasy_owner
+DATABASE_MIGRATION_PASSWORD=$(secret 24)
+DATABASE_USERNAME=shopeasy_app
 DATABASE_PASSWORD=$(secret 24)
 JWT_SECRET=$(secret 48)
 APP_ENCRYPTION_KEY=$(secret 32)
@@ -45,7 +55,8 @@ PIX_MERCHANT_NAME=ShopEasy Teste
 PIX_MERCHANT_CITY=Sao Paulo
 PIX_EXPIRATION_MINUTES=30
 PIX_WEBHOOK_SECRET=$(secret 48)
-PIX_WEBHOOK_ALLOWED_IPS=
+# obrigatório com o webhook ligado desde a revisão 3 (B4); antes vazio, a API recusava subir
+PIX_WEBHOOK_ALLOWED_IPS=127.0.0.1/32,172.16.0.0/12
 TERMS_VERSION=2026-11-05
 DATABASE_POOL_SIZE=${DATABASE_POOL_SIZE:-10}
 ENV
