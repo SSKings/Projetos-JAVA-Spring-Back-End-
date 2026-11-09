@@ -42,7 +42,7 @@ public class AdminUserController {
 
     @PatchMapping("/{id}")
     public ResponseEntity<UserResponse> update(@PathVariable Long id,
-                                               @RequestBody UpdateUserRequest request,
+                                               @jakarta.validation.Valid @RequestBody UpdateUserRequest request,
                                                @AuthenticationPrincipal User admin) {
         return ResponseEntity.ok(service.update(id, request, admin.getId()));
     }

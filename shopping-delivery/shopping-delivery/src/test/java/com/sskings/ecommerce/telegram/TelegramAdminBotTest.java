@@ -275,7 +275,7 @@ class TelegramAdminBotTest {
     }
 
     @Test
-    @DisplayName("/usuarios lista ou busca; /usuario mostra detalhes com bloquear e trocar papel")
+    @DisplayName("/usuarios lista ou busca; /usuario mostra detalhes; cliente tem botão de bloquear, admin não (R4-3)")
     void users() {
         given(users.findAll(any(), any())).willReturn(new PageImpl<>(List.of(user(5, Role.ADMIN, false))));
         bot.handle(message(ADMIN_CHAT, "/usuarios"));
@@ -292,7 +292,11 @@ class TelegramAdminBotTest {
         given(users.findById(5L)).willReturn(user(5, Role.CUSTOMER, true));
         bot.handle(message(ADMIN_CHAT, "/usuario_5"));
         assertThat(lastText()).contains("<b>Usuário #5</b>", "✅ ativo", "Telefone: -", "Papel: cliente", "Pedidos: 3");
-        assertThat(data(lastButtons())).containsExactly("?act:5:false", "?role:5:ADMIN", "uo:5", "u:5");
+        assertThat(data(lastButtons())).containsExactly("?act:5:false", "uo:5", "u:5");   // trocar papel: só no painel
+
+        given(users.findById(6L)).willReturn(user(6, Role.ADMIN, true));
+        bot.handle(message(ADMIN_CHAT, "/usuario_6"));
+        assertThat(data(lastButtons())).containsExactly("uo:6", "u:6");                  // outro admin: só no painel
     }
 
     @Test
@@ -327,8 +331,7 @@ class TelegramAdminBotTest {
         assertThat(TelegramMessages.confirmation("ref:12")).contains("devolvido");
         assertThat(TelegramMessages.confirmation("act:5:false")).contains("Bloquear", "sessões");
         assertThat(TelegramMessages.confirmation("act:5:true")).contains("Desbloquear");
-        assertThat(TelegramMessages.confirmation("role:5:ADMIN")).contains("<b>admin</b>");
-        assertThat(TelegramMessages.confirmation("role:5:CUSTOMER")).contains("Tirar o acesso");
+        assertThat(TelegramMessages.confirmation("role:5:ADMIN")).isNull();   // R4-3: não existe mais no bot
         assertThat(TelegramMessages.confirmation("drop:5")).isNull();
     }
 
@@ -364,23 +367,29 @@ class TelegramAdminBotTest {
     }
 
     @Test
-    @DisplayName("Bloquear/desbloquear e trocar papel passam o id do admin (a API impede alterar a si mesmo)")
+    @DisplayName("Bloquear/desbloquear cliente passa o id do admin (a API impede alterar a si mesmo)")
     void manageUsers() {
-        given(users.update(eq(5L), any(), eq(1L))).willReturn(user(5, Role.CUSTOMER, false), user(5, Role.CUSTOMER, true),
-                user(5, Role.ADMIN, true), user(5, Role.CUSTOMER, true));
+        given(users.update(eq(5L), any(), eq(1L))).willReturn(user(5, Role.CUSTOMER, false), user(5, Role.CUSTOMER, true));
 
         bot.handle(click(ADMIN_CHAT, "!act:5:false"));
         assertThat(lastText()).startsWith("✔ Usuário #5 bloqueado.");
         bot.handle(click(ADMIN_CHAT, "!act:5:true"));
         assertThat(lastText()).startsWith("✔ Usuário #5 desbloqueado.");
-        bot.handle(click(ADMIN_CHAT, "!role:5:ADMIN"));
-        assertThat(lastText()).startsWith("✔ Usuário #5 agora é admin.");
-        bot.handle(click(ADMIN_CHAT, "!role:5:CUSTOMER"));
 
         verify(users).update(5L, new UpdateUserRequest(false, null), 1L);
         verify(users).update(5L, new UpdateUserRequest(true, null), 1L);
-        verify(users).update(5L, new UpdateUserRequest(null, Role.ADMIN), 1L);
-        verify(users).update(5L, new UpdateUserRequest(null, Role.CUSTOMER), 1L);
+    }
+
+    @Test
+    @DisplayName("R4-3: botão forjado de trocar papel ou bloquear admin manda para o painel (senha + código)")
+    void sensitiveUserChangesOnlyInPanel() {
+        bot.handle(click(ADMIN_CHAT, "!role:5:ADMIN"));
+        assertThat(lastText()).contains("faça pelo painel");
+        verify(users, never()).update(any(), any(), any());
+
+        given(users.update(eq(6L), any(), eq(1L))).willThrow(new BusinessException("Password confirmation required"));
+        bot.handle(click(ADMIN_CHAT, "!act:6:false"));
+        assertThat(lastText()).contains("faça pelo painel");
     }
 
     @Test
