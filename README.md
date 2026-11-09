@@ -79,7 +79,7 @@ histórico de compras e endereços) para clientes, e uma **área administrativa*
 - **723 testes** com cobertura exigida no build: backend 98,3% de linhas (JaCoCo) e frontend 99,1% (Vitest). O CI também roda:
   - o build de produção do front;
   - a verificação de CVEs (OSV + `npm audit`);
-  - 54 testes dos scripts (Python e shell);
+  - 59 testes dos scripts (Python e shell);
   - a checagem de imagens e actions fixadas por hash;
   - a validação dos dashboards e alertas;
   - um **teste funcional k6 contra a API rodando**.

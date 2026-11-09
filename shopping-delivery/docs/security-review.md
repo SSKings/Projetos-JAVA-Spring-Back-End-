@@ -508,6 +508,10 @@ Cada falha desta revisão virou uma regra. Na dúvida, o PR não entra. O CI já
     `Dockerfile`, compose e `*IMAGE=` em scripts — R5-8).
 25. **Validar a pilha de produção de verdade** (`load-tests/prod-like/prod-like.sh up` + smoke) quando mudar
     configuração de produção: a revisão 3 deixou o `prod-like` sem subir (allowlist do webhook) por duas revisões.
+26. **Antes do PR, rode o JOB do CI inteiro localmente**, lido do próprio `ci.yml`:
+    `python3 shopping-delivery/scripts/run-ci-job.py shopping-delivery` (e o job do front, se mexeu nele). Rodar só
+    os testes deixou passar um passo quebrado ("k6 inspect") no PR da revisão 5. Valor lido por script (`sed`, `grep`)
+    tem teste que usa a mesma leitura (`test_check_pinning.test_ci_reads_the_pinned_k6_image`).
 
 ---
 
@@ -566,6 +570,11 @@ ela não subia desde a revisão 3 (regra 25).
 | R5-8 | Baixa | **Imagem do k6 por tag no CI** (roda com o repositório montado) | Por análise | Fixada por digest; `check-pinning.py` também olha `*IMAGE=` em scripts | `test_check_pinning.py` |
 | — | Baixa (achado na correção) | O `prod-like` **não subia desde a revisão 3**: o webhook ligado exige `PIX_WEBHOOK_ALLOWED_IPS` (B4) e o script gerava vazio | `ProductionConfigValidator` recusava o startup | Script gera a allowlist e os três usuários do banco | pilha subida (regra 25) |
 | — | Baixa (achado na correção) | A contagem de falhas **por origem nunca vencia** antes do bloqueio: um erro por dia bloqueava no 5º dia | Por análise do teste | Contagem vence 15 min depois da última falha | `LoginAttemptServiceTest.clientCountExpires` |
+
+**Falha do próprio PR (corrigida antes do merge):** o CI do PR quebrou no passo "k6 inspect": o comentário colocado
+no fim da linha `K6_IMAGE=...` do `load-tests/run.sh` (R5-8) fazia o `sed` do `ci.yml` devolver vazio. Os testes
+passavam localmente porque esse passo não foi rodado. Correção: comentário na linha de cima; teste que roda o mesmo
+`sed` do `ci.yml`; `scripts/run-ci-job.py` roda todos os passos de um job localmente (regra 26).
 
 **Falso positivo descartado:** a exportação LGPD não traz a tabela de origens confiáveis, mas os mesmos IPs já saem
 nos eventos de segurança (auditoria) — nenhum dado fica de fora.

@@ -258,13 +258,14 @@ Administrador (/admin, MFA obrigatório em produção)
 |-----------|-------------------------|--------|--------|----------|
 | Backend   | `./mvnw verify`         | 402    | 98,3%  | 94,1%    |
 | Frontend  | `npm run coverage`      | 321    | 99,1%  | 95,9%    |
-| Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 44 | — | — |
+| Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 49 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
 | API rodando (k6) | `./load-tests/run.sh smoke` | 23 verificações | — | — |
 
-Os 44 testes Python cobrem o verificador de CVEs (4), a validação de dashboards, alertas e Telegram (25), o
+Os 49 testes Python cobrem o verificador de CVEs (4), a validação de dashboards, alertas e Telegram (25), o
 assistente do bot de administração (6, contra um Telegram falso), o backup cifrado do banco (5) e o verificador de
-imagens/actions fixadas por hash (4).
+imagens/actions fixadas por hash (5, inclusive a leitura da imagem do k6 pelo CI) e o executor local dos jobs do CI
+(4, `scripts/run-ci-job.py`).
 
 Os dois comandos **falham se a cobertura cair** abaixo do mínimo (backend 85% linhas / 80% branches;
 frontend 90% linhas / 85% branches) e rodam no CI a cada push. No front, o CI também roda `tsc -b`, `lint` e

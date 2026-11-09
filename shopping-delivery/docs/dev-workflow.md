@@ -122,6 +122,19 @@ procedimento da seção 9 do [guia de observabilidade](instrunctions-cloud-impl-
 `@import "tailwindcss"` no lugar das diretivas `@tailwind` e tema em CSS. Os estilos padrão mudam (cor de borda,
 largura do `ring`, escalas de `shadow`/`rounded`/`blur`), então revise as telas antes de mergear.
 
+## Antes de abrir o PR: rode o job do CI
+
+```bash
+python3 shopping-delivery/scripts/run-ci-job.py --list               # jobs do ci.yml
+python3 shopping-delivery/scripts/run-ci-job.py shopping-delivery    # todos os passos, na ordem (~4 min)
+python3 shopping-delivery/scripts/run-ci-job.py shopping-delivery-frontend
+```
+
+O script lê os passos do próprio `ci.yml` (nenhum fica de fora, nem os criados depois), roda cada um no diretório
+dele com `bash -eo pipefail` e encerra o que um passo deixar rodando (a API do smoke test). Precisa de Java 17, Node,
+Docker e PyYAML. Rodar só `./mvnw verify` não basta: no PR da revisão 5 os 402 testes passavam e o passo "k6 inspect"
+quebrou no CI.
+
 ## Segurança: checklist de PR
 
 Antes de abrir um PR que toque autenticação, conta, carrinho/pedidos, configuração, Docker ou CI, confira as
