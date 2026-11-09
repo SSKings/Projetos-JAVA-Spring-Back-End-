@@ -1,5 +1,6 @@
 package com.sskings.ecommerce.service;
 
+import com.sskings.ecommerce.dto.request.ChangePasswordRequest;
 import com.sskings.ecommerce.dto.request.PasswordConfirmationRequest;
 import com.sskings.ecommerce.dto.request.UpdateProfileRequest;
 import com.sskings.ecommerce.exception.BusinessException;
@@ -127,10 +128,11 @@ class AccountServiceTest {
     @Test
     @DisplayName("MFA: setup cifra o segredo; enable confere o código, revoga sessões e devolve token novo")
     void mfaEnable() {
-        var setup = service.setupMfa(1L);
+        var setup = service.setupMfa(1L, new PasswordConfirmationRequest("senha123", null));
         assertThat(setup.otpauthUri()).startsWith("otpauth://totp/ShopEasy").contains("secret=" + setup.secret());
         assertThat(user.getMfaSecret()).isNotEqualTo(setup.secret());
         assertThat(crypto.decrypt(user.getMfaSecret())).isEqualTo(setup.secret());
+        then(auditService).should().record(user, AuditService.MFA_SETUP_STARTED, "USER", 1L, null);
 
         assertThatThrownBy(() -> service.enableMfa(1L, "000000")).hasMessage("Invalid MFA code");
         service.enableMfa(1L, totp.currentCode(setup.secret()));
@@ -139,7 +141,7 @@ class AccountServiceTest {
         then(authService).should().response(user);
         then(auditService).should().record(user, AuditService.MFA_ENABLED, "USER", 1L, null);
 
-        assertThatThrownBy(() -> service.setupMfa(1L)).hasMessage("MFA already enabled");
+        assertThatThrownBy(() -> service.setupMfa(1L, new PasswordConfirmationRequest("senha123", null))).hasMessage("MFA already enabled");
         assertThatThrownBy(() -> service.enableMfa(1L, "123456")).hasMessage("MFA already enabled");
     }
 
@@ -162,6 +164,57 @@ class AccountServiceTest {
         assertThat(user.isMfaEnabled()).isFalse();
         assertThat(user.getMfaSecret()).isNull();
         then(auditService).should().record(user, AuditService.MFA_DISABLED, "USER", 1L, null);
+    }
+
+    // ---------- revisão 3, A1: token roubado não pode ativar o MFA ----------
+
+    @Test
+    @DisplayName("A1: setup do MFA sem a senha certa é recusado, conta como falha e não gera segredo")
+    void mfaSetup_requiresPassword() {
+        assertThatThrownBy(() -> service.setupMfa(1L, new PasswordConfirmationRequest("chute", null)))
+                .isInstanceOf(BusinessException.class).hasMessage("Invalid password");
+        assertThat(user.getMfaSecret()).isNull();
+        then(authService).should().ensureNotLocked(user);
+        then(authService).should().registerFailure(user, "reauthentication: wrong password");
+        then(auditService).should(never()).record(any(), eq(AuditService.MFA_SETUP_STARTED), any(), any(), any());
+
+        willThrow(new com.sskings.ecommerce.exception.TooManyRequestsException("Too many failed attempts. Try again later", 60))
+                .given(authService).ensureNotLocked(user);
+        assertThatThrownBy(() -> service.setupMfa(1L, new PasswordConfirmationRequest("senha123", null)))
+                .isInstanceOf(com.sskings.ecommerce.exception.TooManyRequestsException.class);
+        assertThat(user.getMfaSecret()).isNull();
+    }
+
+    // ---------- revisão 3, M1: troca de senha ----------
+
+    @Test
+    @DisplayName("M1: troca de senha exige a atual, grava o hash novo, revoga sessões, audita e devolve token")
+    void changePassword() {
+        service.changePassword(1L, new ChangePasswordRequest("senha123", "novaSenha9", null));
+        assertThat(encoder.matches("novaSenha9", user.getPassword())).isTrue();
+        assertThat(user.getTokenVersion()).isEqualTo(1);
+        then(authService).should().clearFailures(user);
+        then(authService).should().response(user);
+        then(auditService).should().record(user, AuditService.PASSWORD_CHANGED, "USER", 1L, null);
+    }
+
+    @Test
+    @DisplayName("M1: senha atual errada conta como falha; nova igual à atual é recusada; com MFA exige código")
+    void changePassword_rejections() {
+        assertThatThrownBy(() -> service.changePassword(1L, new ChangePasswordRequest("errada", "novaSenha9", null)))
+                .hasMessage("Invalid password");
+        then(authService).should().registerFailure(user, "reauthentication: wrong password");
+        assertThatThrownBy(() -> service.changePassword(1L, new ChangePasswordRequest("senha123", "senha123", null)))
+                .hasMessage("New password must be different from the current one");
+        assertThat(encoder.matches("senha123", user.getPassword())).isTrue();
+
+        String secret = totp.newSecret();
+        user.setMfaEnabled(true);
+        user.setMfaSecret(crypto.encrypt(secret));
+        assertThatThrownBy(() -> service.changePassword(1L, new ChangePasswordRequest("senha123", "novaSenha9", null)))
+                .hasMessage("Invalid MFA code");
+        service.changePassword(1L, new ChangePasswordRequest("senha123", "novaSenha9", totp.currentCode(secret)));
+        assertThat(encoder.matches("novaSenha9", user.getPassword())).isTrue();
     }
 
     // ---------- revisão 2: reautenticação conta para o bloqueio (R4) ----------

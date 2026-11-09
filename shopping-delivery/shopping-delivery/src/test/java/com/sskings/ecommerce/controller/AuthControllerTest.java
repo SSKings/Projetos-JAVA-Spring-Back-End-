@@ -91,12 +91,22 @@ class AuthControllerTest {
         String body = """
                 {"name":"%s","email":"ana@a.com","password":"%s","phone":"%s","acceptTerms":true}"""
                 .formatted("A".repeat(101), "p".repeat(73), "1".repeat(21));
+        // nome, tamanho da senha (caracteres e bytes), senha sem números, telefone
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
-                // nome, tamanho da senha, senha sem números, telefone
-                .andExpect(jsonPath("$.errors.length()").value(4));
+                .andExpect(jsonPath("$.errors.length()").value(5));
+    }
+
+    @Test
+    @DisplayName("Revisão 3, B2: senha com até 72 caracteres mas mais de 72 bytes (acentos) é recusada")
+    void register_passwordOver72Bytes_returns400() throws Exception {
+        String body = """
+                {"name":"Ana","email":"ana@a.com","password":"%s","acceptTerms":true}""".formatted("ç".repeat(36) + "1");
+        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0]").value(org.hamcrest.Matchers.containsString("too long")));
     }
 
     @Test

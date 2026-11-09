@@ -1,5 +1,6 @@
 package com.sskings.ecommerce.service;
 
+import com.sskings.ecommerce.dto.request.ChangePasswordRequest;
 import com.sskings.ecommerce.dto.request.PasswordConfirmationRequest;
 import com.sskings.ecommerce.dto.request.UpdateProfileRequest;
 import com.sskings.ecommerce.dto.response.*;
@@ -104,15 +105,40 @@ public class AccountService {
         auditService.record(user, AuditService.ACCOUNT_DELETED, "USER", userId, "anonymized");
     }
 
+    /**
+     * Troca de senha (revisão 3, M1): exige a senha atual (e o MFA, se ativo), encerra todas as sessões e devolve um
+     * token novo. Sem isso, uma senha vazada — inclusive a ADMIN_PASSWORD inicial do .env.prod — não tinha como ser trocada.
+     */
+    @Transactional(noRollbackFor = {BusinessException.class, com.sskings.ecommerce.exception.TooManyRequestsException.class})
+    public AuthResponse changePassword(Long userId, ChangePasswordRequest request) {
+        User user = load(userId);
+        reauthenticate(user, new PasswordConfirmationRequest(request.currentPassword(), request.mfaCode()));
+        if (passwordEncoder.matches(request.newPassword(), user.getPassword())) {
+            throw new BusinessException("New password must be different from the current one");
+        }
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        user.revokeTokens();
+        userRepository.save(user);
+        auditService.record(user, AuditService.PASSWORD_CHANGED, "USER", user.getId(), null);
+        return authService.response(user);
+    }
+
     // ---------- MFA ----------
 
-    @Transactional
-    public MfaSetupResponse setupMfa(Long userId) {
+    /**
+     * Exige a senha (revisão 3, A1): só com o token, quem roubasse a sessão ativava o MFA com o app DELE e o dono,
+     * sem o código, nunca mais entrava — o roubo de um token de 2 h virava sequestro permanente da conta.
+     * Sem o segredo devolvido aqui, o /mfa/enable não tem como ser concluído por outra pessoa.
+     */
+    @Transactional(noRollbackFor = {BusinessException.class, com.sskings.ecommerce.exception.TooManyRequestsException.class})
+    public MfaSetupResponse setupMfa(Long userId, PasswordConfirmationRequest request) {
         User user = load(userId);
         if (user.isMfaEnabled()) throw new BusinessException("MFA already enabled");
+        reauthenticate(user, request);
         String secret = totpService.newSecret();
         user.setMfaSecret(cryptoService.encrypt(secret));
         userRepository.save(user);
+        auditService.record(user, AuditService.MFA_SETUP_STARTED, "USER", user.getId(), null);
         return new MfaSetupResponse(secret, totpService.otpauthUri(ISSUER, user.getEmail(), secret));
     }
 

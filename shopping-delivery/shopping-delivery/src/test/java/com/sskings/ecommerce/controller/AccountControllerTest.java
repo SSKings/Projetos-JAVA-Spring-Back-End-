@@ -1,5 +1,7 @@
 package com.sskings.ecommerce.controller;
 
+import com.sskings.ecommerce.dto.request.ChangePasswordRequest;
+
 import com.sskings.ecommerce.config.SecurityConfig;
 import com.sskings.ecommerce.config.WebMvcTestConfig;
 import com.sskings.ecommerce.dto.request.PasswordConfirmationRequest;
@@ -29,6 +31,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.times;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -95,11 +98,18 @@ class AccountControllerTest {
     @DisplayName("MFA: setup, enable (código de 6 dígitos) e disable")
     void mfa() throws Exception {
         AuthResponse auth = new AuthResponse("new-token", "Ana", "ana@a.com", Role.CUSTOMER, true, false);
-        given(accountService.setupMfa(2L)).willReturn(new MfaSetupResponse("ABC", "otpauth://totp/x"));
+        given(accountService.setupMfa(eq(2L), eq(new PasswordConfirmationRequest("senha123", null))))
+                .willReturn(new MfaSetupResponse("ABC", "otpauth://totp/x"));
         given(accountService.enableMfa(2L, "123456")).willReturn(auth);
         given(accountService.disableMfa(eq(2L), any())).willReturn(auth);
 
-        mvc.perform(post("/api/account/mfa/setup").with(user(ANA))).andExpect(jsonPath("$.otpauthUri").value("otpauth://totp/x"));
+        // A1: sem a senha no corpo, nem chega ao serviço
+        mvc.perform(post("/api/account/mfa/setup").with(user(ANA))).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/account/mfa/setup").with(user(ANA)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/account/mfa/setup").with(user(ANA)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"senha123\"}"))
+                .andExpect(jsonPath("$.otpauthUri").value("otpauth://totp/x"));
         mvc.perform(post("/api/account/mfa/enable").with(user(ANA)).contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"123456\"}"))
                 .andExpect(jsonPath("$.token").value("new-token"));
         mvc.perform(post("/api/account/mfa/enable").with(user(ANA)).contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"12\"}"))
@@ -107,5 +117,27 @@ class AccountControllerTest {
         mvc.perform(post("/api/account/mfa/disable").with(user(ANA)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"senha123\",\"mfaCode\":\"123456\"}"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("M1: troca de senha valida a política (inclusive 72 bytes) e devolve o token novo")
+    void changePassword() throws Exception {
+        AuthResponse auth = new AuthResponse("new-token", "Ana", "ana@a.com", Role.CUSTOMER, false, false);
+        given(accountService.changePassword(eq(2L), any())).willReturn(auth);
+
+        mvc.perform(post("/api/account/password").with(user(ANA)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"senha123\",\"newPassword\":\"novaSenha9\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.token").value("new-token"));
+        then(accountService).should().changePassword(2L, new ChangePasswordRequest("senha123", "novaSenha9", null));
+
+        for (String bad : List.of("curta1", "semnumeros", "12345678", "ç".repeat(36) + "1")) {
+            mvc.perform(post("/api/account/password").with(user(ANA)).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"currentPassword\":\"senha123\",\"newPassword\":\"" + bad + "\"}"))
+                    .andExpect(status().isBadRequest());
+        }
+        mvc.perform(post("/api/account/password").with(user(ANA)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newPassword\":\"novaSenha9\"}"))
+                .andExpect(status().isBadRequest());
+        then(accountService).should(times(1)).changePassword(any(), any());
     }
 }
