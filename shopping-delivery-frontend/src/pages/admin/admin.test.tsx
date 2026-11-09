@@ -353,19 +353,53 @@ describe('AdminUsersPage', () => {
     expect(screen.getAllByRole('button', { name: /Bloquear|Desbloquear/ })).toHaveLength(2);
   });
 
-  it('bloqueia, desbloqueia e altera perfil', async () => {
+  it('bloqueia cliente direto, sem pedir senha', async () => {
     vi.mocked(adminApi.getAdminUsers).mockResolvedValue(users());
     vi.mocked(adminApi.updateUser).mockResolvedValue(adminUser());
     renderWithProviders(<AdminUsersPage />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Bloquear' }));
     expect(adminApi.updateUser).toHaveBeenCalledWith(2, { active: false });
-    await userEvent.click(screen.getByRole('button', { name: 'Desbloquear' }));
-    expect(adminApi.updateUser).toHaveBeenCalledWith(3, { active: true });
+    expect(screen.queryByRole('form', { name: /Confirmar mudança/ })).not.toBeInTheDocument();
+  });
+
+  it('R4-3: trocar papel e mexer em admin pedem senha (e código, com MFA); cancelar não muda nada', async () => {
+    localStorage.setItem('user', JSON.stringify({ name: 'Chefe', email: 'admin@x.com', role: 'ADMIN', mfaEnabled: true }));
+    vi.mocked(adminApi.getAdminUsers).mockResolvedValue(users());
+    vi.mocked(adminApi.updateUser).mockResolvedValue(adminUser());
+    renderWithProviders(<AdminUsersPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Tornar admin' }));
+    const form = screen.getByRole('form', { name: /Confirmar mudança/ });
+    expect(form).toHaveTextContent('Tornar admin — Ana');
+    expect(adminApi.updateUser).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByRole('form', { name: /Confirmar mudança/ })).not.toBeInTheDocument();
+
     await userEvent.click(screen.getByRole('button', { name: 'Tornar admin' }));
-    expect(adminApi.updateUser).toHaveBeenCalledWith(2, { role: 'ADMIN' });
-    await userEvent.click(screen.getByRole('button', { name: 'Tornar cliente' }));
-    expect(adminApi.updateUser).toHaveBeenCalledWith(3, { role: 'CUSTOMER' });
+    await userEvent.type(screen.getByLabelText('Sua senha'), 'minhaSenha1');
+    await userEvent.type(screen.getByLabelText('Código do app'), '12a3456');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    expect(adminApi.updateUser).toHaveBeenCalledWith(2, { role: 'ADMIN', password: 'minhaSenha1', mfaCode: '123456' });
+    await waitFor(() => expect(screen.queryByRole('form', { name: /Confirmar mudança/ })).not.toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: 'Desbloquear' }));   // Bia é admin
+    expect(screen.getByRole('form', { name: /Confirmar mudança/ })).toHaveTextContent('Desbloquear admin — Bia');
+  });
+
+  it('R4-3: senha errada mostra o erro e mantém o pedido de confirmação; sem MFA não pede código', async () => {
+    vi.mocked(adminApi.getAdminUsers).mockResolvedValue(users());
+    vi.mocked(adminApi.updateUser).mockRejectedValue(httpError('Invalid password'));
+    renderWithProviders(<AdminUsersPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Tornar cliente' }));
+    expect(screen.queryByLabelText('Código do app')).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Sua senha'), 'errada');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    expect(adminApi.updateUser).toHaveBeenCalledWith(3, { role: 'CUSTOMER', password: 'errada', mfaCode: undefined });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Senha incorreta.');
+    expect(screen.getByRole('form', { name: /Confirmar mudança/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('Sua senha')).toHaveValue('');
   });
 
   it('mostra erro do back-end traduzido', async () => {

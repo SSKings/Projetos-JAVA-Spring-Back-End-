@@ -80,4 +80,17 @@ class TelegramOrderNotifierTest {
         given(orders.findById(13L)).willThrow(new IllegalStateException("db down"));
         n.onOrderEvent(new OrderEvent(13L, OrderEvent.Type.PAID));   // não lança
     }
+
+    @Test
+    @DisplayName("Revisão 4: alerta de segurança vai só para quem ainda é admin, com o texto escapado")
+    void securityAlert() {
+        notifier.onSecurityAlert(new com.sskings.ecommerce.event.SecurityAlertEvent("Usuário #9 (<b>x</b>) agora é ADMIN."));
+
+        verify(client).sendMessage(eq(111L), argThat(t -> t.startsWith("🚨 <b>Alerta de segurança</b>")
+                && t.contains("(&lt;b&gt;x&lt;/b&gt;)")), isNull());
+        verify(client, never()).sendMessage(eq(222L), anyString(), any());
+
+        willThrow(new TelegramException("fora do ar")).given(client).sendMessage(eq(111L), anyString(), any());
+        notifier.onSecurityAlert(new com.sskings.ecommerce.event.SecurityAlertEvent("x"));   // só log, sem exceção
+    }
 }

@@ -45,6 +45,25 @@ public class TelegramOrderNotifier {
         executor.execute(() -> notifyAdmins(event));
     }
 
+    /**
+     * Alertas de segurança (revisão 4): ataque de senha, promoção a admin, admin bloqueado. fallbackExecution: o
+     * alerta também sai se o evento for publicado fora de transação.
+     */
+    @TransactionalEventListener(fallbackExecution = true)
+    public void onSecurityAlert(com.sskings.ecommerce.event.SecurityAlertEvent event) {
+        executor.execute(() -> {
+            String text = "🚨 <b>Alerta de segurança</b>\n" + esc(event.text());
+            for (Map.Entry<Long, String> chat : props.adminChats().entrySet()) {
+                if (userRepository.findByEmail(chat.getValue()).filter(bot::isAllowed).isEmpty()) continue;
+                try {
+                    client.sendMessage(chat.getKey(), text, null);
+                } catch (RuntimeException e) {
+                    log.warn("Telegram: alerta de segurança não entregue ao chat {}: {}", chat.getKey(), e.getMessage());
+                }
+            }
+        });
+    }
+
     void notifyAdmins(OrderEvent event) {
         try {
             AdminOrderResponse o = orders.findById(event.orderId());

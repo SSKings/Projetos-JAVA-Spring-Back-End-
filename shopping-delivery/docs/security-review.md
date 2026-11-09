@@ -3,6 +3,7 @@
 Data: 2026-11-05 · Escopo: `shopping-delivery/shopping-delivery` (API) e `shopping-delivery-frontend` (SPA).
 **Revisão 2: 2026-11-06** (sobre o código já corrigido) — ver [seção 6](#6-revisão-2--2026-11-06).
 **Revisão 3: 2026-11-08/09** (pentest de todo o monorepo, foco em produção) — ver [seção 9](#9-revisão-3--2026-11-0809).
+**Revisão 4: 2026-11-09** (pentest sobre as correções da revisão 3) — ver [seção 10](#10-revisão-4--2026-11-09).
 
 **Método**
 - Revisão do código: autenticação, autorização, validação, pagamento e configuração.
@@ -475,5 +476,50 @@ Cada falha desta revisão virou uma regra. Na dúvida, o PR não entra. O CI já
 8. **Workflow com permissão mínima** (`permissions: contents: read`; M7).
 9. **Novo serviço no compose:** rede mínima (`data` é `internal`), `read_only`, `cap_drop: ALL`, `no-new-privileges`, `mem_limit` (M5, B8).
 10. **Endpoint público com paginação ou corpo:** teto de tamanho (B5; `RequestSizeLimitFilter`).
-11. **Cada achado de segurança ganha teste de regressão** que reproduz o ataque (`SecurityReview{2,3}IntegrationTest`).
+11. **Cada achado de segurança ganha teste de regressão** que reproduz o ataque (`SecurityReview{2,3,4}IntegrationTest`).
+12. **Teste de ataque varia o que o atacante controla:** origem (IPs diferentes, IPv6 no mesmo /64), conta, sessão,
+    concorrência. Um teste que ataca de um IP só não pega um controle que conta por IP (revisão 4, R4-1/R4-2).
+13. **Mudou um controle de segurança → rode os ataques de TODAS as revisões anteriores** e leia o que cada teste
+    antigo deixou de cobrir com a regra nova (não basta ficar verde).
+14. **Limite contra força bruta sempre tem um teto que não depende da origem** (por conta ou por sessão); bloquear o
+    dono nunca é a saída — use origens confiáveis, espera ou CAPTCHA (R4-1).
+15. **Ação administrativa que cria ou remove poder** (papel de admin, bloquear admin) exige a senha e o MFA de quem
+    age e avisa os outros admins (R4-3).
+16. **Nunca grave uma entidade lida fora da transação** (`save` de objeto antigo desfaz mudanças feitas no meio); para
+    campos de controle use `UPDATE` condicional atômico (R4-6/R4-7).
+17. **Estrutura em memória com limite:** a limpeza roda no máximo de tempos em tempos, nunca a cada requisição (cheia
+    de entradas válidas, virava O(n) por chamada — revisão 4).
+
+---
+
+## 10. Revisão 4 — 2026-11-09
+
+Pentest sobre a `main` com as correções da revisão 3 (`1bdb833`). Duas das falhas altas foram **regressões que a
+própria revisão 3 introduziu**: o bloqueio passou a contar por IP e os testes atacavam de um IP só. Por isso as
+regras 12 e 13 acima e, desta vez, cada teste novo foi executado também contra o código antigo — os 6 testes de
+`SecurityReview4IntegrationTest` **falharam todos na `main` anterior** e passam com as correções.
+
+**Método:** ataques dinâmicos com 7 origens diferentes da mesma máquina (loopback, IPv6, rede local e pontes Docker),
+leitura do código novo da revisão 3, OSV (103 dependências, 0 sem justificativa) e `npm audit` (0).
+
+### Achados e correções
+
+| # | Severidade | Achado | Evidência (antes) | Correção | Teste |
+|---|------------|--------|-------------------|----------|-------|
+| R4-1 | Alta | **Força bruta trocando de IP (regressão da A2).** Cada IP tinha 5 tentativas; com IPv6, um /64 dá 2^64 endereços | 35 senhas contra a mesma conta em 15 min com 7 origens (antes da revisão 3: 5) | IPv6 conta pelo **/64**. **Teto por conta: 20 falhas / 15 min** somando todas as origens; depois disso só tentam as **origens confiáveis** (onde a conta já entrou com sucesso, tabela `trusted_login_sources`, 90 dias, máx. 10, apagadas com a conta) — o dono em casa entra, o atacante não ganha tentativas. Email inexistente segue a mesma regra. `LOGIN_ATTACK_SUSPECTED` vai para a auditoria **e para os admins no Telegram**. Rate limit da API também por /64 | `distributedBruteForceIsBounded`, `AuthServiceTest` (R4-1), `LoginAttemptServiceTest`, `TrustedLoginSourcesTest`, `RateLimitFilterTest.ipv6CountsBySlash64` |
+| R4-2 | Alta | **Token roubado testava a senha trocando de IP (regressão da R4 da revisão 2)** | 35 senhas na reautenticação com 7 origens | Reautenticação (setup/desativação do MFA, troca de senha, exclusão, `/entrar` do bot, ações de admin) conta **por conta**: 5 falhas → 15 min, de qualquer IP. Bloqueia só a reautenticação — o login do dono continua | `stolenTokenCannotBruteForceReauth`, `AuthServiceTest.reauthHelpers`, `SecurityReview2IntegrationTest` (ajustado) |
+| R4-3 | Alta | **Token de admin roubado criava admin permanente** | `PATCH /api/admin/users/9 {"role":"ADMIN"}` → 200; logout do admin não desfazia | Trocar papel ou alterar conta de admin exige **senha e MFA de quem age** (`400 Password confirmation required` sem eles); todos os admins recebem alerta no Telegram. No bot, essas ações saíram (só pelo painel); o bot só bloqueia/desbloqueia clientes | `stolenAdminTokenCannotCreateAdmins`, `AdminUserServiceTest` (R4-3), `TelegramAdminBotTest.sensitiveUserChangesOnlyInPanel`, `admin.test.tsx` |
+| R4-4 | Média | **Os tetos da A3 não protegiam produto de estoque baixo** | 1 conta reservou as 10 unidades do produto de estoque 10 | (a) 10 unidades por produto **somando os pedidos pendentes**; (b) um pedido leva no máximo **metade do que resta**; (c) **3 Pix abandonados em 24 h** bloqueiam novos pedidos; (d) **10 contas novas por origem por dia** (`REGISTRATIONS_PER_DAY`) | `oneAccountCannotTakeLowStockProduct`, `OrderServiceTest` (R4-4), `RegistrationLimitIntegrationTest`, `RegistrationLimiterTest` |
+| R4-5 | Média | **Exclusão de conta (LGPD) bloqueável:** o e-mail anonimizado era `removed-<id>@anonymized.invalid`, previsível | Cadastro de `removed-<id>` → 201; exclusão da vítima → 409 para sempre | E-mail anonimizado com UUID; cadastro recusa o domínio reservado `.invalid` | `accountDeletionCannotBeBlocked`, `AccountServiceTest.delete` |
+| R4-6 | Baixa | O `/entrar` do bot regravava a conta do admin inteira (lida no início da mensagem): podia desfazer um bloqueio feito no mesmo instante | Por análise | Só o passo TOTP, por `UPDATE` condicional (`UserRepository.claimMfaStep`) | `TelegramSessionsTest` |
+| R4-7 | Baixa | O mesmo código MFA valia em dois logins simultâneos | **Confirmado no teste:** `[200, 200]` no código antigo | `UPDATE ... WHERE mfa_last_step < :passo` — só uma requisição grava | `mfaCodeRaceAcceptsOnlyOne` (duas threads, banco real), `AuthServiceTest.mfaClaimIsAtomic` |
+| R4-8 | Baixa | Imagem de produto de qualquer domínio https: o dono do servidor via o IP de cada cliente | Por análise | `app.product-image-hosts` (`PRODUCT_IMAGE_HOSTS`, padrão `images.unsplash.com`) e o mesmo host no `img-src` do CSP | `AdminProductServiceTest.imageHostAllowlist` |
+| — | Baixa (achado durante a correção) | Com o mapa de tentativas cheio de entradas válidas, **cada falha varria o mapa inteiro** (O(n) por requisição: CPU) — também no rate limit | O teste de memória levava 171 s | Limpeza no máximo 1 vez por minuto (`LoginAttemptService`, `RegistrationLimiter`, `RateLimitFilter`) | `LoginAttemptServiceTest.evictsStaleEntriesWhenFull` (0,8 s) |
+
+### Aceito / pendente
+- **Origem nova durante um ataque em andamento:** quem tenta entrar de um lugar onde nunca entrou (viagem, celular novo) recebe 429 até a janela de 15 min passar. É o custo de não dar tentativas ilimitadas a um atacante.
+- **Muitas contas por muitas origens:** com proxies residenciais, o limite de cadastros por origem só encarece o ataque. A correção completa é a verificação de e-mail (pendente, depende de SMTP).
+- **"3 Pix abandonados"** também conta pedidos sem pagamento cancelados pelo admin; é raro e a janela é de 24 h.
+- **Rate limit do nginx por endereço IPv6 (/128):** a API já agrupa por /64; o nginx continua por endereço.
+- **Continuam da revisão 3:** token no `localStorage`, recuperação de senha e códigos de recuperação do MFA, verificação de e-mail.
 

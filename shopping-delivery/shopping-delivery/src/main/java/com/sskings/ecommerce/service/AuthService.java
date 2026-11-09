@@ -38,11 +38,15 @@ public class AuthService {
     private final String dummyHash;
     /** Bloqueio por email + IP; a mesma regra vale para emails inexistentes (revisão 2, R3; revisão 3, A2). */
     private final LoginAttemptService attempts;
+    private final TrustedLoginSources trustedSources;
+    private final RegistrationLimiter registrations;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService,
                        TotpService totpService, CryptoService cryptoService, AuditService auditService,
                        SecurityProperties props, Clock clock, @Value("${app.terms-version}") String termsVersion,
-                       LoginAttemptService attempts) {
+                       LoginAttemptService attempts, TrustedLoginSources trustedSources, RegistrationLimiter registrations,
+                       org.springframework.context.ApplicationEventPublisher events) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -53,6 +57,9 @@ public class AuthService {
         this.clock = clock;
         this.termsVersion = termsVersion;
         this.attempts = attempts;
+        this.trustedSources = trustedSources;
+        this.registrations = registrations;
+        this.events = events;
         this.dummyHash = passwordEncoder.encode("timing-equalizer-not-a-real-password");
     }
 
@@ -63,6 +70,8 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         String email = normalizeEmail(request.email());
+        String source = LoginAttemptService.currentSource();
+        registrations.check(source);
         if (userRepository.existsByEmail(email)) {
             // Mitigado por rate limit; a correção completa exige verificação de email (ver security-review.md, A2)
             throw new BusinessException("Email already in use");
@@ -75,6 +84,7 @@ public class AuthService {
                 .termsVersion(termsVersion)
                 .termsAcceptedAt(now())
                 .build());
+        registrations.record(source);
         auditService.record(user, AuditService.REGISTER, "USER", user.getId(), "terms " + termsVersion);
         return response(user);
     }
@@ -83,16 +93,18 @@ public class AuthService {
     @Transactional(noRollbackFor = {BusinessException.class, TooManyRequestsException.class})
     public AuthResponse login(LoginRequest request) {
         String email = normalizeEmail(request.email());
-        attempts.ensureNotLocked(email);
+        String source = LoginAttemptService.currentSource();
         Optional<User> found = userRepository.findByEmail(email);
+        // Origem confiável = a conta já entrou daqui; durante um ataque distribuído só ela segue tentando (R4-1)
+        attempts.ensureLoginAllowed(email, found.isPresent() && trustedSources.isTrusted(found.get().getId(), source));
         if (found.isEmpty()) {
             passwordEncoder.matches(request.password(), dummyHash);   // mesmo custo de uma conta real
-            fail(null, email, "unknown email " + AuditService.maskEmail(email));
+            loginFailure(null, email, "unknown email " + AuditService.maskEmail(email));
             throw new BusinessException("Invalid credentials");
         }
         User user = found.get();
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            registerFailure(user, "wrong password");
+            loginFailure(user, email, "wrong password");
             throw new BusinessException("Invalid credentials");
         }
         if (!user.isActive()) {
@@ -103,13 +115,14 @@ public class AuthService {
                 throw new BusinessException("MFA code required");
             }
             OptionalLong step = totpService.verify(cryptoService.decrypt(user.getMfaSecret()), request.mfaCode(), user.getMfaLastStep());
-            if (step.isEmpty()) {
-                registerFailure(user, "invalid MFA code");
+            if (step.isEmpty() || !claimMfaStep(user, step.getAsLong())) {
+                loginFailure(user, email, "invalid MFA code");
                 throw new BusinessException("Invalid MFA code");
             }
-            user.setMfaLastStep(step.getAsLong());
         }
-        attempts.clear(email);
+        attempts.clearLogin(email);
+        userRepository.findByIdForUpdate(user.getId());   // serializa logins simultâneos ao gravar a origem
+        trustedSources.recordSuccess(user.getId(), source);
         userRepository.save(user);
         auditService.record(user, AuditService.LOGIN_SUCCESS, "USER", user.getId(), null);
         return response(user);
@@ -129,32 +142,53 @@ public class AuthService {
         return AuthResponse.of(jwtService.generateToken(user), user, props.requireAdminMfa());
     }
 
-    /** Este IP bloqueado para esta conta → 429 com Retry-After. Usado no login e na reautenticação. */
-    public void ensureNotLocked(User user) {
-        attempts.ensureNotLocked(user.getEmail());
+    // ---------- reautenticação (senha/código numa sessão já aberta): contada por CONTA, não por IP (R4-2) ----------
+
+    /** Reautenticação desta conta bloqueada → 429. Usado pelo AccountService e pela sessão do bot do Telegram. */
+    public void ensureReauthAllowed(User user) {
+        attempts.ensureReauthAllowed(user.getId());
     }
 
-    /** Senha/código errado no login ou na reautenticação: conta para o bloqueio e fica na auditoria. */
-    public void registerFailure(User user, String reason) {
-        fail(user, user.getEmail(), reason);
+    /** Senha/código errado na reautenticação: conta para o bloqueio da reautenticação e fica na auditoria. */
+    public void registerReauthFailure(User user, String reason) {
+        if (attempts.registerReauthFailure(user.getId())) {
+            auditService.recordIndependent(user, AuditService.ACCOUNT_LOCKED, "USER", user.getId(),
+                    "reauthentication locked for " + props.login().lockMinutes() + " min after "
+                            + props.login().maxFailedAttempts() + " failures");
+        }
+        auditService.recordIndependent(user, AuditService.LOGIN_FAILED, "USER", user.getId(), reason);
     }
 
-    /** Reautenticação bem-sucedida também zera o contador, como o login. */
-    public void clearFailures(User user) {
-        attempts.clear(user.getEmail());
+    public void clearReauthFailures(User user) {
+        attempts.clearReauth(user.getId());
     }
 
-    private void fail(User user, String email, String reason) {
-        LoginAttemptService.Failure failure = attempts.registerFailure(email);
+    /**
+     * Aceita o passo TOTP de forma atômica (UPDATE condicional): o mesmo código não serve duas vezes nem em
+     * requisições simultâneas (R4-7). Não regrava a entidade inteira (R4-6).
+     */
+    public boolean claimMfaStep(User user, long step) {
+        if (userRepository.claimMfaStep(user.getId(), step) == 0) return false;
+        user.setMfaLastStep(step);
+        return true;
+    }
+
+    private void loginFailure(User user, String email, String reason) {
+        LoginAttemptService.Failure failure = attempts.registerLoginFailure(email);
         Long id = user == null ? null : user.getId();
         if (failure.lockedNow() && user != null) {
             auditService.recordIndependent(user, AuditService.ACCOUNT_LOCKED, "USER", id,
-                    "IP locked for " + props.login().lockMinutes() + " min after "
-                            + props.login().maxFailedAttempts() + " failures");
+                    "source " + LoginAttemptService.currentSource() + " locked for " + props.login().lockMinutes()
+                            + " min after " + props.login().maxFailedAttempts() + " failures");
         }
-        if (failure.attackSuspected()) {
-            auditService.recordIndependent(user, AuditService.LOGIN_ATTACK_SUSPECTED, "USER", id,
-                    LoginAttemptService.ATTACK_THRESHOLD + " failures from several IPs on " + AuditService.maskEmail(email));
+        if (failure.attackStarted()) {
+            String details = LoginAttemptService.ACCOUNT_BUDGET + " failures from several sources on "
+                    + AuditService.maskEmail(email) + "; only trusted sources can try until the window ends";
+            auditService.recordIndependent(user, AuditService.LOGIN_ATTACK_SUSPECTED, "USER", id, details);
+            events.publishEvent(new com.sskings.ecommerce.event.SecurityAlertEvent(
+                    "Ataque de senha em andamento contra " + AuditService.maskEmail(email) + ": "
+                            + LoginAttemptService.ACCOUNT_BUDGET + " falhas de origens diferentes em "
+                            + props.login().lockMinutes() + " min. Novas tentativas só de onde a conta já entrou."));
         }
         auditService.recordIndependent(user, AuditService.LOGIN_FAILED, "USER", id, reason);
     }

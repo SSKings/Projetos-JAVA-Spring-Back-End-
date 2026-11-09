@@ -77,6 +77,65 @@ class OrderServiceTest {
         then(cartItemRepository).should(never()).findAllByUserId(any());
     }
 
+    // ---------- revisão 4, R4-4: os tetos da revisão 3 não protegiam produto de estoque baixo ----------
+
+    @Test
+    @DisplayName("R4-4: as 10 unidades por produto valem somando os pedidos que ainda aguardam pagamento")
+    void checkout_unitsAcrossPendingOrders() {
+        product.setStockQuantity(100);
+        cartItem.setQuantity(3);
+        given(cartItemRepository.findAllByUserId(1L)).willReturn(List.of(cartItem));
+        given(addressRepository.findByIdAndUserId(1L, 1L)).willReturn(java.util.Optional.of(address));
+        given(productRepository.findByIdAndActiveTrue(10L)).willReturn(java.util.Optional.of(product));
+        given(orderRepository.sumPendingUnits(1L, 10L)).willReturn(8L);
+
+        assertThatThrownBy(() -> orderService.checkout(new CheckoutRequest(1L), 1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("across your orders awaiting payment");
+        then(productRepository).should(never()).decrementStock(anyLong(), anyInt());
+    }
+
+    @Test
+    @DisplayName("R4-4: um pedido leva no máximo metade do que resta do produto (estoque 10 → 5)")
+    void checkout_halfOfRemainingStock() {
+        product.setStockQuantity(10);
+        cartItem.setQuantity(6);
+        given(cartItemRepository.findAllByUserId(1L)).willReturn(List.of(cartItem));
+        given(addressRepository.findByIdAndUserId(1L, 1L)).willReturn(java.util.Optional.of(address));
+        given(productRepository.findByIdAndActiveTrue(10L)).willReturn(java.util.Optional.of(product));
+
+        assertThatThrownBy(() -> orderService.checkout(new CheckoutRequest(1L), 1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Maximum quantity for this product right now: 5 (Widget)");
+        then(productRepository).should(never()).decrementStock(anyLong(), anyInt());
+    }
+
+    @Test
+    @DisplayName("R4-4: a última unidade pode ser comprada (metade de 1 arredonda para 1)")
+    void checkout_lastUnit() {
+        product.setStockQuantity(1);
+        cartItem.setQuantity(1);
+        given(cartItemRepository.findAllByUserId(1L)).willReturn(List.of(cartItem));
+        given(addressRepository.findByIdAndUserId(1L, 1L)).willReturn(java.util.Optional.of(address));
+        given(productRepository.findByIdAndActiveTrue(10L)).willReturn(java.util.Optional.of(product));
+        given(productRepository.decrementStock(10L, 1)).willReturn(1);
+        given(orderRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        assertThat(orderService.checkout(new CheckoutRequest(1L), 1L).items()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("R4-4: 3 Pix abandonados em 24 h (expirados ou cancelados sem pagar) bloqueiam novos pedidos")
+    void checkout_abandonedCooldown() {
+        given(orderRepository.countAbandonedPaymentsSince(1L, LOCAL_NOW.minusHours(24)))
+                .willReturn((long) OrderService.MAX_ABANDONED_PER_DAY);
+
+        assertThatThrownBy(() -> orderService.checkout(new CheckoutRequest(1L), 1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Too many unpaid orders in the last 24 hours. Try again later");
+        then(cartItemRepository).should(never()).findAllByUserId(any());
+    }
+
     @Test
     @DisplayName("A3: item de carrinho antigo acima do limite por produto é recusado no checkout")
     void checkout_unitsPerItemLimit() {

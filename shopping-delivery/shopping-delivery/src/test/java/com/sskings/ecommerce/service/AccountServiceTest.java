@@ -43,6 +43,7 @@ class AccountServiceTest {
     @Mock AuditLogRepository auditLogRepository;
     @Mock AuditService auditService;
     @Mock AuthService authService;
+    @Mock TrustedLoginSources trustedSources;
 
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(4);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
@@ -54,11 +55,18 @@ class AccountServiceTest {
     @BeforeEach
     void setUp() {
         service = new AccountService(userRepository, addressRepository, orderRepository, cartItemRepository,
-                auditLogRepository, auditService, authService, encoder, totp, crypto, clock);
+                auditLogRepository, auditService, authService, encoder, totp, crypto, trustedSources, clock);
         user = User.builder().id(1L).name("Ana Souza").email("ana@a.com").phone("11999999999")
                 .password(encoder.encode("senha123")).build();
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(userRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        // AuthService.claimMfaStep (UPDATE condicional): aceita passo mais novo que o último
+        given(authService.claimMfaStep(eq(user), anyLong())).willAnswer(inv -> {
+            long step = inv.getArgument(1);
+            if (user.getMfaLastStep() != null && user.getMfaLastStep() >= step) return false;
+            user.setMfaLastStep(step);
+            return true;
+        });
     }
 
     @Test
@@ -101,7 +109,8 @@ class AccountServiceTest {
 
         service.deleteAccount(1L, new PasswordConfirmationRequest("senha123", null));
 
-        assertThat(user.getEmail()).isEqualTo("removed-1@anonymized.invalid");
+        // R4-5: aleatório (com o id, alguém registrava o endereço antes e a exclusão falhava para sempre)
+        assertThat(user.getEmail()).matches("removed-[0-9a-f-]{36}@anonymized\\.invalid");
         assertThat(user.getName()).isEqualTo("Usuário removido");
         assertThat(user.getPhone()).isNull();
         assertThat(user.isActive()).isFalse();
@@ -111,7 +120,8 @@ class AccountServiceTest {
         then(cartItemRepository).should().deleteAllByUserId(1L);
         then(addressRepository).should().delete(unused);
         then(addressRepository).should(never()).delete(used);   // mantido: vinculado a pedido (obrigação legal)
-        then(auditLogRepository).should().replaceActorEmail(1L, "removed-1@anonymized.invalid");
+        then(auditLogRepository).should().replaceActorEmail(1L, user.getEmail());
+        then(trustedSources).should().forget(1L);   // IPs de onde entrava também são dados pessoais
     }
 
     @Test
@@ -174,12 +184,12 @@ class AccountServiceTest {
         assertThatThrownBy(() -> service.setupMfa(1L, new PasswordConfirmationRequest("chute", null)))
                 .isInstanceOf(BusinessException.class).hasMessage("Invalid password");
         assertThat(user.getMfaSecret()).isNull();
-        then(authService).should().ensureNotLocked(user);
-        then(authService).should().registerFailure(user, "reauthentication: wrong password");
+        then(authService).should().ensureReauthAllowed(user);
+        then(authService).should().registerReauthFailure(user, "reauthentication: wrong password");
         then(auditService).should(never()).record(any(), eq(AuditService.MFA_SETUP_STARTED), any(), any(), any());
 
         willThrow(new com.sskings.ecommerce.exception.TooManyRequestsException("Too many failed attempts. Try again later", 60))
-                .given(authService).ensureNotLocked(user);
+                .given(authService).ensureReauthAllowed(user);
         assertThatThrownBy(() -> service.setupMfa(1L, new PasswordConfirmationRequest("senha123", null)))
                 .isInstanceOf(com.sskings.ecommerce.exception.TooManyRequestsException.class);
         assertThat(user.getMfaSecret()).isNull();
@@ -193,7 +203,7 @@ class AccountServiceTest {
         service.changePassword(1L, new ChangePasswordRequest("senha123", "novaSenha9", null));
         assertThat(encoder.matches("novaSenha9", user.getPassword())).isTrue();
         assertThat(user.getTokenVersion()).isEqualTo(1);
-        then(authService).should().clearFailures(user);
+        then(authService).should().clearReauthFailures(user);
         then(authService).should().response(user);
         then(auditService).should().record(user, AuditService.PASSWORD_CHANGED, "USER", 1L, null);
     }
@@ -203,7 +213,7 @@ class AccountServiceTest {
     void changePassword_rejections() {
         assertThatThrownBy(() -> service.changePassword(1L, new ChangePasswordRequest("errada", "novaSenha9", null)))
                 .hasMessage("Invalid password");
-        then(authService).should().registerFailure(user, "reauthentication: wrong password");
+        then(authService).should().registerReauthFailure(user, "reauthentication: wrong password");
         assertThatThrownBy(() -> service.changePassword(1L, new ChangePasswordRequest("senha123", "senha123", null)))
                 .hasMessage("New password must be different from the current one");
         assertThat(encoder.matches("senha123", user.getPassword())).isTrue();
@@ -224,18 +234,18 @@ class AccountServiceTest {
     void reauthentication_countsFailures() {
         assertThatThrownBy(() -> service.deleteAccount(1L, new PasswordConfirmationRequest("errada", null)))
                 .hasMessage("Invalid password");
-        then(authService).should().ensureNotLocked(user);
-        then(authService).should().registerFailure(user, "reauthentication: wrong password");
+        then(authService).should().ensureReauthAllowed(user);
+        then(authService).should().registerReauthFailure(user, "reauthentication: wrong password");
 
         willThrow(new com.sskings.ecommerce.exception.TooManyRequestsException("Too many failed attempts. Try again later", 60))
-                .given(authService).ensureNotLocked(user);
+                .given(authService).ensureReauthAllowed(user);
         assertThatThrownBy(() -> service.deleteAccount(1L, new PasswordConfirmationRequest("senha123", null)))
                 .isInstanceOf(com.sskings.ecommerce.exception.TooManyRequestsException.class);
         assertThat(user.getEmail()).isEqualTo("ana@a.com");   // nada foi apagado
 
-        willDoNothing().given(authService).ensureNotLocked(user);
+        willDoNothing().given(authService).ensureReauthAllowed(user);
         service.deleteAccount(1L, new PasswordConfirmationRequest("senha123", null));
-        then(authService).should().clearFailures(user);
+        then(authService).should().clearReauthFailures(user);
     }
 
     @Test
@@ -245,6 +255,6 @@ class AccountServiceTest {
         user.setMfaSecret(crypto.encrypt(totp.newSecret()));
         assertThatThrownBy(() -> service.disableMfa(1L, new PasswordConfirmationRequest("senha123", "000000")))
                 .hasMessage("Invalid MFA code");
-        then(authService).should().registerFailure(user, "reauthentication: invalid MFA code");
+        then(authService).should().registerReauthFailure(user, "reauthentication: invalid MFA code");
     }
 }

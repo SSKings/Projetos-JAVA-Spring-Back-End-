@@ -41,6 +41,8 @@ class AuthServiceTest {
     @Mock UserRepository userRepository;
     @Mock JwtService jwtService;
     @Mock AuditService auditService;
+    @Mock TrustedLoginSources trustedSources;
+    @Mock org.springframework.context.ApplicationEventPublisher events;
 
     private final PasswordEncoder encoder = new BCryptPasswordEncoder(4);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
@@ -57,7 +59,7 @@ class AuthServiceTest {
     private AuthService newService(PasswordEncoder enc, boolean requireAdminMfa, Clock c) {
         SecurityProperties p = props(requireAdminMfa);
         return new AuthService(userRepository, enc, jwtService, totp, crypto, auditService, p, c, "2026-11-05",
-                new LoginAttemptService(p, c));
+                new LoginAttemptService(p, c), trustedSources, new RegistrationLimiter(1000, c), events);
     }
 
     /** Simula a requisição vindo de um IP (o bloqueio é por email + IP). */
@@ -81,6 +83,11 @@ class AuthServiceTest {
         given(userRepository.findByEmail("ana@a.com")).willReturn(Optional.of(user));
         given(userRepository.save(any(User.class))).willAnswer(inv -> inv.getArgument(0));
         given(jwtService.generateToken(any())).willReturn("jwt");
+        // UPDATE condicional do banco: aceita só passo TOTP mais novo que o último gravado
+        given(userRepository.claimMfaStep(eq(1L), anyLong())).willAnswer(inv -> {
+            long step = inv.getArgument(1);
+            return user.getMfaLastStep() == null || user.getMfaLastStep() < step ? 1 : 0;
+        });
     }
 
     private AuthResponse login(String password) {
@@ -151,7 +158,7 @@ class AuthServiceTest {
         then(auditService).should(never()).recordIndependent(any(), eq(AuditService.ACCOUNT_LOCKED), any(), any(), any());
         assertThatThrownBy(() -> login("errada")).hasMessage("Invalid credentials");
 
-        then(auditService).should().recordIndependent(eq(user), eq(AuditService.ACCOUNT_LOCKED), any(), any(), contains("IP locked for 15 min"));
+        then(auditService).should().recordIndependent(eq(user), eq(AuditService.ACCOUNT_LOCKED), any(), any(), contains("locked for 15 min"));
 
         assertThatThrownBy(() -> login("senha123"))
                 .isInstanceOf(TooManyRequestsException.class)
@@ -203,17 +210,51 @@ class AuthServiceTest {
         assertThatThrownBy(() -> login("senha123")).isInstanceOf(TooManyRequestsException.class);
     }
 
+    // ---------- revisão 4, R4-1: trocar de IP não pode dar tentativas ilimitadas ----------
+
     @Test
-    @DisplayName("A2: ataque distribuído (muitos IPs na mesma conta) é auditado uma vez, sem trancar o dono")
-    void lockout_distributedAttackIsAudited() {
-        for (int i = 0; i < LoginAttemptService.ATTACK_THRESHOLD + 5; i++) {
+    @DisplayName("R4-1: estourado o teto da conta, novas origens recebem 429 sem testar a senha; o dono, de onde já entrou, entra")
+    void distributedAttack_budgetThenOnlyTrustedSources() {
+        given(trustedSources.isTrusted(1L, "203.0.113.10")).willReturn(true);
+        for (int i = 0; i < LoginAttemptService.ACCOUNT_BUDGET; i++) {
             fromIp("198.51.100." + i);
             assertThatThrownBy(() -> login("chute")).hasMessage("Invalid credentials");
         }
         then(auditService).should(times(1)).recordIndependent(eq(user), eq(AuditService.LOGIN_ATTACK_SUSPECTED),
                 eq("USER"), eq(1L), contains("a***@a.com"));
-        fromIp("203.0.113.10");
+        then(events).should().publishEvent(any(com.sskings.ecommerce.event.SecurityAlertEvent.class));
+
+        fromIp("198.51.100.250");                                          // origem nova, mesmo com a senha CERTA
+        assertThatThrownBy(() -> login("senha123")).isInstanceOf(TooManyRequestsException.class);
+        fromIp("2001:db8:77::1");
+        assertThatThrownBy(() -> login("senha123")).isInstanceOf(TooManyRequestsException.class);
+
+        fromIp("203.0.113.10");                                            // casa do dono
         assertThat(login("senha123").token()).isEqualTo("jwt");
+    }
+
+    @Test
+    @DisplayName("R4-1: email inexistente recebe o mesmo 429 do teto (o ataque distribuído não revela quem tem conta)")
+    void distributedAttack_symmetricForUnknownEmail() {
+        given(userRepository.findByEmail("fantasma@a.com")).willReturn(Optional.empty());
+        java.util.List<String> real = new java.util.ArrayList<>(), ghost = new java.util.ArrayList<>();
+        for (int i = 0; i < LoginAttemptService.ACCOUNT_BUDGET + 2; i++) {
+            fromIp("198.51.100." + i);
+            real.addAll(attempts("ana@a.com", 1));
+            fromIp("192.0.2." + i);
+            ghost.addAll(attempts("fantasma@a.com", 1));
+        }
+        assertThat(ghost).isEqualTo(real);
+        assertThat(real).endsWith("429", "429");
+    }
+
+    @Test
+    @DisplayName("R4-1: login com sucesso grava a origem como confiável (com a linha do usuário travada)")
+    void successRecordsTrustedSource() {
+        fromIp("2001:db8:5:6::abcd");
+        login("senha123");
+        then(userRepository).should().findByIdForUpdate(1L);
+        then(trustedSources).should().recordSuccess(1L, "2001:db8:5:6::/64");
     }
 
     @Test
@@ -329,12 +370,30 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("R4: API pública de bloqueio usada pela reautenticação")
+    @DisplayName("R4-2: reautenticação conta por CONTA — trocar de IP não dá tentativas novas; não tranca o login")
     void reauthHelpers() {
-        for (int i = 0; i < 3; i++) service.registerFailure(user, "reauthentication: wrong password");
-        assertThatThrownBy(() -> service.ensureNotLocked(user)).isInstanceOf(TooManyRequestsException.class);
-        service.clearFailures(user);
-        service.ensureNotLocked(user);   // não lança
+        for (int i = 0; i < 3; i++) {
+            fromIp("198.51.100." + i);
+            service.registerReauthFailure(user, "reauthentication: wrong password");
+        }
+        fromIp("192.0.2.77");
+        assertThatThrownBy(() -> service.ensureReauthAllowed(user)).isInstanceOf(TooManyRequestsException.class);
+        then(auditService).should().recordIndependent(eq(user), eq(AuditService.ACCOUNT_LOCKED), any(), any(), contains("reauthentication locked"));
+        assertThat(login("senha123").token()).isEqualTo("jwt");             // o login do dono continua
+        service.clearReauthFailures(user);
+        service.ensureReauthAllowed(user);   // não lança
         then(auditService).should(times(3)).recordIndependent(user, AuditService.LOGIN_FAILED, "USER", 1L, "reauthentication: wrong password");
+    }
+
+    @Test
+    @DisplayName("R4-7: código MFA já aceito por outra requisição (UPDATE condicional devolve 0) é recusado")
+    void mfaClaimIsAtomic() {
+        String secret = totp.newSecret();
+        user.setMfaEnabled(true);
+        user.setMfaSecret(crypto.encrypt(secret));
+        given(userRepository.claimMfaStep(eq(1L), anyLong())).willReturn(0);   // a outra requisição gravou antes
+        assertThatThrownBy(() -> service.login(new LoginRequest("ana@a.com", "senha123", totp.currentCode(secret))))
+                .hasMessage("Invalid MFA code");
+        assertThat(user.getMfaLastStep()).isNull();
     }
 }

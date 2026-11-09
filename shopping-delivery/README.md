@@ -178,12 +178,13 @@ Pix já tinha sido pago), pedido de devolução e Pix expirado. Cada aviso traz 
 | `/pedidos` · `/pedidos pendentes` | Últimos 10 pedidos, ou só os de um status (pendentes, confirmados, enviados, entregues, cancelados) |
 | `/pedido 12` (ou toque em `/pedido_12`) | Detalhes do pedido, com botões: mudar status, confirmar Pix, registrar estorno |
 | `/usuarios` · `/usuarios ana` | Últimos cadastros, ou busca por nome/e-mail |
-| `/usuario 5` | Detalhes, com botões: bloquear/desbloquear, tornar admin/cliente, ver pedidos |
+| `/usuario 5` | Detalhes, com botões: bloquear/desbloquear cliente e ver pedidos (trocar papel e mexer em admin: só no painel, com senha e código) |
 | `/resumo` | Pedidos, faturamento, clientes e produtos |
 
 **Segurança:** só os chats da lista `TELEGRAM_ADMIN_BOT_ADMINS` (`chatId:email`), em conversa privada. A cada
 mensagem, a conta precisa continuar ADMIN e ativa (em produção, também com MFA). Admin com MFA abre a sessão com o
-código do app (`/entrar`); ela cai com logout, troca de senha ou bloqueio no painel. Toda ação pede confirmação, segue as
+código do app (`/entrar`); ela cai com logout, troca de senha ou bloqueio no painel. O bot também avisa os admins de
+**alertas de segurança**: ataque de senha em andamento, alguém promovido a admin, admin bloqueado. Toda ação pede confirmação, segue as
 mesmas regras do painel e fica na **auditoria** com o nome do admin. Para cortar o acesso de alguém, bloqueie a conta
 no painel ou tire o chat da lista. Quem usa o bot deve ativar a verificação em duas etapas no Telegram.
 
@@ -252,8 +253,8 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 337    | 98,3%  | 94,4%    |
-| Frontend  | `npm run coverage`      | 307    | 99,0%  | 95,9%    |
+| Backend   | `./mvnw verify`         | 367    | 98,3%  | 94,2%    |
+| Frontend  | `npm run coverage`      | 317    | 99,1%  | 95,9%    |
 | Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 44 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
 | API rodando (k6) | `./load-tests/run.sh smoke` | 23 verificações | — | — |

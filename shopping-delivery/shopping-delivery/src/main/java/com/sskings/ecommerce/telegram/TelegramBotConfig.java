@@ -52,9 +52,8 @@ public class TelegramBotConfig {
     }
 
     @Bean
-    public TelegramSessions telegramSessions(TotpService totp, CryptoService crypto, AuthService auth,
-                                             UserRepository users, Clock clock) {
-        return new TelegramSessions(totp, crypto, auth, users, clock);
+    public TelegramSessions telegramSessions(TotpService totp, CryptoService crypto, AuthService auth, Clock clock) {
+        return new TelegramSessions(totp, crypto, auth, clock);
     }
 
     @Bean

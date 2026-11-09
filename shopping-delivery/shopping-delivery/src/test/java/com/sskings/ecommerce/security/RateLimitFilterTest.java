@@ -74,4 +74,13 @@ class RateLimitFilterTest {
         now.set(Instant.parse("2026-11-05T12:05:00Z"));
         assertThat(call(f, "POST", "/api/auth/login", "1.1.1.1")).isEqualTo(200);
     }
+
+    @Test
+    @DisplayName("Revisão 4: IPv6 conta pelo bloco /64 — trocar de endereço no mesmo bloco não renova o limite")
+    void ipv6CountsBySlash64() throws Exception {
+        RateLimitFilter f = filter(true);
+        for (int i = 1; i <= 3; i++) assertThat(call(f, "POST", "/api/auth/login", "2001:db8:1:2::" + i)).isEqualTo(200);
+        assertThat(call(f, "POST", "/api/auth/login", "2001:db8:1:2:ffff:ffff:ffff:ffff")).isEqualTo(429);
+        assertThat(call(f, "POST", "/api/auth/login", "2001:db8:1:3::1")).isEqualTo(200);   // outro /64
+    }
 }

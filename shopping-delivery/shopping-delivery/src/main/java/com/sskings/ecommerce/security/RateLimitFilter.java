@@ -26,6 +26,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final int webhookPerMinute;
     private final Clock clock;
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
+    private volatile long lastSweepMinute = -1;
 
     public RateLimitFilter(SecurityProperties.RateLimit props, Clock clock) {
         this.enabled = props.enabled();
@@ -54,7 +55,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         int limit = bucket.equals("auth") ? authPerMinute : webhookPerMinute;
         long nowSeconds = clock.instant().getEpochSecond();
         long minute = nowSeconds / 60;
-        String key = bucket + ":" + request.getRemoteAddr();
+        // IPv6 por bloco /64: o cliente troca de endereço dentro do bloco à vontade (revisão 4, R4-1)
+        String key = bucket + ":" + com.sskings.ecommerce.service.LoginAttemptService.sourceKey(request.getRemoteAddr());
 
         Window window = windows.compute(key, (k, w) -> w == null || w.minute() != minute ? new Window(minute, new AtomicInteger()) : w);
         if (window.count().incrementAndGet() > limit) {
@@ -65,8 +67,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
             response.getWriter().write("{\"status\":429,\"message\":\"Too many requests\"}");
             return;
         }
-        if (windows.size() > 10_000) {
-            windows.entrySet().removeIf(e -> e.getValue().minute() != minute);   // evita crescer sem limite
+        // evita crescer sem limite; uma varredura por minuto (cheio de janelas do minuto atual, varrer a cada
+        // requisição só gastava CPU — revisão 4)
+        if (windows.size() > 10_000 && lastSweepMinute != minute) {
+            lastSweepMinute = minute;
+            windows.entrySet().removeIf(e -> e.getValue().minute() != minute);
         }
         chain.doFilter(request, response);
     }

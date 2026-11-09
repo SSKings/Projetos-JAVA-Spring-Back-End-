@@ -634,6 +634,10 @@ o computador. Já havia um bot do Telegram, mas só para os alertas técnicos do
     autenticador) antes de usar o bot. A sessão (`TelegramSessions`, em memória) vale 12 h, é ligada ao chat e ao
     usuário e cai junto com os tokens do painel (logout, troca de senha, MFA, bloqueio). Código errado conta para o
     bloqueio do login; `/sair` encerra. Os avisos de pedidos continuam chegando sem sessão.
+- **Revisão 4 (R4-3):** trocar papel e mexer em conta de admin exigem a senha e o MFA de quem age, então **saíram do
+  bot** (só pelo painel); o bot bloqueia/desbloqueia clientes. O bot também recebe **alertas de segurança**
+  (`SecurityAlertEvent`): ataque de senha em andamento, promoção a admin, admin bloqueado/rebaixado. A sessão aberta
+  com `/entrar` grava só o passo TOTP (`UPDATE` condicional), nunca a conta inteira (R4-6).
 - **Toda ação que muda dados pede confirmação**: o botão `?…` só pergunta; o `!…` executa.
 
 **Consequências**

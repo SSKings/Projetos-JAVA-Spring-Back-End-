@@ -55,3 +55,18 @@ describe('ORDER_STATUSES', () => {
     expect(ORDER_STATUSES.map(s => orderStatusConfig[s].label)).toEqual(['Pendente', 'Confirmado', 'Enviado', 'Entregue', 'Cancelado']);
   });
 });
+
+describe('mensagens da revisão 4', () => {
+  const err = (message: string) => ({ response: { status: 400, data: { message } } });
+  it.each([
+    ['Maximum quantity for this product right now: 5 (Relógio)', 'Por enquanto, cada pedido pode levar no máximo 5 unidade(s) de Relógio.'],
+    ['Maximum of 10 units per product across your orders awaiting payment: Caneca', 'Limite de 10 unidades de Caneca somando seus pedidos que aguardam pagamento.'],
+    ['Image host not allowed. Allowed: images.unsplash.com', 'Use uma imagem hospedada em: images.unsplash.com.'],
+    ['Password confirmation required', 'Confirme sua senha para esta ação.'],
+    ['Too many unpaid orders in the last 24 hours. Try again later', 'Você deixou vários pedidos sem pagar nas últimas 24 horas. Tente de novo mais tarde.'],
+    ['Too many accounts created from this network today. Try again later', 'Muitas contas foram criadas a partir desta rede hoje. Tente de novo amanhã.'],
+    ['Mensagem desconhecida', 'Mensagem desconhecida'],
+  ])('%s', (message, expected) => {
+    expect(getErrorMessage(err(message))).toBe(expected);
+  });
+});

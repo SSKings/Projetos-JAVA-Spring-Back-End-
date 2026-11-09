@@ -108,22 +108,26 @@ class SecurityReview3IntegrationTest {
         long addressId = body(call(post("/api/addresses"), ip, token, Map.of("zipCode", "01000-000", "street", "Rua R3",
                 "number", "1", "neighborhood", "Centro", "city", "São Paulo", "state", "SP"))).get("id").asLong();
         JsonNode products = body(call(get("/api/products?size=50"), ip, null, null)).get("content");
-        long productId = -1;
+        long productId = -1, otherId = -1;
         for (JsonNode p : products) {
-            if (p.get("stockQuantity").asInt() >= 20) { productId = p.get("id").asLong(); break; }
+            if (p.get("stockQuantity").asInt() < 20) continue;
+            if (productId < 0) productId = p.get("id").asLong();
+            else if (otherId < 0) otherId = p.get("id").asLong();
         }
         assertThat(productId).as("produto com estoque no seed").isPositive();
+        assertThat(otherId).as("segundo produto com estoque no seed").isPositive();
 
         assertThat(call(post("/api/cart/items"), ip, token, Map.of("productId", productId, "quantity", 11)).getStatus()).isEqualTo(400);
         assertThat(call(post("/api/cart/items"), ip, token, Map.of("productId", productId, "quantity", 10)).getStatus()).isEqualTo(200);
         assertThat(call(post("/api/cart/items"), ip, token, Map.of("productId", productId, "quantity", 1)).getStatus()).isEqualTo(400);
 
         for (int i = 0; i < 2; i++) {
-            if (i > 0) call(post("/api/cart/items"), ip, token, Map.of("productId", productId, "quantity", 1));
+            // revisão 4: o 2º pedido usa outro produto (as 10 unidades valem somando os pedidos pendentes, R4-4)
+            if (i > 0) call(post("/api/cart/items"), ip, token, Map.of("productId", otherId, "quantity", 1));
             assertThat(call(post("/api/orders/checkout"), ip, token, Map.of("addressId", addressId, "paymentMethod", "PIX")).getStatus())
                     .isEqualTo(201);
         }
-        call(post("/api/cart/items"), ip, token, Map.of("productId", productId, "quantity", 1));
+        call(post("/api/cart/items"), ip, token, Map.of("productId", otherId, "quantity", 1));
         var third = call(post("/api/orders/checkout"), ip, token, Map.of("addressId", addressId, "paymentMethod", "PIX"));
         assertThat(third.getStatus()).isEqualTo(400);
         assertThat(body(third).get("message").asText()).contains("awaiting payment");

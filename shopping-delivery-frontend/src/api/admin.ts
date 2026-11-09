@@ -44,7 +44,8 @@ export const getAdminUsers = (page = 0, search?: string) =>
   api.get<Page<AdminUser>>('/api/admin/users', { params: { page, size: 10, search: search || undefined } })
     .then(r => r.data);
 
-export const updateUser = (id: number, data: { active?: boolean; role?: Role }) =>
+/** password/mfaCode: do admin que está agindo; exigidos para trocar papel ou alterar outro admin (revisão 4, R4-3). */
+export const updateUser = (id: number, data: { active?: boolean; role?: Role; password?: string; mfaCode?: string }) =>
   api.patch<AdminUser>(`/api/admin/users/${id}`, data).then(r => r.data);
 
 export const getUserOrders = (id: number) =>

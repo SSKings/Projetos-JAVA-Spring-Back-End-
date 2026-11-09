@@ -36,6 +36,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     long countByUserIdAndStatus(Long userId, OrderStatus status);
 
+    /** Unidades de um produto nos pedidos do cliente que ainda aguardam pagamento (revisão 4, R4-4). */
+    @Query("select coalesce(sum(i.quantity), 0) from Order o join o.items i "
+            + "where o.user.id = :userId and o.status = com.sskings.ecommerce.model.enums.OrderStatus.PENDING "
+            + "and i.product.id = :productId")
+    long sumPendingUnits(@Param("userId") Long userId, @Param("productId") Long productId);
+
+    /** Pix abandonados (expirados ou cancelados sem pagamento) do cliente desde um instante (revisão 4, R4-4). */
+    @Query("select count(p) from Payment p where p.order.user.id = :userId and p.paidAt is null "
+            + "and p.status in (com.sskings.ecommerce.model.enums.PaymentStatus.EXPIRED, "
+            + "com.sskings.ecommerce.model.enums.PaymentStatus.CANCELLED) and p.createdAt > :since")
+    long countAbandonedPaymentsSince(@Param("userId") Long userId, @Param("since") java.time.LocalDateTime since);
+
     boolean existsByAddressId(Long addressId);
 
     boolean existsByUserIdAndStatusIn(Long userId, java.util.Collection<OrderStatus> statuses);

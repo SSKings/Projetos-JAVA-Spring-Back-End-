@@ -123,7 +123,10 @@ public class TelegramAdminBot {
         try {
             if (callback.isMissingNode()) command(chatId, text, admin.get());
             else button(chatId, callback.path("data").asText(""), admin.get());
-        } catch (ResourceNotFoundException | BusinessException e) {
+        } catch (BusinessException e) {
+            client.sendMessage(chatId, "Password confirmation required".equals(e.getMessage()) ? PANEL_ONLY
+                    : "⚠️ " + esc(e.getMessage()), null);
+        } catch (ResourceNotFoundException e) {
             client.sendMessage(chatId, "⚠️ " + esc(e.getMessage()), null);
         } catch (IllegalArgumentException e) {
             client.sendMessage(chatId, "⚠️ Comando inválido. Veja /ajuda.", null);
@@ -210,11 +213,8 @@ public class TelegramAdminBot {
                 client.sendMessage(chatId, "✔ Usuário #%d %s.\n\n".formatted(id, u.active() ? "desbloqueado" : "bloqueado")
                         + user(u), userButtons(u, admin.getId()));
             }
-            case "!role" -> {
-                UserResponse u = users.update(id, new UpdateUserRequest(null, Role.valueOf(a[2])), admin.getId());
-                client.sendMessage(chatId, "✔ Usuário #%d agora é %s.\n\n".formatted(id, role(u.role()))
-                        + user(u), userButtons(u, admin.getId()));
-            }
+            // Mudar papel exige senha e código de quem age (revisão 4, R4-3): só pelo painel
+            case "!role" -> client.sendMessage(chatId, PANEL_ONLY, null);
             default -> throw new IllegalArgumentException(data);
         }
     }

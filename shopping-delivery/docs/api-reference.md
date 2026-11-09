@@ -19,13 +19,19 @@ permissão: a sessão continua. Corpo: `{"status":401,"message":"Authentication 
 
 **Limites.**
 - Login e cadastro: 20 requisições/min por IP (`429 Too many requests` + `Retry-After`).
-- Após 5 senhas erradas, o email fica bloqueado por 15 min **para aquele IP** (`429 Too many failed attempts. Try again later`).
-  O dono, de outro IP, continua entrando: um terceiro não consegue trancar a conta de ninguém (revisão 3, A2).
-  Vale **igualmente para emails não cadastrados**, para que a resposta não revele quem tem conta.
-  Muitas falhas de IPs diferentes na mesma conta geram `LOGIN_ATTACK_SUSPECTED` na auditoria.
-- A reautenticação (`/api/account/delete`, `/password`, `/mfa/setup`, `/mfa/disable`) conta para esse mesmo bloqueio.
-- Carrinho e checkout (revisão 3, A3): até **10 unidades por produto**, **20 produtos** no carrinho e **2 pedidos
-  aguardando pagamento** por cliente.
+- Após 5 senhas erradas, o email fica bloqueado por 15 min **para aquela origem** (IP; no IPv6, o bloco /64)
+  (`429 Too many failed attempts. Try again later`). O dono, de outra origem, continua entrando (revisão 3, A2).
+- **Teto por conta** (revisão 4, R4-1): 20 falhas em 15 min somando todas as origens. Depois disso, só tentam as
+  origens de onde a conta **já entrou com sucesso**; as outras recebem 429 até a janela acabar, mesmo com a senha
+  certa. Gera `LOGIN_ATTACK_SUSPECTED` na auditoria e alerta aos admins no Telegram.
+  As duas regras valem **igualmente para emails não cadastrados**, para que a resposta não revele quem tem conta.
+- A reautenticação (`/api/account/delete`, `/password`, `/mfa/setup`, `/mfa/disable`, `PATCH /api/admin/users/{id}`
+  sensível, `/entrar` do bot) tem bloqueio próprio **por conta**, de qualquer IP: 5 falhas → 15 min. Não afeta o login.
+- Cadastro: no máximo 10 contas novas por origem em 24 h (`REGISTRATIONS_PER_DAY`) → `429 Too many accounts created
+  from this network today. Try again later`. E-mails do domínio reservado `.invalid` são recusados (`Email domain is not allowed`).
+- Carrinho e checkout (revisões 3 e 4): até **10 unidades por produto** (somando os pedidos que aguardam pagamento),
+  **20 produtos** no carrinho, **2 pedidos aguardando pagamento**, cada pedido leva no máximo **metade do estoque
+  restante** do produto e **3 Pix abandonados em 24 h** bloqueiam novos pedidos até a janela passar.
 - Listagens paginadas: `size` máximo 100 (acima disso, vira 100).
 - Webhook: 120/min por IP.
 - Corpo da requisição: no máximo 64 KB (`security.max-request-bytes`) → acima disso, `413 Request body too large`.
@@ -406,8 +412,11 @@ Finaliza a compra. Em uma única transação: valida estoque → decrementa esto
 `paymentMethod` é opcional (padrão e único valor hoje: `PIX`). O valor cobrado é sempre o `total` calculado no
 servidor — o cliente não envia valor.
 
-Com **2 pedidos aguardando pagamento**, o próximo checkout é recusado antes de reservar estoque:
-`400 You already have 2 orders awaiting payment. Pay or cancel one before placing a new order`.
+Recusas antes de reservar estoque (todas `400`):
+- `You already have 2 orders awaiting payment. Pay or cancel one before placing a new order`
+- `Too many unpaid orders in the last 24 hours. Try again later` (3 Pix expirados ou cancelados sem pagar em 24 h)
+- `Maximum of 10 units per product across your orders awaiting payment: <produto>`
+- `Maximum quantity for this product right now: <n> (<produto>)` (metade do estoque restante; a última unidade pode)
 
 **Response 201**
 ```json
@@ -594,9 +603,12 @@ Clientes comuns recebem **403**. O login/registro agora também retornam `role` 
 | DELETE | `/api/admin/products/{id}` | Desativa — exclusão lógica (204) |
 
 ```json
-{ "name": "Caneca", "description": "Cerâmica 300ml", "imageUrl": "https://...",
+{ "name": "Caneca", "description": "Cerâmica 300ml", "imageUrl": "https://images.unsplash.com/...",
   "price": 29.90, "stockQuantity": 10, "active": true }
 ```
+
+`imageUrl` só de hosts permitidos (`PRODUCT_IMAGE_HOSTS`, padrão `images.unsplash.com`; o mesmo host precisa estar no
+`img-src` do CSP do nginx) → senão `400 Image host not allowed. Allowed: ...` (revisão 4, R4-8).
 
 ### Pedidos
 
@@ -653,6 +665,12 @@ e `returnReason`.
 | PATCH  | `/api/admin/users/{id}` | Body `{ "active": false }` e/ou `{ "role": "ADMIN" }` |
 
 O admin não pode alterar a própria conta (400). Usuário bloqueado recebe 400 `Account is blocked` no login.
+
+**Mudança sensível** — trocar o papel de alguém ou alterar uma conta de ADMIN — exige a senha (e, com MFA, o código)
+**do admin que está agindo** no mesmo body: `{ "role": "ADMIN", "password": "...", "mfaCode": "123456" }`. Sem eles →
+`400 Password confirmation required`; errados → `400 Invalid password` / `Invalid MFA code` (bloqueio de
+reautenticação). Todos os admins recebem alerta no Telegram (revisão 4, R4-3). Bloquear/desbloquear **cliente** não
+pede senha.
 Bloquear ou trocar o papel **revoga as sessões abertas** do usuário (tokens antigos → 401).
 
 ---

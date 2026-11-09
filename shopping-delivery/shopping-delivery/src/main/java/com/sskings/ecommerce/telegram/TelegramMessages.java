@@ -51,6 +51,9 @@ final class TelegramMessages {
             Toda ação pede confirmação e fica na auditoria com o seu usuário. \
             Novos pedidos, Pix confirmados, cancelamentos e devoluções chegam aqui automaticamente.""".formatted(PAGE_SIZE);
 
+    static final String PANEL_ONLY = "🔐 Mudar o papel de alguém ou mexer numa conta de admin pede sua senha e o código do "
+            + "app autenticador: faça pelo painel (Admin → Usuários).";
+
     static final String LOGIN_REQUIRED = """
             🔐 Para usar o bot, abra a sessão com o código do seu app autenticador:
             <code>/entrar 123456</code>
@@ -189,12 +192,11 @@ final class TelegramMessages {
 
     static List<List<Button>> userButtons(UserResponse u, Long currentAdminId) {
         List<List<Button>> rows = new ArrayList<>();
-        if (!u.id().equals(currentAdminId)) {   // a API recusa alterar a própria conta: nem mostra o botão
-            rows.add(List.of(
-                    u.active() ? new Button("🚫 Bloquear", "?act:" + u.id() + ":false")
-                               : new Button("✅ Desbloquear", "?act:" + u.id() + ":true"),
-                    u.role() == Role.ADMIN ? new Button("👤 Tornar cliente", "?role:" + u.id() + ":CUSTOMER")
-                                           : new Button("⭐ Tornar admin", "?role:" + u.id() + ":ADMIN")));
+        // A API recusa alterar a própria conta: nem mostra o botão. Mudar papel e mexer em contas de admin exigem senha
+        // e código (revisão 4, R4-3) e ficam só no painel: o bot só bloqueia/desbloqueia clientes.
+        if (!u.id().equals(currentAdminId) && u.role() != Role.ADMIN) {
+            rows.add(List.of(u.active() ? new Button("🚫 Bloquear", "?act:" + u.id() + ":false")
+                                        : new Button("✅ Desbloquear", "?act:" + u.id() + ":true")));
         }
         rows.add(List.of(new Button("📦 Pedidos", "uo:" + u.id()), new Button("🔄 Atualizar", "u:" + u.id())));
         return rows;
@@ -211,9 +213,6 @@ final class TelegramMessages {
             case "act" -> Boolean.parseBoolean(a[2])
                     ? "Desbloquear o usuário #%s?".formatted(a[1])
                     : "Bloquear o usuário #%s? As sessões abertas dele caem na hora.".formatted(a[1]);
-            case "role" -> Role.valueOf(a[2]) == Role.ADMIN
-                    ? "Tornar o usuário #%s <b>admin</b>? Ele passa a acessar o painel (com MFA).".formatted(a[1])
-                    : "Tirar o acesso de admin do usuário #%s?".formatted(a[1]);
             default -> null;
         };
     }
