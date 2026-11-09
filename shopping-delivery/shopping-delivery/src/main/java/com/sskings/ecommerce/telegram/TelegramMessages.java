@@ -46,9 +46,15 @@ final class TelegramMessages {
 
             /resumo — números da loja
             /ajuda — esta mensagem
+            /sair — encerra a sessão do bot
 
             Toda ação pede confirmação e fica na auditoria com o seu usuário. \
             Novos pedidos, Pix confirmados, cancelamentos e devoluções chegam aqui automaticamente.""".formatted(PAGE_SIZE);
+
+    static final String LOGIN_REQUIRED = """
+            🔐 Para usar o bot, abra a sessão com o código do seu app autenticador:
+            <code>/entrar 123456</code>
+            A sessão vale 12 horas e cai junto com as sessões do painel (logout, troca de senha, bloqueio).""";
 
     static String esc(String s) {
         if (s == null) return "";

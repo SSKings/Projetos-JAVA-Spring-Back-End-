@@ -27,7 +27,7 @@ class TelegramOrderNotifierTest {
     private final AdminOrderService orders = mock(AdminOrderService.class);
     private final TelegramBotProperties props = new TelegramBotProperties(true, TOKEN,
             "111:admin@shopeasy.com,222:ex-admin@shopeasy.com", null, null);
-    private final TelegramAdminBot bot = new TelegramAdminBot(client, props, security(true), userRepository, orders, null, null);
+    private final TelegramAdminBot bot = new TelegramAdminBot(client, props, security(true), userRepository, orders, null, null, null);
     private final TelegramOrderNotifier notifier = new TelegramOrderNotifier(client, props, bot, userRepository, orders, Runnable::run);
 
     @BeforeEach

@@ -7,6 +7,7 @@ import com.sskings.ecommerce.dto.response.OrderResponse;
 import com.sskings.ecommerce.dto.response.UserResponse;
 import com.sskings.ecommerce.exception.BusinessException;
 import com.sskings.ecommerce.exception.ResourceNotFoundException;
+import com.sskings.ecommerce.exception.TooManyRequestsException;
 import com.sskings.ecommerce.model.User;
 import com.sskings.ecommerce.model.enums.OrderStatus;
 import com.sskings.ecommerce.model.enums.Role;
@@ -37,6 +38,8 @@ import static com.sskings.ecommerce.telegram.TelegramMessages.*;
  *   para a configuração);
  * - a cada mensagem, a conta ligada ao chat precisa continuar ADMIN, ativa e (se exigido) com MFA: bloquear o admin
  *   no painel corta o bot na hora;
+ * - admin com MFA precisa abrir a sessão com /entrar + código do app (TelegramSessions, revisão 3 M2): ter o Telegram
+ *   aberto não basta, como no painel;
  * - as ações chamam os MESMOS serviços do painel (mesmas regras de status, estoque, Pix e "não alterar a si mesmo"),
  *   com o admin no SecurityContext: a auditoria registra quem fez;
  * - toda ação que muda dados é um botão "?…" que pede confirmação; só o "!…" executa.
@@ -56,10 +59,11 @@ public class TelegramAdminBot {
     private final AdminOrderService orders;
     private final AdminUserService users;
     private final AdminDashboardService dashboard;
+    private final TelegramSessions sessions;
 
     public TelegramAdminBot(TelegramClient client, TelegramBotProperties props, SecurityProperties security,
                             UserRepository userRepository, AdminOrderService orders, AdminUserService users,
-                            AdminDashboardService dashboard) {
+                            AdminDashboardService dashboard, TelegramSessions sessions) {
         this.client = client;
         this.props = props;
         this.security = security;
@@ -67,6 +71,7 @@ public class TelegramAdminBot {
         this.orders = orders;
         this.users = users;
         this.dashboard = dashboard;
+        this.sessions = sessions;
     }
 
     public void handle(JsonNode update) {
@@ -99,6 +104,20 @@ public class TelegramAdminBot {
             return;
         }
 
+        if (text != null && isCommand(text, "/entrar")) {
+            login(chatId, admin.get(), text);
+            return;
+        }
+        if (text != null && isCommand(text, "/sair")) {
+            sessions.close(chatId);
+            client.sendMessage(chatId, "🔒 Sessão encerrada. Para voltar, envie /entrar e o código do app autenticador.", null);
+            return;
+        }
+        if (!sessions.isOpen(chatId, admin.get())) {
+            client.sendMessage(chatId, LOGIN_REQUIRED, null);
+            return;
+        }
+
         var auth = new UsernamePasswordAuthenticationToken(admin.get(), null, admin.get().getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(auth);
         try {
@@ -110,6 +129,26 @@ public class TelegramAdminBot {
             client.sendMessage(chatId, "⚠️ Comando inválido. Veja /ajuda.", null);
         } finally {
             SecurityContextHolder.clearContext();
+        }
+    }
+
+    private static boolean isCommand(String text, String cmd) {
+        String first = text.split("\\s+", 2)[0].toLowerCase(Locale.ROOT).replaceFirst("@.*$", "");
+        return first.equals(cmd);
+    }
+
+    private void login(long chatId, User admin, String text) {
+        String[] parts = text.split("\\s+", 2);
+        String code = parts.length > 1 ? parts[1].trim() : "";
+        try {
+            if (sessions.open(chatId, admin, code)) {
+                client.sendMessage(chatId, "🔓 Sessão aberta por 12 horas. /sair encerra antes.\n\n" + HELP, null);
+            } else {
+                client.sendMessage(chatId, "⚠️ Código inválido. Envie /entrar seguido do código atual do app autenticador.", null);
+            }
+        } catch (TooManyRequestsException e) {
+            client.sendMessage(chatId, "⛔ Muitas tentativas erradas. Tente de novo em %d min."
+                    .formatted((e.getRetryAfterSeconds() + 59) / 60), null);
         }
     }
 

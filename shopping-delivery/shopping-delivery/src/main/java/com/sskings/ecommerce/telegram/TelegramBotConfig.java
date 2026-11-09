@@ -1,7 +1,10 @@
 package com.sskings.ecommerce.telegram;
 
 import com.sskings.ecommerce.repository.UserRepository;
+import com.sskings.ecommerce.security.CryptoService;
 import com.sskings.ecommerce.security.SecurityProperties;
+import com.sskings.ecommerce.security.TotpService;
+import com.sskings.ecommerce.service.AuthService;
 import com.sskings.ecommerce.service.admin.AdminDashboardService;
 import com.sskings.ecommerce.service.admin.AdminOrderService;
 import com.sskings.ecommerce.service.admin.AdminUserService;
@@ -12,6 +15,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,8 +47,14 @@ public class TelegramBotConfig {
     @Bean
     public TelegramAdminBot telegramAdminBot(TelegramClient client, TelegramBotProperties props, SecurityProperties security,
                                              UserRepository users, AdminOrderService orders, AdminUserService userService,
-                                             AdminDashboardService dashboard) {
-        return new TelegramAdminBot(client, props, security, users, orders, userService, dashboard);
+                                             AdminDashboardService dashboard, TelegramSessions sessions) {
+        return new TelegramAdminBot(client, props, security, users, orders, userService, dashboard, sessions);
+    }
+
+    @Bean
+    public TelegramSessions telegramSessions(TotpService totp, CryptoService crypto, AuthService auth,
+                                             UserRepository users, Clock clock) {
+        return new TelegramSessions(totp, crypto, auth, users, clock);
     }
 
     @Bean
