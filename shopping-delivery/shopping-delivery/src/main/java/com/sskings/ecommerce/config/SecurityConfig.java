@@ -7,22 +7,27 @@ import com.sskings.ecommerce.security.SecurityProperties;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -40,6 +45,9 @@ public class SecurityConfig {
 
     @Value("${spring.h2.console.enabled:false}")
     private boolean h2ConsoleEnabled;
+
+    @Value("${spring.h2.console.path:/h2-console}")
+    private String h2ConsolePath;
 
     @Value("${springdoc.api-docs.enabled:false}")
     private boolean apiDocsEnabled;
@@ -96,14 +104,50 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 
-    /** Swagger e console H2 só ficam fora da cadeia quando estão habilitados (perfil dev). */
+    /**
+     * Swagger e console H2 (só existem no perfil dev) respondem apenas para quem está na própria máquina.
+     * Revisão 3: com a API de dev aberta na rede local (o front é testado de outros aparelhos), qualquer um na
+     * mesma Wi-Fi abria o console H2 — que executa SQL arbitrário e, via CREATE ALIAS, código Java no servidor.
+     */
     @Bean
-    public WebSecurityCustomizer webSecurityCustomizer() {
-        List<String> ignored = new ArrayList<>();
-        if (apiDocsEnabled) ignored.addAll(List.of("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**"));
-        if (h2ConsoleEnabled) ignored.add("/h2-console/**");
-        return web -> {
-            if (!ignored.isEmpty()) web.ignoring().requestMatchers(ignored.toArray(String[]::new));
+    @Order(0)
+    @ConditionalOnExpression("${spring.h2.console.enabled:false} or ${springdoc.api-docs.enabled:false}")
+    public SecurityFilterChain devToolsFilterChain(HttpSecurity http) throws Exception {
+        // O console H2 é um servlet próprio, fora do Spring MVC: casar pelo caminho da URI (um matcher de rota MVC não
+        // o reconhece e a requisição caía na cadeia principal).
+        List<RequestMatcher> tools = new ArrayList<>();
+        if (apiDocsEnabled) {
+            PathPatternRequestMatcher.Builder path = PathPatternRequestMatcher.withDefaults();
+            tools.addAll(List.of(path.matcher("/swagger-ui/**"), path.matcher("/swagger-ui.html"), path.matcher("/v3/api-docs/**")));
+        }
+        if (h2ConsoleEnabled) tools.add(underPath(h2ConsolePath));
+        return http
+                .securityMatcher(new OrRequestMatcher(tools))
+                .csrf(csrf -> csrf.disable())                              // o console H2 posta formulários próprios
+                .headers(h -> h.frameOptions(f -> f.sameOrigin()))         // e usa frames
+                .authorizeHttpRequests(auth -> auth.anyRequest().access((authentication, ctx) ->
+                        new AuthorizationDecision(isLoopback(ctx.getRequest().getRemoteAddr()))))
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint((req, res, ex) -> writeError(res, 403, "Dev tools are only available from localhost"))
+                        .accessDeniedHandler((req, res, ex) -> writeError(res, 403, "Dev tools are only available from localhost")))
+                .build();
+    }
+
+    static RequestMatcher underPath(String base) {
+        String prefix = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+        return request -> {
+            String path = request.getRequestURI().substring(request.getContextPath().length());
+            return path.equals(prefix) || path.startsWith(prefix + "/");
         };
+    }
+
+    static boolean isLoopback(String address) {
+        // getRemoteAddr() é sempre um IP literal (não há consulta DNS); vazio/inválido = não é loopback
+        if (address == null || address.isBlank() || !address.matches("[0-9a-fA-F:.]+")) return false;
+        try {
+            return java.net.InetAddress.getByName(address).isLoopbackAddress();
+        } catch (java.net.UnknownHostException e) {
+            return false;
+        }
     }
 }

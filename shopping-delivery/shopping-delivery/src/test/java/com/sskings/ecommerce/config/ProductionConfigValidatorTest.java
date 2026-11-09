@@ -23,7 +23,7 @@ class ProductionConfigValidatorTest {
     }
 
     private static PixProperties pix(String key, String webhookSecret) {
-        return new PixProperties(key, "Loja", "SP", 30, webhookSecret);
+        return new PixProperties(key, "Loja", "SP", 30, webhookSecret, List.of("200.0.0.0/24"));
     }
 
     private static final CorsProperties CORS = new CorsProperties(List.of("https://loja.com.br"));
@@ -56,6 +56,17 @@ class ProductionConfigValidatorTest {
                 .hasMessageContaining("JWT_SECRET").hasMessageContaining("APP_ENCRYPTION_KEY")
                 .hasMessageContaining("PIX_WEBHOOK_SECRET").hasMessageContaining("CORS_ALLOWED_ORIGINS")
                 .hasMessageContaining("ADMIN_PASSWORD").hasMessageContaining("DATABASE_URL");
+    }
+
+    @Test
+    @DisplayName("Revisão 3, B4: webhook ligado exige a allowlist de IPs do PSP; desligado, não")
+    void webhookAllowlist() {
+        assertThat(ProductionConfigValidator.problems(security(STRONG, KEY, true, true),
+                new PixProperties("12345678000199", "Loja", "SP", 30, STRONG, List.of()), CORS, "SenhaForte2026!", DB))
+                .singleElement().asString().contains("PIX_WEBHOOK_ALLOWED_IPS");
+        assertThat(ProductionConfigValidator.problems(security(STRONG, KEY, true, true),
+                new PixProperties("12345678000199", "Loja", "SP", 30, "", List.of()), CORS, "SenhaForte2026!", DB))
+                .isEmpty();
     }
 
     @Test
