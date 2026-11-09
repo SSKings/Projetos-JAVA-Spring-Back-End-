@@ -49,7 +49,7 @@ class ActuatorSecurityIntegrationTest {
 
     private String customer() throws Exception {
         return token("/api/auth/register", Map.of("name", "Cliente Teste", "email", "obs-" + UUID.randomUUID() + "@teste.com",
-                "password", "senha12345", "acceptTerms", true));
+                "password", "Vagalume4821", "acceptTerms", true));
     }
 
     @Test

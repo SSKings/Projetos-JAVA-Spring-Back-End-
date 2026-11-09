@@ -48,7 +48,7 @@ class SecurityReview2IntegrationTest {
 
     private String register(String email) throws Exception {
         String resp = mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(
-                        Map.of("name", "Cliente Teste", "email", email, "password", "senha12345", "acceptTerms", true))))
+                        Map.of("name", "Cliente Teste", "email", email, "password", "Vagalume4821", "acceptTerms", true))))
                 .andReturn().getResponse().getContentAsString();
         return json.readTree(resp).get("token").asText();
     }
@@ -99,13 +99,13 @@ class SecurityReview2IntegrationTest {
                     Map.of("password", "chute" + i))).isEqualTo(400);
         }
         mvc.perform(post("/api/account/delete").header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"password\":\"senha12345\"}"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"password\":\"Vagalume4821\"}"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().exists("Retry-After"));
         // a conta não foi excluída. Revisão 4 (R4-2): o bloqueio é só da reautenticação, por conta — o login do dono
         // continua (quem errava aqui tem o token, não é o dono tentando entrar)
         assertThat(httpStatus(get("/api/account").header("Authorization", "Bearer " + token), null)).isEqualTo(200);
-        assertThat(httpStatus(post("/api/auth/login"), Map.of("email", mail, "password", "senha12345"))).isEqualTo(200);
+        assertThat(httpStatus(post("/api/auth/login"), Map.of("email", mail, "password", "Vagalume4821"))).isEqualTo(200);
     }
 
     @Test

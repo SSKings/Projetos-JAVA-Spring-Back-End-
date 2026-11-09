@@ -71,7 +71,10 @@ public class AuthService {
     public AuthResponse register(RegisterRequest request) {
         String email = normalizeEmail(request.email());
         String source = LoginAttemptService.currentSource();
-        registrations.check(source);
+        registrations.acquire(source);
+        // Senha fácil de adivinhar (revisão 5, R5-1); antes de olhar o email, para a resposta não depender dele
+        com.sskings.ecommerce.security.PasswordStrength.problem(request.password(), request.name(), email)
+                .ifPresent(p -> { throw new BusinessException(p); });
         if (userRepository.existsByEmail(email)) {
             // Mitigado por rate limit; a correção completa exige verificação de email (ver security-review.md, A2)
             throw new BusinessException("Email already in use");
@@ -84,7 +87,6 @@ public class AuthService {
                 .termsVersion(termsVersion)
                 .termsAcceptedAt(now())
                 .build());
-        registrations.record(source);
         auditService.record(user, AuditService.REGISTER, "USER", user.getId(), "terms " + termsVersion);
         return response(user);
     }

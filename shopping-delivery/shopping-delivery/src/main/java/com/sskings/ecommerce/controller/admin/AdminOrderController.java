@@ -33,13 +33,19 @@ public class AdminOrderController {
     }
 
     @PostMapping("/{id}/payment/confirm")
-    public ResponseEntity<AdminOrderResponse> confirmPayment(@PathVariable Long id) {
-        return ResponseEntity.ok(service.confirmPayment(id));
+    public ResponseEntity<AdminOrderResponse> confirmPayment(@PathVariable Long id,
+                                                             @Valid @RequestBody com.sskings.ecommerce.dto.request.PasswordConfirmationRequest request,
+                                                             @org.springframework.security.core.annotation.AuthenticationPrincipal com.sskings.ecommerce.model.User admin) {
+        return ResponseEntity.ok(service.confirmPayment(id, admin.getId(),
+                com.sskings.ecommerce.service.StepUp.password(request.password(), request.mfaCode())));
     }
 
     @PostMapping("/{id}/payment/refund")
-    public ResponseEntity<AdminOrderResponse> refundPayment(@PathVariable Long id) {
-        return ResponseEntity.ok(service.refundPayment(id));
+    public ResponseEntity<AdminOrderResponse> refundPayment(@PathVariable Long id,
+                                                            @Valid @RequestBody com.sskings.ecommerce.dto.request.PasswordConfirmationRequest request,
+                                                            @org.springframework.security.core.annotation.AuthenticationPrincipal com.sskings.ecommerce.model.User admin) {
+        return ResponseEntity.ok(service.refundPayment(id, admin.getId(),
+                com.sskings.ecommerce.service.StepUp.password(request.password(), request.mfaCode())));
     }
 
     @PatchMapping("/{id}/status")

@@ -45,6 +45,8 @@ final class TelegramMessages {
             /usuario 5 — detalhes e ações do usuário #5
 
             /resumo — números da loja
+            /pix 12 123456 — confirma o Pix do pedido #12 (código novo do app)
+            /estorno 12 123456 — registra a devolução do Pix do pedido #12
             /ajuda — esta mensagem
             /sair — encerra a sessão do bot
 
@@ -58,6 +60,15 @@ final class TelegramMessages {
             🔐 Para usar o bot, abra a sessão com o código do seu app autenticador:
             <code>/entrar 123456</code>
             A sessão vale 12 horas e cai junto com as sessões do painel (logout, troca de senha, bloqueio).""";
+
+    /** Confirmar/estornar Pix pede um código novo do app (revisão 5, R5-2). */
+    static String paymentInstructions(String action, Long orderId) {
+        return action.equals("pay")
+                ? ("💰 Confira no extrato se o Pix do pedido #%d caiu na conta. Para confirmar, envie com um código NOVO do "
+                   + "app autenticador:\n<code>/pix %d 123456</code>").formatted(orderId, orderId)
+                : ("↩️ Depois de devolver o Pix do pedido #%d ao cliente, registre com um código NOVO do app autenticador:\n"
+                   + "<code>/estorno %d 123456</code>").formatted(orderId, orderId);
+    }
 
     static String esc(String s) {
         if (s == null) return "";
@@ -208,8 +219,6 @@ final class TelegramMessages {
         return switch (a[0]) {
             case "st" -> "Mudar o pedido #%s para <b>%s</b>?".formatted(a[1], status(OrderStatus.valueOf(a[2])))
                     + (OrderStatus.valueOf(a[2]) == OrderStatus.CANCELLED ? "\nO estoque volta e, se o Pix já foi pago, fica estorno pendente." : "");
-            case "pay" -> "Confirmar que o Pix do pedido #%s caiu na conta? Confira o extrato antes.".formatted(a[1]);
-            case "ref" -> "Registrar que o Pix do pedido #%s foi devolvido ao cliente?".formatted(a[1]);
             case "act" -> Boolean.parseBoolean(a[2])
                     ? "Desbloquear o usuário #%s?".formatted(a[1])
                     : "Bloquear o usuário #%s? As sessões abertas dele caem na hora.".formatted(a[1]);

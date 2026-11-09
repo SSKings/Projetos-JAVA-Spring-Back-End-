@@ -327,8 +327,9 @@ class TelegramAdminBotTest {
     @DisplayName("Perguntas de confirmação de cada ação")
     void confirmations() {
         assertThat(TelegramMessages.confirmation("st:12:SHIPPED")).contains("🚚 Enviado").doesNotContain("estoque");
-        assertThat(TelegramMessages.confirmation("pay:12")).contains("extrato");
-        assertThat(TelegramMessages.confirmation("ref:12")).contains("devolvido");
+        assertThat(TelegramMessages.confirmation("pay:12")).isNull();   // R5-2: Pix pede código novo, não "Sim"
+        assertThat(TelegramMessages.paymentInstructions("pay", 12L)).contains("extrato", "/pix 12 123456");
+        assertThat(TelegramMessages.paymentInstructions("ref", 12L)).contains("devolver", "/estorno 12 123456");
         assertThat(TelegramMessages.confirmation("act:5:false")).contains("Bloquear", "sessões");
         assertThat(TelegramMessages.confirmation("act:5:true")).contains("Desbloquear");
         assertThat(TelegramMessages.confirmation("role:5:ADMIN")).isNull();   // R4-3: não existe mais no bot
@@ -355,15 +356,38 @@ class TelegramAdminBotTest {
     }
 
     @Test
-    @DisplayName("Confirmar Pix e registrar estorno")
+    @DisplayName("R5-2: botão de Pix (ou forjado \"!pay\") só ensina o comando; /pix e /estorno exigem código novo do app")
     void payments() {
-        given(orders.confirmPayment(12L)).willReturn(order(OrderStatus.CONFIRMED, payment(PaymentStatus.PAID), null));
+        bot.handle(click(ADMIN_CHAT, "?pay:12"));
+        assertThat(lastText()).contains("/pix 12 123456");
         bot.handle(click(ADMIN_CHAT, "!pay:12"));
+        assertThat(lastText()).contains("/pix 12 123456");
+        bot.handle(click(ADMIN_CHAT, "!ref:12"));
+        assertThat(lastText()).contains("/estorno 12 123456");
+        bot.handle(message(ADMIN_CHAT, "/pix 12"));                       // sem código
+        assertThat(lastText()).contains("/pix 12 123456");
+        bot.handle(message(ADMIN_CHAT, "/pix_12"));
+        assertThat(lastText()).contains("/pix 12 123456");
+        verifyNoInteractions(orders);
+
+        var code = com.sskings.ecommerce.service.StepUp.mfaCode("654321");
+        given(orders.confirmPayment(12L, 1L, code)).willReturn(order(OrderStatus.CONFIRMED, payment(PaymentStatus.PAID), null));
+        bot.handle(message(ADMIN_CHAT, "/pix 12 654321"));
         assertThat(lastText()).startsWith("✔ Pix do pedido #12 confirmado.");
 
-        given(orders.refundPayment(12L)).willReturn(order(OrderStatus.CANCELLED, payment(PaymentStatus.REFUNDED), null));
-        bot.handle(click(ADMIN_CHAT, "!ref:12"));
+        var code2 = com.sskings.ecommerce.service.StepUp.mfaCode("111222");
+        given(orders.refundPayment(12L, 1L, code2)).willReturn(order(OrderStatus.CANCELLED, payment(PaymentStatus.REFUNDED), null));
+        bot.handle(message(ADMIN_CHAT, "/estorno 12 111222"));
         assertThat(lastText()).startsWith("✔ Estorno do pedido #12 registrado.").contains("Pix estornado");
+
+        bot.handle(message(ADMIN_CHAT, "/estorno 12 12345"));                // código com 5 dígitos
+        assertThat(lastText()).contains("/estorno 12 123456");
+        bot.handle(message(ADMIN_CHAT, "/pix"));                            // sem pedido
+        assertThat(lastText()).contains("Comando inválido");
+
+        given(orders.confirmPayment(eq(13L), eq(1L), any())).willThrow(new BusinessException("Invalid MFA code"));
+        bot.handle(message(ADMIN_CHAT, "/pix 13 000000"));
+        assertThat(lastText()).isEqualTo("⚠️ Invalid MFA code");
     }
 
     @Test

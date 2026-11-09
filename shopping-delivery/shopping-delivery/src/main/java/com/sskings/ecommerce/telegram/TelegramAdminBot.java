@@ -178,6 +178,7 @@ public class TelegramAdminBot {
             case "/pedido" -> showOrder(chatId, id(arg));
             case "/usuarios" -> listUsers(chatId, arg);
             case "/usuario" -> showUser(chatId, id(arg), admin);
+            case "/pix", "/estorno" -> payment(chatId, cmd, arg, admin);
             default -> client.sendMessage(chatId, "Não conheço esse comando. Veja /ajuda.", null);
         }
     }
@@ -185,6 +186,11 @@ public class TelegramAdminBot {
     private void button(long chatId, String data, User admin) {
         if (data.equals("x")) {
             client.sendMessage(chatId, "Ok, nada foi alterado.", null);
+            return;
+        }
+        // Pix: confirmar/estornar pedem um código NOVO do app (revisão 5, R5-2) — o botão só ensina o comando
+        if (data.startsWith("?pay:") || data.startsWith("?ref:") || data.startsWith("!pay:") || data.startsWith("!ref:")) {
+            client.sendMessage(chatId, paymentInstructions(data.substring(1, 4), id(data.split(":")[1])), null);
             return;
         }
         if (data.startsWith("?")) {
@@ -206,8 +212,6 @@ public class TelegramAdminBot {
                 AdminOrderResponse o = orders.updateStatus(id, OrderStatus.valueOf(a[2]));
                 done(chatId, "Pedido #%d agora está %s.".formatted(id, status(o.status())), o);
             }
-            case "!pay" -> done(chatId, "Pix do pedido #%d confirmado.".formatted(id), orders.confirmPayment(id));
-            case "!ref" -> done(chatId, "Estorno do pedido #%d registrado.".formatted(id), orders.refundPayment(id));
             case "!act" -> {
                 UserResponse u = users.update(id, new UpdateUserRequest(Boolean.parseBoolean(a[2]), null), admin.getId());
                 client.sendMessage(chatId, "✔ Usuário #%d %s.\n\n".formatted(id, u.active() ? "desbloqueado" : "bloqueado")
@@ -217,6 +221,20 @@ public class TelegramAdminBot {
             case "!role" -> client.sendMessage(chatId, PANEL_ONLY, null);
             default -> throw new IllegalArgumentException(data);
         }
+    }
+
+    /** "/pix 12 123456" ou "/estorno 12 123456": o código do app é o step-up (sessão de 12 h não basta para dinheiro). */
+    private void payment(long chatId, String cmd, String arg, User admin) {
+        String[] p = arg.split("\\s+");
+        boolean confirm = cmd.equals("/pix");
+        if (p.length < 2 || !p[1].matches("\\d{6}")) {
+            client.sendMessage(chatId, paymentInstructions(confirm ? "pay" : "ref", id(p[0])), null);
+            return;
+        }
+        Long orderId = id(p[0]);
+        var stepUp = com.sskings.ecommerce.service.StepUp.mfaCode(p[1]);
+        if (confirm) done(chatId, "Pix do pedido #%d confirmado.".formatted(orderId), orders.confirmPayment(orderId, admin.getId(), stepUp));
+        else done(chatId, "Estorno do pedido #%d registrado.".formatted(orderId), orders.refundPayment(orderId, admin.getId(), stepUp));
     }
 
     private void done(long chatId, String summary, AdminOrderResponse o) {

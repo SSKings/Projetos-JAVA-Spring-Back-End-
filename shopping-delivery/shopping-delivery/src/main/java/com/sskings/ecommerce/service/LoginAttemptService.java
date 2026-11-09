@@ -32,18 +32,31 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LoginAttemptService {
 
     static final int MAX_TRACKED = 50_000;
-    /** Falhas por conta, somando todas as origens, por janela; acima disso só origens confiáveis tentam. */
+    /**
+     * Falhas por conta, somando todas as origens, por janela; acima disso só origens confiáveis tentam. Cada estouro
+     * nas últimas 24 h dobra o bloqueio seguinte (revisão 5): de ~1.900 chutes/dia caiu para ~200.
+     */
     static final int ACCOUNT_BUDGET = 20;
 
     private final SecurityProperties.Login props;
     private final Clock clock;
     private final Map<String, Attempts> byClient = new ConcurrentHashMap<>();
-    private final Map<String, Attempts> byAccount = new ConcurrentHashMap<>();
+    private final Map<String, Account> byAccount = new ConcurrentHashMap<>();
     private final Map<Long, Attempts> byReauth = new ConcurrentHashMap<>();
     /** Última limpeza: com o mapa cheio de entradas ainda válidas, limpar a cada falha virava O(n) por requisição. */
     private volatile LocalDateTime lastEviction;
 
     private record Attempts(int failures, LocalDateTime lockedUntil, LocalDateTime windowStart) {}
+
+    /**
+     * Conta: falhas na janela atual; blockedUntil = até quando só origens confiáveis tentam; strikes = tetos estourados
+     * (cada um dobra o bloqueio seguinte — revisão 5, R5-1), esquecidos 24 h depois do fim do último bloqueio.
+     */
+    private record Account(int failures, LocalDateTime windowStart, LocalDateTime blockedUntil, int strikes,
+                           LocalDateTime lastStrike) {}
+
+    /** Bloqueio máximo da conta para origens novas (o teto dobra a cada estouro: 15, 30, 60 min... até isto). */
+    static final Duration MAX_ACCOUNT_BLOCK = Duration.ofHours(24);
 
     /** lockedNow: esta origem acabou de ser bloqueada para o email; attackStarted: a conta estourou o teto agora. */
     public record Failure(boolean lockedNow, boolean attackStarted) {}
@@ -65,10 +78,9 @@ public class LoginAttemptService {
         if (client != null && client.lockedUntil() != null && client.lockedUntil().isAfter(now)) {
             throw locked(now, client.lockedUntil());
         }
-        Attempts account = byAccount.get(email);
-        if (!trustedSource && account != null && account.failures() >= ACCOUNT_BUDGET) {
-            LocalDateTime windowEnd = account.windowStart().plusMinutes(props.lockMinutes());
-            if (windowEnd.isAfter(now)) throw locked(now, windowEnd);
+        Account account = byAccount.get(email);
+        if (!trustedSource && account != null && account.blockedUntil() != null && account.blockedUntil().isAfter(now)) {
+            throw locked(now, account.blockedUntil());
         }
     }
 
@@ -77,7 +89,9 @@ public class LoginAttemptService {
         evictIfFull(now);
         boolean[] locked = {false};
         byClient.compute(clientKey(email), (k, a) -> {
-            int failures = (a == null || a.lockedUntil() != null ? 0 : a.failures()) + 1;
+            // a contagem vence 15 min depois da última falha (antes nunca vencia: um erro por dia bloqueava no 5º dia)
+            boolean fresh = a == null || a.lockedUntil() != null || !a.windowStart().plusMinutes(props.lockMinutes()).isAfter(now);
+            int failures = (fresh ? 0 : a.failures()) + 1;
             if (failures >= props.maxFailedAttempts()) {
                 locked[0] = true;
                 return new Attempts(0, now.plusMinutes(props.lockMinutes()), now);
@@ -86,10 +100,21 @@ public class LoginAttemptService {
         });
         boolean[] attack = {false};
         byAccount.compute(email, (k, a) -> {
+            if (a != null && a.blockedUntil() != null && a.blockedUntil().isAfter(now)) {
+                return a;   // bloqueada (falha de origem confiável): não abre janela nova nem soma estouro
+            }
+            int strikes = a != null && a.lastStrike() != null && a.lastStrike().plusHours(24).isAfter(now) ? a.strikes() : 0;
             boolean expired = a == null || !a.windowStart().plusMinutes(props.lockMinutes()).isAfter(now);
             int failures = (expired ? 0 : a.failures()) + 1;
-            attack[0] = failures == ACCOUNT_BUDGET;   // avisa uma vez por janela
-            return new Attempts(failures, null, expired ? now : a.windowStart());
+            LocalDateTime windowStart = expired ? now : a.windowStart();
+            if (failures < ACCOUNT_BUDGET) return new Account(failures, windowStart, null, strikes, a == null ? null : a.lastStrike());
+            attack[0] = true;   // avisa uma vez por estouro
+            Duration block = Duration.ofMinutes((long) props.lockMinutes() << Math.min(strikes, 16));
+            if (block.compareTo(MAX_ACCOUNT_BLOCK) > 0) block = MAX_ACCOUNT_BLOCK;
+            LocalDateTime blockedUntil = windowStart.plus(block);
+            // lastStrike = FIM do bloqueio: os estouros só são esquecidos 24 h depois dele (senão, depois de um bloqueio
+            // de 24 h o ciclo recomeçava em 15 min)
+            return new Account(0, now, blockedUntil, strikes + 1, blockedUntil);
         });
         return new Failure(locked[0], attack[0]);
     }
@@ -172,7 +197,10 @@ public class LoginAttemptService {
         lastEviction = now;
         LocalDateTime staleBefore = now.minusMinutes(props.lockMinutes());
         byClient.entrySet().removeIf(e -> e.getValue().windowStart().isBefore(staleBefore));
-        byAccount.entrySet().removeIf(e -> e.getValue().windowStart().isBefore(staleBefore));
+        LocalDateTime strikeExpired = now.minusHours(24);
+        byAccount.entrySet().removeIf(e -> e.getValue().windowStart().isBefore(staleBefore)
+                && (e.getValue().blockedUntil() == null || e.getValue().blockedUntil().isBefore(now))
+                && (e.getValue().lastStrike() == null || e.getValue().lastStrike().isBefore(strikeExpired)));
         byReauth.entrySet().removeIf(e -> e.getValue().windowStart().isBefore(staleBefore));
     }
 

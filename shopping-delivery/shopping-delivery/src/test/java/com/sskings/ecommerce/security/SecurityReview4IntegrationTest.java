@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @AutoConfigureMockMvc
 class SecurityReview4IntegrationTest {
 
-    private static final String PASSWORD = "senha12345";
+    private static final String PASSWORD = "Vagalume4821";
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;

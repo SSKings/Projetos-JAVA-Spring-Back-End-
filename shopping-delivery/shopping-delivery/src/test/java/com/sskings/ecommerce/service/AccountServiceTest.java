@@ -214,9 +214,16 @@ class AccountServiceTest {
         assertThatThrownBy(() -> service.changePassword(1L, new ChangePasswordRequest("errada", "novaSenha9", null)))
                 .hasMessage("Invalid password");
         then(authService).should().registerReauthFailure(user, "reauthentication: wrong password");
+        // R5-1: senha comum ou com dados pessoais é recusada antes de tudo
         assertThatThrownBy(() -> service.changePassword(1L, new ChangePasswordRequest("senha123", "senha123", null)))
+                .hasMessage(com.sskings.ecommerce.security.PasswordStrength.TOO_COMMON);
+        assertThatThrownBy(() -> service.changePassword(1L, new ChangePasswordRequest("senha123", "souza2026x", null)))
+                .hasMessage(com.sskings.ecommerce.security.PasswordStrength.PERSONAL);   // sobrenome da Ana Souza
+        user.setPassword(encoder.encode("Vagalume4821"));
+        assertThatThrownBy(() -> service.changePassword(1L, new ChangePasswordRequest("Vagalume4821", "Vagalume4821", null)))
                 .hasMessage("New password must be different from the current one");
-        assertThat(encoder.matches("senha123", user.getPassword())).isTrue();
+        assertThat(encoder.matches("Vagalume4821", user.getPassword())).isTrue();
+        user.setPassword(encoder.encode("senha123"));
 
         String secret = totp.newSecret();
         user.setMfaEnabled(true);
@@ -225,6 +232,53 @@ class AccountServiceTest {
                 .hasMessage("Invalid MFA code");
         service.changePassword(1L, new ChangePasswordRequest("senha123", "novaSenha9", totp.currentCode(secret)));
         assertThat(encoder.matches("novaSenha9", user.getPassword())).isTrue();
+    }
+
+    // ---------- revisão 5 ----------
+
+    @Test
+    @DisplayName("R5-6: o último admin ativo não exclui a própria conta; com outro admin, pode")
+    void lastAdminCannotDelete() {
+        user.setRole(com.sskings.ecommerce.model.enums.Role.ADMIN);
+        given(userRepository.countByRoleAndActiveTrueAndAnonymizedAtIsNull(com.sskings.ecommerce.model.enums.Role.ADMIN)).willReturn(1L);
+        assertThatThrownBy(() -> service.deleteAccount(1L, new PasswordConfirmationRequest("senha123", null)))
+                .hasMessage("The last active admin cannot delete the account. Promote another admin first");
+        assertThat(user.getAnonymizedAt()).isNull();
+
+        given(userRepository.countByRoleAndActiveTrueAndAnonymizedAtIsNull(com.sskings.ecommerce.model.enums.Role.ADMIN)).willReturn(2L);
+        service.deleteAccount(1L, new PasswordConfirmationRequest("senha123", null));
+        assertThat(user.getAnonymizedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("R5-2: step-up com senha usa a reautenticação; sem confirmação é recusado sem contar falha")
+    void stepUpWithPassword() {
+        service.verifyStepUp(user, StepUp.password("senha123", null));
+        then(authService).should().clearReauthFailures(user);
+
+        assertThatThrownBy(() -> service.verifyStepUp(user, null)).hasMessage("Password confirmation required");
+        assertThatThrownBy(() -> service.verifyStepUp(user, StepUp.password(" ", null))).hasMessage("Password confirmation required");
+        assertThatThrownBy(() -> service.verifyStepUp(user, StepUp.password("errada", null))).hasMessage("Invalid password");
+        then(authService).should(times(1)).registerReauthFailure(any(), any());
+    }
+
+    @Test
+    @DisplayName("R5-2: step-up só com código (bot) exige MFA ativo; código errado, malformado ou reutilizado conta falha")
+    void stepUpWithMfaCode() {
+        assertThatThrownBy(() -> service.verifyStepUp(user, StepUp.mfaCode("123456"))).hasMessage("MFA is not enabled");
+
+        String secret = totp.newSecret();
+        user.setMfaEnabled(true);
+        user.setMfaSecret(crypto.encrypt(secret));
+        String code = totp.currentCode(secret);
+        service.verifyStepUp(user, StepUp.mfaCode(code));
+        then(authService).should().ensureReauthAllowed(user);
+        then(authService).should().clearReauthFailures(user);
+
+        for (String bad : new String[]{code, "000000", "12ab56", null}) {
+            assertThatThrownBy(() -> service.verifyStepUp(user, StepUp.mfaCode(bad))).hasMessage("Invalid MFA code");
+        }
+        then(authService).should(times(4)).registerReauthFailure(user, "step-up: invalid MFA code");
     }
 
     // ---------- revisão 2: reautenticação conta para o bloqueio (R4) ----------

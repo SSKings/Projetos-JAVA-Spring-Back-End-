@@ -101,12 +101,12 @@ class AuthServiceTest {
     void register_success() {
         given(userRepository.existsByEmail("novo@a.com")).willReturn(false);
 
-        AuthResponse resp = service.register(new RegisterRequest(" Bia Souza ", " Novo@A.com ", "senha123", null, true));
+        AuthResponse resp = service.register(new RegisterRequest(" Bia Souza ", " Novo@A.com ", "Vagalume4821", null, true));
 
         assertThat(resp.token()).isEqualTo("jwt");
         then(userRepository).should().save(argThat(u -> u.getEmail().equals("novo@a.com")
                 && u.getName().equals("Bia Souza")
-                && encoder.matches("senha123", u.getPassword())
+                && encoder.matches("Vagalume4821", u.getPassword())
                 && "2026-11-05".equals(u.getTermsVersion())
                 && LOCAL_NOW.equals(u.getTermsAcceptedAt())));
         then(auditService).should().record(any(), eq(AuditService.REGISTER), eq("USER"), any(), contains("2026-11-05"));
@@ -116,7 +116,7 @@ class AuthServiceTest {
     @DisplayName("Cadastro com email existente é recusado")
     void register_duplicate() {
         given(userRepository.existsByEmail("ana@a.com")).willReturn(true);
-        assertThatThrownBy(() -> service.register(new RegisterRequest("Ana S", "ANA@a.com", "senha123", null, true)))
+        assertThatThrownBy(() -> service.register(new RegisterRequest("Ana S", "ANA@a.com", "Vagalume4821", null, true)))
                 .hasMessage("Email already in use");
     }
 

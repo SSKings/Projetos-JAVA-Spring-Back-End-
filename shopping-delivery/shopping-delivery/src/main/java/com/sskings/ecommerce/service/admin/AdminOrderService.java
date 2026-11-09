@@ -23,6 +23,9 @@ public class AdminOrderService {
     private final PaymentService paymentService;
     private final com.sskings.ecommerce.service.AuditService auditService;
     private final java.time.Clock clock;
+    private final com.sskings.ecommerce.repository.UserRepository userRepository;
+    private final com.sskings.ecommerce.service.AccountService accountService;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     @Transactional(readOnly = true)
     public Page<AdminOrderResponse> findAll(OrderStatus status, Pageable pageable) {
@@ -62,16 +65,41 @@ public class AdminOrderService {
 
     /** Registra a devolução do Pix (estorno pendente ou arrependimento). */
     @Transactional
-    public AdminOrderResponse refundPayment(Long id) {
+    /**
+     * Registrar estorno manual exige step-up (revisão 5, R5-2) e avisa todos os admins: marcar como devolvido um Pix
+     * que não foi devolvido esconde dinheiro de cliente.
+     */
+    public AdminOrderResponse refundPayment(Long id, Long adminId, com.sskings.ecommerce.service.StepUp stepUp) {
+        stepUp(adminId, stepUp);
         paymentService.refundByAdmin(id);
-        return AdminOrderResponse.from(getOrder(id));
+        Order order = getOrder(id);
+        alert("Estorno do Pix do pedido #" + id + " (" + order.getTotal() + ") registrado manualmente", adminId);
+        return AdminOrderResponse.from(order);
     }
 
     /** Confirmação manual do Pix (admin conferiu o extrato). O pedido vai para CONFIRMED. */
     @Transactional
-    public AdminOrderResponse confirmPayment(Long id) {
+    /**
+     * Confirmar Pix manualmente exige step-up (revisão 5, R5-2): com só o token de admin, o atacante fazia um pedido,
+     * "confirmava" o Pix sem pagar e o pedido seguia para envio. Todos os admins são avisados.
+     */
+    public AdminOrderResponse confirmPayment(Long id, Long adminId, com.sskings.ecommerce.service.StepUp stepUp) {
+        stepUp(adminId, stepUp);
         paymentService.confirmByAdmin(id);
-        return AdminOrderResponse.from(getOrder(id));
+        Order order = getOrder(id);
+        alert("Pix do pedido #" + id + " (" + order.getTotal() + ") confirmado manualmente, sem aviso do banco", adminId);
+        return AdminOrderResponse.from(order);
+    }
+
+    private void stepUp(Long adminId, com.sskings.ecommerce.service.StepUp stepUp) {
+        com.sskings.ecommerce.model.User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + adminId));
+        accountService.verifyStepUp(admin, stepUp);
+    }
+
+    private void alert(String what, Long adminId) {
+        events.publishEvent(new com.sskings.ecommerce.event.SecurityAlertEvent(
+                what + " pelo admin #" + adminId + ". Confira no extrato; se não foi você, troque a senha agora."));
     }
 
     private Order getOrder(Long id) {

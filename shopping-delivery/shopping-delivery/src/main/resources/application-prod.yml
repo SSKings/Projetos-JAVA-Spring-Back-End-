@@ -7,6 +7,13 @@ spring:
     password: ${DATABASE_PASSWORD}
     hikari:
       maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+  # Migrações com o DONO das tabelas; a aplicação usa um usuário só de leitura/escrita de dados (revisão 5, R5-4).
+  # ProductionConfigValidator recusa subir se os dois forem o mesmo usuário.
+  flyway:
+    user: ${DATABASE_MIGRATION_USERNAME}
+    password: ${DATABASE_MIGRATION_PASSWORD}
+    # + callback só de PostgreSQL: tira do usuário da API o acesso ao histórico de migrações
+    locations: classpath:db/migration,classpath:db/callback-postgres
 
 server:
   # Atrás de proxy reverso (nginx) que termina o TLS. "native" (RemoteIpValve do Tomcat) só aceita
