@@ -130,7 +130,12 @@ O CI verifica automaticamente:
 
 - **Imagens por digest e actions por SHA:** `python3 scripts/check-pinning.py` (falha listando o que está por tag).
 - **Backup do banco:** `python3 -m unittest discover -s scripts -p 'test_backup_db.py'`.
-- **Regressões dos ataques já encontrados:** `SecurityReview2IntegrationTest` e `SecurityReview3IntegrationTest`.
+- **Regressões dos ataques já encontrados:** `SecurityReview2IntegrationTest`, `SecurityReview3IntegrationTest` e
+  `SecurityReview4IntegrationTest` (este ataca sempre de origens diferentes, inclusive IPv6 no mesmo /64).
+
+Mudou um controle de segurança? Rode os ataques de todas as revisões e confira o que cada teste antigo deixou de
+cobrir com a regra nova. Antes de dar a correção por pronta, rode o teste novo **contra o código antigo** (ele tem que
+falhar): na revisão 3, testes que atacavam de um IP só deixaram passar duas regressões (revisão 4, R4-1/R4-2).
 
 Para atualizar o digest de uma imagem à mão (o Dependabot faz isso toda semana):
 `docker buildx imagetools inspect <imagem>:<tag> --format '{{json .Manifest.Digest}}'`.
