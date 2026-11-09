@@ -70,6 +70,9 @@ jobs:
       # Revisão de segurança 3: backup cifrado do banco (M6) e actions/imagens fixadas por hash (M4/M7)
       - name: Test database backup scripts
         run: python3 -m unittest discover -s ../scripts -p 'test_backup_db.py'
+      # Script que roda localmente os passos de um job deste arquivo (lição do PR da revisão 5)
+      - name: Test local CI job runner
+        run: python3 -m unittest discover -s ../scripts -p 'test_run_ci_job.py'
       - name: Check pinning (actions by SHA, production images by digest)
         run: |
           python3 -m unittest discover -s ../scripts -p 'test_check_pinning.py'
