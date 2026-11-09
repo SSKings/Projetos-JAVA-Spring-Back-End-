@@ -9,7 +9,9 @@ import jakarta.validation.constraints.*;
  */
 public record RegisterRequest(
         @NotBlank(message = "Name is required") @Size(max = 100, message = "Name must have at most 100 characters") String name,
-        @Email(message = "Email is invalid") @NotBlank(message = "Email is required") @Size(max = 150, message = "Email must have at most 150 characters") String email,
+        @Email(message = "Email is invalid") @NotBlank(message = "Email is required") @Size(max = 150, message = "Email must have at most 150 characters")
+        // .invalid é reservado (RFC 6761) e é o domínio das contas anonimizadas: ninguém pode ocupar esses endereços (R4-5)
+        @Pattern(regexp = "(?is)^(?!.*\\.invalid\\s*$).*$", message = "Email domain is not allowed") String email,
         @NotBlank(message = "Password is required")
         @Size(min = 8, max = 72, message = "Password must be between 8 and 72 characters")
         @Pattern(regexp = "^(?=.*\\p{L})(?=.*\\d).+$", message = "Password must contain letters and numbers")

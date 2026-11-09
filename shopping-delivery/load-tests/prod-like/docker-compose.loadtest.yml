@@ -11,6 +11,7 @@ services:
     environment:
       SECURITY_RATELIMIT_AUTHPERMINUTE: "1000000"
       SECURITY_RATELIMIT_WEBHOOKPERMINUTE: "1000000"
+      REGISTRATIONS_PER_DAY: "1000000"   # o teste cria centenas de contas do mesmo IP
   web:
     ports: !override
       - "127.0.0.1:${LOADTEST_HTTPS_PORT:-8443}:8443"

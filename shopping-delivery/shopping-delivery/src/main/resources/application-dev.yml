@@ -26,6 +26,9 @@ security:
     secret: ${JWT_SECRET:${random.value}}
   encryption-key: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=
   require-admin-mfa: false
+  rate-limit:
+    # dev/testes criam muitas contas da mesma máquina; produção usa o padrão (10/dia por origem)
+    registrations-per-day: 1000
 
 app:
   cors:

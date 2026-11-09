@@ -37,6 +37,14 @@ public class OrderService {
      * sem teto, uma conta esgotava a loja com checkouts que nunca pagaria. Junto com CartService.MAX_UNITS_PER_ITEM.
      */
     public static final int MAX_PENDING_ORDERS = 2;
+    /**
+     * Revisão 4, R4-4: os tetos por pedido não bastavam — uma conta pegava as 10 unidades de um produto com estoque
+     * 10. Agora também: (a) as 10 unidades por produto valem somando os pedidos pendentes; (b) um pedido leva no
+     * máximo metade do que resta do produto; (c) quem abandonou {@link #MAX_ABANDONED_PER_DAY} Pix em 24 h (expirados
+     * ou cancelados sem pagar) fica sem fechar pedido até a janela passar — repetir reserva/cancelamento é o padrão
+     * de quem segura estoque. Muitas contas falsas continuam sendo o limite: ver AuthService (cadastros por origem).
+     */
+    public static final int MAX_ABANDONED_PER_DAY = 3;
 
     @Transactional
     public OrderResponse checkout(CheckoutRequest request, Long userId) {
@@ -46,6 +54,10 @@ public class OrderService {
         if (orderRepository.countByUserIdAndStatus(userId, OrderStatus.PENDING) >= MAX_PENDING_ORDERS) {
             throw new BusinessException("You already have " + MAX_PENDING_ORDERS
                     + " orders awaiting payment. Pay or cancel one before placing a new order");
+        }
+        if (orderRepository.countAbandonedPaymentsSince(userId, java.time.LocalDateTime.now(clock).minusHours(24))
+                >= MAX_ABANDONED_PER_DAY) {
+            throw new BusinessException("Too many unpaid orders in the last 24 hours. Try again later");
         }
         List<CartItem> cartItems = cartItemRepository.findAllByUserId(userId);
         if (cartItems.isEmpty()) {
@@ -74,6 +86,14 @@ public class OrderService {
             // produto desativado depois de ir para o carrinho não pode ser comprado
             Product product = productRepository.findByIdAndActiveTrue(ci.getProduct().getId())
                     .orElseThrow(() -> new BusinessException("Product no longer available: " + ci.getProduct().getName()));
+            if (orderRepository.sumPendingUnits(userId, product.getId()) + ci.getQuantity() > CartService.MAX_UNITS_PER_ITEM) {
+                throw new BusinessException("Maximum of " + CartService.MAX_UNITS_PER_ITEM
+                        + " units per product across your orders awaiting payment: " + product.getName());
+            }
+            int share = Math.max(1, product.getStockQuantity() / 2);
+            if (ci.getQuantity() > share && ci.getQuantity() <= product.getStockQuantity()) {
+                throw new BusinessException("Maximum quantity for this product right now: " + share + " (" + product.getName() + ")");
+            }
             // baixa atômica no banco; 0 linhas = sem estoque (rollback de tudo o que já foi baixado)
             if (productRepository.decrementStock(product.getId(), ci.getQuantity()) == 0) {
                 throw new BusinessException("Insufficient stock for: " + product.getName());
