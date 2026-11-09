@@ -18,6 +18,14 @@ public class AdminProductService {
     private final ProductRepository productRepository;
     private final com.sskings.ecommerce.service.AuditService auditService;
 
+    /**
+     * Hosts de onde as imagens de produto podem vir (revisão 4, R4-8). Qualquer https deixava o dono do servidor da
+     * imagem ver o IP de cada cliente que abre a loja (LGPD). Precisa bater com o img-src do CSP
+     * (deploy/security-headers.inc).
+     */
+    @org.springframework.beans.factory.annotation.Value("${app.product-image-hosts:images.unsplash.com}")
+    private java.util.List<String> imageHosts = java.util.List.of("images.unsplash.com");
+
     @Transactional(readOnly = true)
     public Page<AdminProductResponse> findAll(String search, Pageable pageable) {
         Page<Product> page = (search != null && !search.isBlank())
@@ -64,10 +72,25 @@ public class AdminProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
     }
 
+    private String checkImageHost(String url) {
+        if (url == null || url.isBlank()) return null;
+        String host;
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            host = "https".equalsIgnoreCase(uri.getScheme()) && uri.getUserInfo() == null ? uri.getHost() : null;
+        } catch (java.net.URISyntaxException e) {
+            host = null;
+        }
+        if (host == null || imageHosts.stream().noneMatch(host::equalsIgnoreCase)) {
+            throw new com.sskings.ecommerce.exception.BusinessException("Image host not allowed. Allowed: " + String.join(", ", imageHosts));
+        }
+        return url;
+    }
+
     private void apply(Product product, ProductRequest request) {
         product.setName(request.name().trim());
         product.setDescription(request.description());
-        product.setImageUrl(request.imageUrl());
+        product.setImageUrl(checkImageHost(request.imageUrl()));
         product.setPrice(request.price());
         product.setStockQuantity(request.stockQuantity());
         product.setActive(request.active() == null || request.active());

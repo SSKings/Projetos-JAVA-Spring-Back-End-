@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
 class AdminProductServiceTest {
@@ -75,11 +77,29 @@ class AdminProductServiceTest {
         given(productRepository.findById(1L)).willReturn(Optional.of(existing));
         given(productRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
 
-        var resp = service.update(1L, new ProductRequest("Nova", "d", "http://img", new BigDecimal("5.00"), 0, false));
+        var resp = service.update(1L, new ProductRequest("Nova", "d", "https://images.unsplash.com/photo-1?w=400",
+                new BigDecimal("5.00"), 0, false));
 
         assertThat(resp.name()).isEqualTo("Nova");
+        assertThat(existing.getImageUrl()).isEqualTo("https://images.unsplash.com/photo-1?w=400");
         assertThat(resp.price()).isEqualByComparingTo("5.00");
         assertThat(resp.active()).isFalse();
+    }
+
+    @Test
+    @DisplayName("R4-8: imagem só dos hosts permitidos (o dono do host veria o IP de cada cliente)")
+    void imageHostAllowlist() {
+        Product existing = product(true);
+        given(productRepository.findById(1L)).willReturn(Optional.of(existing));
+        for (String bad : new String[]{"https://rastreador.example/pixel.gif", "http://images.unsplash.com/x",
+                "https://images.unsplash.com.evil.example/x", "https://user@images.unsplash.com/x", "https://[::1/x"}) {
+            assertThatThrownBy(() -> service.update(1L, new ProductRequest("N", "d", bad, BigDecimal.ONE, 1, true)))
+                    .as(bad).hasMessageContaining("Image host not allowed");
+        }
+        then(productRepository).should(never()).save(any());
+        given(productRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        assertThat(service.update(1L, new ProductRequest("N", "d", "https://IMAGES.unsplash.com/y", BigDecimal.ONE, 1, true))
+                .name()).isEqualTo("N");
     }
 
     @Test
