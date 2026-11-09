@@ -12,7 +12,14 @@ export const exportData = () => api.get<unknown>('/api/account/data-export').the
 export const deleteAccount = (password: string, mfaCode?: string) =>
   api.post('/api/account/delete', { password, mfaCode: mfaCode || undefined });
 
-export const setupMfa = () => api.post<MfaSetup>('/api/account/mfa/setup').then(r => r.data);
+/** Exige a senha: com só o token, quem roubasse a sessão ativava o MFA e trancava o dono fora. */
+export const setupMfa = (password: string) =>
+  api.post<MfaSetup>('/api/account/mfa/setup', { password }).then(r => r.data);
+
+/** Troca a senha; o back-end encerra as outras sessões e devolve um token novo. */
+export const changePassword = (currentPassword: string, newPassword: string, mfaCode?: string) =>
+  api.post<AuthResponse>('/api/account/password', { currentPassword, newPassword, mfaCode: mfaCode || undefined })
+    .then(r => r.data);
 
 export const enableMfa = (code: string) => api.post<AuthResponse>('/api/account/mfa/enable', { code }).then(r => r.data);
 

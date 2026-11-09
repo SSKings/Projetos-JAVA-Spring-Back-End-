@@ -68,7 +68,7 @@ describe('LoginPage', () => {
       .mockRejectedValueOnce({ response: { status: 429, data: { message: 'Too many requests' } } });
     renderAt('/login');
     await fill();
-    expect(await screen.findByText(/bloqueada temporariamente/)).toBeInTheDocument();
+    expect(await screen.findByText(/Tente de novo em 15 minutos/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Entrar' }));
     expect(await screen.findByText(/Aguarde um minuto/)).toBeInTheDocument();
   });

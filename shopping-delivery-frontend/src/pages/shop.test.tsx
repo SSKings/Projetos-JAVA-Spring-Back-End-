@@ -143,6 +143,20 @@ describe('ProductDetailPage', () => {
     vi.useRealTimers();
   });
 
+  it('quantidade para em 10 mesmo com estoque maior (limite anti-açambarcamento)', async () => {
+    loginAs('CUSTOMER');
+    const cartApi = mockCart(cart());
+    vi.mocked(productsApi.getProduct).mockResolvedValue(product({ stockQuantity: 50 }));
+    renderDetail();
+
+    await screen.findByRole('heading', { name: 'Caneca' });
+    const plus = screen.getByRole('button', { name: '+' });
+    for (let i = 0; i < 12; i++) await userEvent.click(plus);
+    expect(plus).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /Adicionar ao Carrinho/ }));
+    expect(cartApi.addItem).toHaveBeenCalledWith(1, 10);
+  });
+
   it('visitante é convidado a fazer login', async () => {
     vi.mocked(productsApi.getProduct).mockResolvedValue(product({ stockQuantity: 0, imageUrl: '' }));
     renderDetail();

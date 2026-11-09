@@ -103,7 +103,11 @@ describe('SecurityPage (MFA)', () => {
     vi.mocked(accountApi.enableMfa).mockRejectedValueOnce(httpError('Invalid MFA code')).mockResolvedValue(auth());
     renderWithProviders(<SecurityPage />);
 
-    await userEvent.click(screen.getByRole('button', { name: /Ativar verificação/ }));
+    const activate = screen.getByRole('button', { name: /Ativar verificação/ });
+    expect(activate).toBeDisabled();                                   // revisão 3, A1: exige a senha
+    await userEvent.type(screen.getByLabelText('Confirme sua senha'), 'senha123');
+    await userEvent.click(activate);
+    expect(accountApi.setupMfa).toHaveBeenCalledWith('senha123');
     expect(await screen.findByRole('img', { name: /QR Code para o app/ })).toBeInTheDocument();
     expect(screen.getByText('JBSWY3DPEHPK3PXP')).toBeInTheDocument();
     const confirm = screen.getByRole('button', { name: 'Confirmar e ativar' });
@@ -117,6 +121,15 @@ describe('SecurityPage (MFA)', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('ativada');
     expect(localStorage.getItem('token')).toBe('new-token');
     expect(screen.getByText(/Ativa\. Ao entrar/)).toBeInTheDocument();
+  });
+
+  it('senha errada ao ativar mostra o erro e não gera QR Code', async () => {
+    vi.mocked(accountApi.setupMfa).mockRejectedValue(httpError('Invalid password'));
+    renderWithProviders(<SecurityPage />);
+    await userEvent.type(screen.getByLabelText('Confirme sua senha'), 'errada');
+    await userEvent.click(screen.getByRole('button', { name: /Ativar verificação/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Senha incorreta.');
+    expect(screen.queryByRole('img', { name: /QR Code/ })).not.toBeInTheDocument();
   });
 
   it('desativa com senha e código', async () => {
@@ -136,5 +149,46 @@ describe('SecurityPage (MFA)', () => {
     localStorage.setItem('user', JSON.stringify({ name: 'Chefe', email: 'a@x.com', role: 'ADMIN', mfaSetupRequired: true }));
     renderWithProviders(<SecurityPage />);
     expect(screen.getByRole('note')).toHaveTextContent('Administradores precisam ativar');
+  });
+});
+
+describe('SecurityPage (troca de senha)', () => {
+  const fillPassword = async (current: string, next: string, confirm = next) => {
+    await userEvent.type(screen.getByLabelText('Senha atual'), current);
+    await userEvent.type(screen.getByLabelText('Nova senha'), next);
+    await userEvent.type(screen.getByLabelText('Confirme a nova senha'), confirm);
+    await userEvent.click(screen.getByRole('button', { name: 'Alterar senha' }));
+  };
+
+  it('troca a senha, troca a sessão e limpa o formulário', async () => {
+    vi.mocked(accountApi.changePassword).mockResolvedValue(auth({ mfaEnabled: false, token: 't-nova' }));
+    renderWithProviders(<SecurityPage />);
+    await fillPassword('senha123', 'novaSenha9');
+    expect(accountApi.changePassword).toHaveBeenCalledWith('senha123', 'novaSenha9', '');
+    expect(await screen.findByRole('status')).toHaveTextContent('Senha alterada');
+    expect(localStorage.getItem('token')).toBe('t-nova');
+    expect(screen.getByLabelText('Senha atual')).toHaveValue('');
+  });
+
+  it('valida antes de enviar: política de senha e confirmação', async () => {
+    renderWithProviders(<SecurityPage />);
+    await fillPassword('senha123', 'curta1');
+    expect(screen.getByRole('alert')).toHaveTextContent('no mínimo 8');
+    await userEvent.clear(screen.getByLabelText('Senha atual'));
+    await userEvent.clear(screen.getByLabelText('Nova senha'));
+    await userEvent.clear(screen.getByLabelText('Confirme a nova senha'));
+    await fillPassword('senha123', 'novaSenha9', 'outraSenha9');
+    expect(screen.getByRole('alert')).toHaveTextContent('As senhas não conferem.');
+    expect(accountApi.changePassword).not.toHaveBeenCalled();
+  });
+
+  it('com MFA pede o código; erro do back-end é traduzido', async () => {
+    localStorage.setItem('user', JSON.stringify({ name: 'Ana', email: 'ana@a.com', role: 'CUSTOMER', mfaEnabled: true }));
+    vi.mocked(accountApi.changePassword).mockRejectedValue(httpError('New password must be different from the current one'));
+    renderWithProviders(<SecurityPage />);
+    await userEvent.type(screen.getByLabelText('Código do app'), '123456');
+    await fillPassword('senha123', 'senha1234');
+    expect(accountApi.changePassword).toHaveBeenCalledWith('senha123', 'senha1234', '123456');
+    expect(await screen.findByRole('alert')).toHaveTextContent('diferente da atual');
   });
 });

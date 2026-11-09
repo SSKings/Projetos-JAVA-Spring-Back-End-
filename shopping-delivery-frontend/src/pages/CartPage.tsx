@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
+import { LIMITS } from '../utils/validation';
 
 export default function CartPage() {
   const { cart, updateItem, removeItem, loading } = useCart();
@@ -73,7 +74,9 @@ export default function CartPage() {
                     </span>
                     <button
                       onClick={() => updateItem(item.id, item.quantity + 1)}
-                      className="px-2.5 py-1.5 text-gray-600 hover:bg-gray-100"
+                      disabled={item.quantity >= LIMITS.unitsPerItem}
+                      title={item.quantity >= LIMITS.unitsPerItem ? `Limite de ${LIMITS.unitsPerItem} unidades por produto` : undefined}
+                      className="px-2.5 py-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
                     >
                       <Plus size={12} />
                     </button>

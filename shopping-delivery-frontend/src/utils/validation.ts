@@ -19,6 +19,7 @@ export const LIMITS = {
   complement: 100,
   neighborhood: 100,
   city: 100,
+  unitsPerItem: 10, // CartService.MAX_UNITS_PER_ITEM: teto anti-açambarcamento de estoque (revisão 3, A3)
 } as const;
 
 /** Siglas das 27 unidades federativas. */
@@ -51,6 +52,22 @@ export function maskPhone(value: string): string {
   return rest.length > split ? `(${ddd}) ${rest.slice(0, split)}-${rest.slice(split)}` : `(${ddd}) ${rest}`;
 }
 
+// ---------- Senha (cadastro e troca de senha) ----------
+/**
+ * Mesma política do back-end (RegisterRequest/ChangePasswordRequest). O limite de 72 é em BYTES (BCrypt):
+ * "ç", "ã" ou emoji ocupam 2 a 4 — o back-end recusa (@BcryptSafe), então o front avisa antes.
+ */
+export function validatePassword(password: string): string | undefined {
+  if (!password) return 'Informe uma senha.';
+  if (password.length < LIMITS.passwordMin) return `A senha deve ter no mínimo ${LIMITS.passwordMin} caracteres.`;
+  if (password.length > LIMITS.passwordMax) return `A senha deve ter no máximo ${LIMITS.passwordMax} caracteres.`;
+  if (new TextEncoder().encode(password).length > LIMITS.passwordMax) {
+    return 'A senha é longa demais: letras acentuadas e emojis contam como 2 ou mais caracteres.';
+  }
+  if (!/\p{L}/u.test(password) || !/\d/.test(password)) return 'A senha deve conter letras e números.';
+  return undefined;
+}
+
 // ---------- Cadastro ----------
 export interface RegisterValues {
   name: string;
@@ -74,10 +91,8 @@ export function validateRegister(v: RegisterValues): FieldErrors<RegisterValues>
   else if (email.length > LIMITS.email) errors.email = `O email deve ter no máximo ${LIMITS.email} caracteres.`;
   else if (!EMAIL_RE.test(email)) errors.email = 'Informe um email válido, ex.: nome@dominio.com.';
 
-  if (!v.password) errors.password = 'Informe uma senha.';
-  else if (v.password.length < LIMITS.passwordMin) errors.password = `A senha deve ter no mínimo ${LIMITS.passwordMin} caracteres.`;
-  else if (v.password.length > LIMITS.passwordMax) errors.password = `A senha deve ter no máximo ${LIMITS.passwordMax} caracteres.`;
-  else if (!/\p{L}/u.test(v.password) || !/\d/.test(v.password)) errors.password = 'A senha deve conter letras e números.';
+  const passwordError = validatePassword(v.password);
+  if (passwordError) errors.password = passwordError;
 
   if (!v.confirmPassword) errors.confirmPassword = 'Confirme a senha.';
   else if (v.confirmPassword !== v.password) errors.confirmPassword = 'As senhas não conferem.';
