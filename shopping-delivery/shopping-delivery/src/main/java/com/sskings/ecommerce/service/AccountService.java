@@ -45,6 +45,7 @@ public class AccountService {
     private final PasswordEncoder passwordEncoder;
     private final TotpService totpService;
     private final CryptoService cryptoService;
+    private final TrustedLoginSources trustedSources;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -90,7 +91,9 @@ public class AccountService {
         for (Address address : addressRepository.findAllByUserId(userId)) {
             if (!orderRepository.existsByAddressId(address.getId())) addressRepository.delete(address);
         }
-        String anonymousEmail = "removed-" + user.getId() + "@anonymized.invalid";
+        // Aleatório, não "removed-<id>": com o id previsível, alguém cadastrava o endereço antes e a exclusão da vítima
+        // falhava para sempre (unique) — direito do titular bloqueado (revisão 4, R4-5). O cadastro também recusa .invalid.
+        String anonymousEmail = "removed-" + java.util.UUID.randomUUID() + "@anonymized.invalid";
         user.setName("Usuário removido");
         user.setEmail(anonymousEmail);
         user.setPhone(null);
@@ -101,6 +104,7 @@ public class AccountService {
         user.setAnonymizedAt(LocalDateTime.now(clock));
         user.revokeTokens();
         userRepository.save(user);
+        trustedSources.forget(userId);   // IPs de onde a pessoa entrava também são dados pessoais
         auditLogRepository.replaceActorEmail(userId, anonymousEmail);
         auditService.record(user, AuditService.ACCOUNT_DELETED, "USER", userId, "anonymized");
     }
@@ -173,25 +177,26 @@ public class AccountService {
     }
 
     /**
-     * Reautenticação com as mesmas regras do login: conta bloqueada → 429; senha ou código errado conta para o
-     * bloqueio. Sem isso, um token roubado permitia testar senhas sem limite (revisão 2, R4).
+     * Reautenticação (senha e, com MFA, código) para ações sensíveis: aqui e nas ações de admin que mudam papel ou
+     * bloqueiam admins (AdminUserService, revisão 4, R4-3). Falhas contam por CONTA (não por IP) e bloqueiam só a
+     * reautenticação: com o token roubado, trocar de IP não dá mais tentativas (R4-2). O código MFA é aceito de
+     * forma atômica (R4-7).
      */
-    private void reauthenticate(User user, PasswordConfirmationRequest request) {
-        authService.ensureNotLocked(user);
-        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            authService.registerFailure(user, "reauthentication: wrong password");
+    public void reauthenticate(User user, PasswordConfirmationRequest request) {
+        authService.ensureReauthAllowed(user);
+        if (request.password() == null || !passwordEncoder.matches(request.password(), user.getPassword())) {
+            authService.registerReauthFailure(user, "reauthentication: wrong password");
             throw new BusinessException("Invalid password");
         }
         if (user.isMfaEnabled()) {
             var step = request.mfaCode() == null ? java.util.OptionalLong.empty()
                     : totpService.verify(cryptoService.decrypt(user.getMfaSecret()), request.mfaCode(), user.getMfaLastStep());
-            if (step.isEmpty()) {
-                authService.registerFailure(user, "reauthentication: invalid MFA code");
+            if (step.isEmpty() || !authService.claimMfaStep(user, step.getAsLong())) {
+                authService.registerReauthFailure(user, "reauthentication: invalid MFA code");
                 throw new BusinessException("Invalid MFA code");
             }
-            user.setMfaLastStep(step.getAsLong());
         }
-        authService.clearFailures(user);
+        authService.clearReauthFailures(user);
     }
 
     private User load(Long userId) {
