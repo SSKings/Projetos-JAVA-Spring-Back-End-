@@ -13,3 +13,5 @@ services:
       - "127.0.0.1:8025:8025"   # página web e API
     environment:
       MP_MAX_MESSAGES: 500
+      # sem DNS reverso de quem conecta: com ele, cada e-mail levava ~4 s (fila da API atrasava)
+      MP_SMTP_DISABLE_RDNS: "true"

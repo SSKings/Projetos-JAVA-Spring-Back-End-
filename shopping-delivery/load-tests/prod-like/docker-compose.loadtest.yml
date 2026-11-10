@@ -23,6 +23,7 @@ services:
       MP_SMTP_TLS_KEY: /certs/privkey.pem
       MP_SMTP_REQUIRE_STARTTLS: "true"
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_DISABLE_RDNS: "true"   # sem DNS reverso: ~4 s a menos por e-mail
     volumes:
       - ../load-tests/prod-like/generated/certs:/certs:ro
     ports:

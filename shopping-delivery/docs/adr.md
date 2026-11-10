@@ -688,11 +688,12 @@ troca de senha ou de MFA. O cliente também não recebia o Pix nem o andamento d
   não o manda ao servidor, então não cai no log do nginx); no banco, só o SHA-256 (tabela
   `email_tokens`, V9). Valem uma vez (`UPDATE ... WHERE used_at IS NULL`), para um propósito, até expirar, e só para
   conta ativa e não anonimizada. Um link novo aposenta os pendentes do mesmo tipo.
-- **Confirmação de e-mail:** link no cadastro (48 h; reenviar no máximo a cada 2 min). Sem confirmar, o cliente navega
+- **Confirmação de e-mail:** link no cadastro (48 h; reenviar no máximo a cada 2 min e 5 por dia, contando o do
+  cadastro). Sem confirmar, o cliente navega
   e monta o carrinho, mas **não fecha pedido** (`REQUIRE_VERIFIED_EMAIL`) nem recebe avisos — o endereço pode ser de
   outra pessoa. O admin semeado nasce confirmado.
 - **Recuperação de senha:** a resposta é sempre igual, exista a conta ou não. Link de 30 min, no máximo um a cada
-  5 min por conta. Senha fraca **não gasta o link**. Trocar a senha logado aposenta os links pendentes. Redefinir derruba todas as sessões, confirma o e-mail (o link
+  5 min e 5 por dia por conta. Senha fraca **não gasta o link**. Trocar a senha logado aposenta os links pendentes. Redefinir derruba todas as sessões, confirma o e-mail (o link
   provou o endereço) e avisa o titular. **O MFA continua valendo**: quem tem só o e-mail da vítima ainda precisa do
   código para entrar.
 - **Avisos ao cliente** (só para e-mail confirmado): pedido recebido (com o Pix copia e cola e o prazo), Pix confirmado,
@@ -712,3 +713,9 @@ troca de senha ou de MFA. O cliente também não recebia o Pix nem o andamento d
 - Testes: `EmailFlowsIntegrationTest` (ponta a ponta, lendo o link de dentro do e-mail), `MailOutboxTest`,
   `MailMessagesTest`, `EmailTokenServiceTest`, `CustomerOrderMailerTest`, validador de produção; no front, as páginas
   `/verificar-email`, `/esqueci-senha`, `/redefinir-senha` e o aviso de e-mail não confirmado.
+
+- **Cota do provedor (revisão 6):** o Gmail aceita ~500 envios/dia; estourada, **nenhum** e-mail da loja sai (nem
+  confirmação, nem pedido) e a conta pode ser suspensa. Por isso, além do intervalo, há **teto diário por conta**
+  (5 confirmações e 5 links de nova senha em 24 h) e a linha da conta é travada durante a checagem (pedidos
+  simultâneos não passam juntos). A fila de envio tem tamanho máximo (1.000); cheia, descarta com aviso no log.
+  Volume acima disso pede um provedor transacional (troca só os `MAIL_*`).

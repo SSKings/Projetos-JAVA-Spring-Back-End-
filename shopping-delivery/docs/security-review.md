@@ -516,6 +516,10 @@ Cada falha desta revisão virou uma regra. Na dúvida, o PR não entra. O CI já
     formato antigo em `src/main` e `src/test` (`grep -rn '?token='`) antes de dar por terminado. Na revisão do
     e-mail, o link foi para o fragmento (`#token=`) e um teste de unidade antigo ainda esperava `?token=` — só o job
     completo da regra 26 pegou.
+28. **Filtro que decide pelo caminho usa o caminho normalizado** (`RequestPaths.of`: decodificado, sem `;parâmetros`),
+    nunca `getRequestURI()` cru: `/api/auth/%66orgot-password` chega ao controller de `/forgot-password` sem ser igual
+    a ele como texto (R6-3, R6-4). Limite de envio (e-mail, SMS) tem **intervalo E teto diário**, e a checagem trava
+    a linha da conta (regra 23 — R6-1, R6-2).
 
 ---
 
@@ -610,7 +614,7 @@ Resolve as pendências que dependiam de e-mail. Controles:
 | Contas falsas em massa segurando estoque (R4-4) | Fechar pedido exige e-mail confirmado pelo link (`REQUIRE_VERIFIED_EMAIL`) | ✅ `verificationGatesCheckout` |
 | Quem esqueceu a senha perde a conta | "Esqueci minha senha": link de 30 min, uso único; redefinir derruba as sessões e avisa o titular | ✅ `passwordReset`, `passwordResetCompletes` |
 | "Esqueci a senha" revelar quem tem conta | Resposta sempre 202; e-mail só sai se a conta existe | ✅ `passwordReset` (conta inexistente: nenhum envio) |
-| Usar a loja para lotar a caixa de alguém | Um link de nova senha a cada 5 min por conta; reenviar confirmação a cada 2 min; rotas no limite do login (API e nginx) | ✅ `passwordReset`, `invalidLinksAndResend` |
+| Usar a loja para lotar a caixa de alguém | Um link de nova senha a cada 5 min por conta; reenviar confirmação a cada 2 min; **5 de cada por dia, com a conta travada na checagem (revisão 6)**; rotas no limite do login (API e nginx) | ✅ `passwordReset`, `invalidLinksAndResend` |
 | Vazamento do banco entregar links válidos | No banco só o SHA-256 do token | ✅ `verificationGatesCheckout`, `EmailTokenServiceTest.issue` |
 | Link reutilizado, de outro tipo, vencido, ou de conta bloqueada/anonimizada | `EmailTokenService`: tudo recusado com a mesma mensagem; dois cliques simultâneos não valem os dois (`UPDATE` condicional) | ✅ `EmailTokenServiceTest.consume`, `invalidLinksAndResend` |
 | Senha fraca na redefinição queimar o link | A senha é conferida antes de gastar o link | ✅ `passwordReset` |
@@ -633,3 +637,43 @@ Resolve as pendências que dependiam de e-mail. Controles:
 - **Recuperação do MFA:** precisa de códigos de recuperação; por e-mail seria uma porta dos fundos.
 - **Token no `localStorage`.**
 
+## 13. Revisão 6 — 2026-11-10
+
+Pentest sobre a `main` com o e-mail transacional (`46692cd`), mirando a superfície nova: links, envio e limites.
+Ataques ao vivo na API de dev (cada um de uma origem diferente) e na pilha `prod-like` (PostgreSQL + nginx/TLS +
+Mailpit com STARTTLS). Cada achado foi conferido no servidor real, não só no MockMvc (o R6-4 parecia explorável no
+teste e não era). Cada correção tem teste que **falha no código anterior**: com as correções desfeitas, os
+13 testes novos falharam num build limpo (`./mvnw clean test`).
+
+### Achados e correções
+
+| # | Severidade | Achado | Evidência (antes) | Correção | Teste |
+|---|------------|--------|-------------------|----------|-------|
+| R6-1 | Média | **Sem teto diário de e-mails por conta.** Reenviar a confirmação a cada 2 min = ~720 e-mails/dia de UMA conta, acima da cota do Gmail (~500/dia): para todos os e-mails da loja (confirmação, nova senha, pedidos) e pode suspender a conta. Também serve para lotar a caixa de outra pessoa (cadastro com o e-mail dela) | Por análise; o teste de integração reenvia o 6º e-mail do dia → 202 | 5 confirmações (contando a do cadastro) e 5 links de nova senha por conta em 24 h. Acima disso: confirmação → `400 Daily limit…`; nova senha → 202 sem e-mail (não revela nada) | `resendHasDailyLimit`, `EmailTokenServiceTest.dailyLimitReached`, `PasswordResetServiceTest.dailyLimit`, `EmailVerificationServiceTest.resendDailyLimit` |
+| R6-2 | Média | **Corrida no intervalo mínimo** (regra 23): todos os pedidos simultâneos viam "nenhum envio recente" | 40 pedidos simultâneos → **até 8** e-mails de nova senha para a mesma conta em segundos | A linha da conta é travada (`findByIdForUpdate`) antes de conferir intervalo e teto | `concurrentResetRequestsIssueOneLink` (20 threads → 1 link); `prod-like` com PostgreSQL: 3 rodadas × 40 pedidos → 1 e-mail cada |
+| R6-3 | Baixa | **Limite por IP da API contornado por caminho codificado** (`/api/auth/%66orgot-password`, `%6Cogin`, webhook): o filtro comparava `getRequestURI()` cru | Dev: 25 de 25 → 202. Produção: o **nginx já barrava** (compara o caminho decodificado: 429 após a rajada) — faltava a defesa em profundidade | `RequestPaths.of` (caminho como o Spring MVC o vê) no `RateLimitFilter` | `encodedPathIsRateLimited`, `RateLimitFilterTest.encodedPathCountsInSameBucket` |
+| R6-4 | Informativa | **Trava "só localhost" do console H2 não reconhecia o caminho codificado** (`/h2-%63onsole/`): no teste (MockMvc) caía na regra geral, que só pede login | No Tomcat real **não é explorável**: antes da segurança, o `ServletRequestPathFilter` do Spring lança `IllegalArgumentException` (caminho não começa com o do servlet do H2) e o pedido termina em erro (401 do despacho de erro, mesmo com login válido). Só dev | Mesmo `RequestPaths.of` em `underPath` (defesa em profundidade) | `encodedDevToolPathStaysLocalOnly`, `SecurityConfigTest.underPath` |
+| R6-5 | Baixa | **Fila de e-mails sem tamanho máximo**: SMTP fora do ar (10 s por tentativa) + pedidos sem parar = memória crescendo até derrubar a API | Por análise | Fila de 1.000; cheia, descarta com aviso no log (a requisição nunca falha por isso) | `MailConfigTest` |
+| — | Dev | Mailpit levava **~4 s por e-mail** (DNS reverso de quem conecta); com a fila de uma thread, os e-mails atrasavam | `smtplib`: 4,1 s → 0,06 s | `MP_SMTP_DISABLE_RDNS` no Mailpit de dev e do `prod-like` | medido |
+
+### Testado e sem problema
+- Resposta do "esqueci a senha" igual para conta existente e inexistente; `Host`/`X-Forwarded-Host` forjados não
+  entram no link (usa `APP_PUBLIC_URL`).
+- Token de confirmação não redefine senha; senha fraca não gasta o link; 10 cliques simultâneos no mesmo link → 1
+  redefinição; a sessão anterior cai (401, com controle 200).
+- Corpo gigante (413), malformado, `null`, lista, CRLF no e-mail → sempre 4xx, nunca 500.
+- E-mail `"x,vitima@…"@dominio` no cadastro → **um** destinatário só (o endereço entre aspas).
+- O e-mail não pode ser trocado depois do cadastro: não existe "link antigo para o endereço antigo".
+- Páginas do front: token só do fragmento, removido da URL; a nova senha só é gravada ao enviar o formulário.
+- `prod-like`: smoke 25/25, e-mail ponta a ponta 17/17 (STARTTLS), nenhum token nos logs do nginx e da API.
+- OSV: 106 dependências, 0 sem justificativa; `npm audit`: 0.
+
+### Aceito / pendente
+- **Cota global do provedor:** o teto por conta obriga quem quer esgotar a cota do Gmail a usar ~100 contas (com o
+  limite de 10 cadastros/dia por origem, ~10 origens). Volume real ou ataque distribuído pedem um provedor
+  transacional (troca só os `MAIL_*`).
+- **Scanner de link do provedor de e-mail** (ex.: Defender) que execute JavaScript pode confirmar um e-mail sozinho.
+  Consequência pequena: o endereço só passa a receber avisos de pedido; prática comum aceita.
+- **Clientes cadastrados antes do e-mail** (V9) precisam confirmar antes da próxima compra: o aviso no topo tem o
+  botão de reenvio.
+- **Continuam:** "Email já em uso" no cadastro (B3), recuperação do MFA, token no `localStorage`.
