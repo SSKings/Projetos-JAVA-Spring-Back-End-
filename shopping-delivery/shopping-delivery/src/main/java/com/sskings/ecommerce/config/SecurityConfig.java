@@ -137,7 +137,7 @@ public class SecurityConfig {
     static RequestMatcher underPath(String base) {
         String prefix = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
         return request -> {
-            String path = request.getRequestURI().substring(request.getContextPath().length());
+            String path = com.sskings.ecommerce.security.RequestPaths.of(request);   // decodificado (R6-4)
             return path.equals(prefix) || path.startsWith(prefix + "/");
         };
     }

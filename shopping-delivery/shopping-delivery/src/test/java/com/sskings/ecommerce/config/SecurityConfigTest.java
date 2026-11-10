@@ -26,6 +26,10 @@ class SecurityConfigTest {
         for (String ok : new String[]{"/h2-console", "/h2-console/", "/h2-console/login.do"}) {
             assertThat(matcher.matches(new org.springframework.mock.web.MockHttpServletRequest("GET", ok))).as(ok).isTrue();
         }
+        // revisão 6 (R6-4): o Tomcat entrega "/h2-%63onsole/" ao console; a trava tem que reconhecer o caminho também
+        for (String encoded : new String[]{"/h2-%63onsole/", "/%682-console/login.do", "/h2-console;x=1/"}) {
+            assertThat(matcher.matches(new org.springframework.mock.web.MockHttpServletRequest("GET", encoded))).as(encoded).isTrue();
+        }
         assertThat(matcher.matches(new org.springframework.mock.web.MockHttpServletRequest("GET", "/h2-consolex"))).isFalse();
         assertThat(matcher.matches(new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/products"))).isFalse();
     }

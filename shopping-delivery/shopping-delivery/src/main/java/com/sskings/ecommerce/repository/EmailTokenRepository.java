@@ -16,6 +16,9 @@ public interface EmailTokenRepository extends JpaRepository<EmailToken, Long> {
 
     Optional<EmailToken> findFirstByUserIdAndPurposeOrderByCreatedAtDesc(Long userId, EmailToken.Purpose purpose);
 
+    /** Links deste tipo emitidos para a conta desde {@code since} (teto diário de envios — revisão 6, R6-1). */
+    long countByUserIdAndPurposeAndCreatedAtAfter(Long userId, EmailToken.Purpose purpose, LocalDateTime since);
+
     /** Marca como usado só se ainda não foi: dois cliques simultâneos no mesmo link não valem os dois. */
     @Modifying(flushAutomatically = true)
     @Query("update EmailToken t set t.usedAt = :now where t.id = :id and t.usedAt is null")

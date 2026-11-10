@@ -24,7 +24,8 @@ import java.util.Locale;
  * Recuperação de senha por e-mail (ADR-025).
  * <ul>
  *   <li>O pedido responde sempre igual, exista a conta ou não (não revela quem tem conta).</li>
- *   <li>Link de 30 min, uso único; no máximo um a cada 5 min por conta (não serve para lotar a caixa de ninguém).</li>
+ *   <li>Link de 30 min, uso único; no máximo um a cada 5 min e 5 por dia por conta (não serve para lotar a caixa de
+ *       ninguém nem para gastar a cota diária do provedor — revisão 6, R6-1).</li>
  *   <li>Redefinir: mesma política de senha do cadastro, derruba todas as sessões, aposenta outros links e avisa o
  *       titular. O MFA continua valendo: quem tem só o e-mail da vítima ainda precisa do código para entrar.</li>
  * </ul>
@@ -35,6 +36,7 @@ public class PasswordResetService {
 
     static final Duration TTL = Duration.ofMinutes(30);
     static final Duration COOLDOWN = Duration.ofMinutes(5);
+    static final int DAILY_LIMIT = 5;
 
     private final UserRepository users;
     private final EmailTokenService tokens;
@@ -49,8 +51,12 @@ public class PasswordResetService {
     public void request(String email) {
         String normalized = email.trim().toLowerCase(Locale.ROOT);
         users.findByEmail(normalized)
+                // trava a linha da conta: pedidos simultâneos esperam um ao outro, senão todos veem "nenhum envio
+                // recente" e todos enviam (40 pedidos juntos geravam até 8 e-mails — revisão 6, R6-2; regra 23)
+                .flatMap(u -> users.findByIdForUpdate(u.getId()))
                 .filter(u -> u.isActive() && u.getAnonymizedAt() == null)
                 .filter(u -> !tokens.issuedRecently(u, EmailToken.Purpose.RESET_PASSWORD, COOLDOWN))
+                .filter(u -> !tokens.dailyLimitReached(u, EmailToken.Purpose.RESET_PASSWORD, DAILY_LIMIT))
                 .ifPresent(user -> {
                     String token = tokens.issue(user, EmailToken.Purpose.RESET_PASSWORD, TTL);
                     var m = MailMessages.resetPassword(props, user.getName(), token, (int) TTL.toMinutes());

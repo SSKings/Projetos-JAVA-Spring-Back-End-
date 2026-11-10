@@ -83,4 +83,17 @@ class RateLimitFilterTest {
         assertThat(call(f, "POST", "/api/auth/login", "2001:db8:1:2:ffff:ffff:ffff:ffff")).isEqualTo(429);
         assertThat(call(f, "POST", "/api/auth/login", "2001:db8:1:3::1")).isEqualTo(200);   // outro /64
     }
+
+    @Test
+    @DisplayName("Revisão 6 (R6-3): caminho codificado (%66, ;param) cai no mesmo balde — não contorna o limite")
+    void encodedPathCountsInSameBucket() throws Exception {
+        RateLimitFilter f = filter(true);
+        assertThat(call(f, "POST", "/api/auth/%66orgot-password", "3.3.3.3")).isEqualTo(200);
+        assertThat(call(f, "POST", "/api/auth/forgot-password;x=1", "3.3.3.3")).isEqualTo(200);
+        assertThat(call(f, "POST", "/api/auth/%6Cogin", "3.3.3.3")).isEqualTo(200);
+        assertThat(call(f, "POST", "/api/auth/forgot-password", "3.3.3.3")).isEqualTo(429);
+        assertThat(call(f, "POST", "/api/payments/pix/%77ebhook", "4.4.4.4")).isEqualTo(200);
+        assertThat(call(f, "POST", "/api/payments/pix/%77ebhook", "4.4.4.4")).isEqualTo(200);
+        assertThat(call(f, "POST", "/api/payments/pix/webhook", "4.4.4.4")).isEqualTo(429);
+    }
 }
