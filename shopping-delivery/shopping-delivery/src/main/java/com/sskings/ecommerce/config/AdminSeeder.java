@@ -47,6 +47,7 @@ public class AdminSeeder implements CommandLineRunner {
                 .email(normalized)
                 .password(passwordEncoder.encode(effectivePassword))
                 .role(Role.ADMIN)
+                .emailVerifiedAt(java.time.LocalDateTime.now())   // e-mail definido por quem opera a loja (ADMIN_EMAIL)
                 .build());
         log.info("Admin user created: {}", email);
     }

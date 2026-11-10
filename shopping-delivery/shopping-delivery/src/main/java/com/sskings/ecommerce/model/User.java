@@ -67,6 +67,14 @@ public class User implements UserDetails {
     @Column(name = "terms_accepted_at")
     private LocalDateTime termsAcceptedAt;
 
+    /** Quando o titular confirmou o e-mail pelo link (ADR-025). Sem isso não fecha pedido nem recebe avisos. */
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
+
+    public boolean isEmailVerified() {
+        return emailVerifiedAt != null;
+    }
+
     /** Preenchido quando o titular exclui a conta (LGPD art. 18, VI): dados pessoais anonimizados. */
     @Column(name = "anonymized_at")
     private LocalDateTime anonymizedAt;

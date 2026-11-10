@@ -12,6 +12,21 @@ services:
       SECURITY_RATELIMIT_AUTHPERMINUTE: "1000000"
       SECURITY_RATELIMIT_WEBHOOKPERMINUTE: "1000000"
       REGISTRATIONS_PER_DAY: "1000000"   # o teste cria centenas de contas do mesmo IP
+      # Mailpit com certificado autoassinado deste teste: confiar só nele, só aqui
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_TRUST: mailpit
+  # Caixa de e-mail do teste (no lugar do Gmail): exige STARTTLS e aceita qualquer login, como um SMTP real com TLS
+  mailpit:
+    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+    networks: [edge]
+    environment:
+      MP_SMTP_TLS_CERT: /certs/fullchain.pem
+      MP_SMTP_TLS_KEY: /certs/privkey.pem
+      MP_SMTP_REQUIRE_STARTTLS: "true"
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+    volumes:
+      - ../load-tests/prod-like/generated/certs:/certs:ro
+    ports:
+      - "127.0.0.1:${LOADTEST_MAILPIT_PORT:-18025}:8025"
   web:
     ports: !override
       - "127.0.0.1:${LOADTEST_HTTPS_PORT:-8443}:8443"

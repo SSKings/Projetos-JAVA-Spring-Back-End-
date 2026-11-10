@@ -44,6 +44,8 @@ class AccountServiceTest {
     @Mock AuditService auditService;
     @Mock AuthService authService;
     @Mock TrustedLoginSources trustedSources;
+    @Mock com.sskings.ecommerce.repository.EmailTokenRepository emailTokens;
+    @Mock org.springframework.context.ApplicationEventPublisher events;
 
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(4);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
@@ -55,7 +57,7 @@ class AccountServiceTest {
     @BeforeEach
     void setUp() {
         service = new AccountService(userRepository, addressRepository, orderRepository, cartItemRepository,
-                auditLogRepository, auditService, authService, encoder, totp, crypto, trustedSources, clock);
+                auditLogRepository, auditService, authService, encoder, totp, crypto, trustedSources, emailTokens, events, clock);
         user = User.builder().id(1L).name("Ana Souza").email("ana@a.com").phone("11999999999")
                 .password(encoder.encode("senha123")).build();
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
@@ -122,6 +124,8 @@ class AccountServiceTest {
         then(addressRepository).should(never()).delete(used);   // mantido: vinculado a pedido (obrigação legal)
         then(auditLogRepository).should().replaceActorEmail(1L, user.getEmail());
         then(trustedSources).should().forget(1L);   // IPs de onde entrava também são dados pessoais
+        then(emailTokens).should().deleteAllByUserId(1L);   // links de e-mail pendentes (ADR-025)
+        assertThat(user.getEmailVerifiedAt()).isNull();
     }
 
     @Test

@@ -2,6 +2,10 @@ import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthProvider';
 import { CartProvider } from './contexts/CartProvider';
 import Navbar from './components/Navbar';
+import EmailVerificationBanner from './components/EmailVerificationBanner';
+import VerifyEmailPage from './pages/auth/VerifyEmailPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProductListPage from './pages/ProductListPage';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -33,12 +37,16 @@ export default function App() {
         <CartProvider>
           <div className="min-h-screen bg-gray-50">
             <Navbar />
+            <EmailVerificationBanner />
             <Routes>
               {/* Public */}
               <Route path="/" element={<ProductListPage />} />
               <Route path="/products/:id" element={<ProductDetailPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/verificar-email" element={<VerifyEmailPage />} />
+              <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
+              <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
               <Route path="/privacidade" element={<PrivacyPolicyPage />} />
               <Route path="/termos" element={<TermsPage />} />
               <Route path="/trocas-e-devolucoes" element={<ReturnsPolicyPage />} />

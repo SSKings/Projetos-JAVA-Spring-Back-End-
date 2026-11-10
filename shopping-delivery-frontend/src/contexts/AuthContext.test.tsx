@@ -33,7 +33,7 @@ describe('AuthContext', () => {
     expect(result.current.isAdmin).toBe(true);
     expect(localStorage.getItem('token')).toBe('t1');
     expect(JSON.parse(localStorage.getItem('user')!)).toEqual({
-      name: 'Adm', email: 'adm@x.com', role: 'ADMIN', mfaEnabled: false, mfaSetupRequired: true,
+      name: 'Adm', email: 'adm@x.com', role: 'ADMIN', mfaEnabled: false, mfaSetupRequired: true, emailVerified: true,
     });
   });
 

@@ -6,9 +6,9 @@ import com.sskings.ecommerce.model.enums.Role;
 import java.time.LocalDateTime;
 
 public record ProfileResponse(Long id, String name, String email, String phone, Role role, LocalDateTime createdAt,
-                              boolean mfaEnabled, String termsVersion, LocalDateTime termsAcceptedAt) {
+                              boolean mfaEnabled, String termsVersion, LocalDateTime termsAcceptedAt, boolean emailVerified) {
     public static ProfileResponse from(User u) {
         return new ProfileResponse(u.getId(), u.getName(), u.getEmail(), u.getPhone(), u.getRole(), u.getCreatedAt(),
-                u.isMfaEnabled(), u.getTermsVersion(), u.getTermsAcceptedAt());
+                u.isMfaEnabled(), u.getTermsVersion(), u.getTermsAcceptedAt(), u.isEmailVerified());
     }
 }

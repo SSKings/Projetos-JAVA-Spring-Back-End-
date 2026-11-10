@@ -43,7 +43,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     static String bucketOf(String uri) {
-        if (uri.equals("/api/auth/login") || uri.equals("/api/auth/register")) return "auth";
+        if (uri.equals("/api/auth/login") || uri.equals("/api/auth/register") || uri.equals("/api/auth/verify-email")
+                || uri.equals("/api/auth/forgot-password") || uri.equals("/api/auth/reset-password")) return "auth";
         if (uri.equals("/api/payments/pix/webhook")) return "webhook";
         return null;
     }

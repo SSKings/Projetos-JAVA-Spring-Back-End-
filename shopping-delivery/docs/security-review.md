@@ -512,6 +512,10 @@ Cada falha desta revisão virou uma regra. Na dúvida, o PR não entra. O CI já
     `python3 shopping-delivery/scripts/run-ci-job.py shopping-delivery` (e o job do front, se mexeu nele). Rodar só
     os testes deixou passar um passo quebrado ("k6 inspect") no PR da revisão 5. Valor lido por script (`sed`, `grep`)
     tem teste que usa a mesma leitura (`test_check_pinning.test_ci_reads_the_pinned_k6_image`).
+27. **Mudou um formato (URL, mensagem, contrato), rode a suíte inteira, não só os testes da correção:** procure o
+    formato antigo em `src/main` e `src/test` (`grep -rn '?token='`) antes de dar por terminado. Na revisão do
+    e-mail, o link foi para o fragmento (`#token=`) e um teste de unidade antigo ainda esperava `?token=` — só o job
+    completo da regra 26 pegou.
 
 ---
 
@@ -594,4 +598,38 @@ O `01-roles.sh` roda sozinho só em volume novo. Num banco que já existe (tabel
 - **Retenção da auditoria em 365 dias** é um padrão técnico: o prazo final depende do jurídico (defesa em processos x
   minimização).
 - **Continuam:** token no `localStorage`, verificação de e-mail, recuperação de senha e de MFA, limite IPv6 /64 no nginx.
+
+---
+
+## 12. E-mail transacional — 2026-11-10 (ADR-025)
+
+Resolve as pendências que dependiam de e-mail. Controles:
+
+| Risco | Controle | Verificação |
+|---|---|---|
+| Contas falsas em massa segurando estoque (R4-4) | Fechar pedido exige e-mail confirmado pelo link (`REQUIRE_VERIFIED_EMAIL`) | ✅ `verificationGatesCheckout` |
+| Quem esqueceu a senha perde a conta | "Esqueci minha senha": link de 30 min, uso único; redefinir derruba as sessões e avisa o titular | ✅ `passwordReset`, `passwordResetCompletes` |
+| "Esqueci a senha" revelar quem tem conta | Resposta sempre 202; e-mail só sai se a conta existe | ✅ `passwordReset` (conta inexistente: nenhum envio) |
+| Usar a loja para lotar a caixa de alguém | Um link de nova senha a cada 5 min por conta; reenviar confirmação a cada 2 min; rotas no limite do login (API e nginx) | ✅ `passwordReset`, `invalidLinksAndResend` |
+| Vazamento do banco entregar links válidos | No banco só o SHA-256 do token | ✅ `verificationGatesCheckout`, `EmailTokenServiceTest.issue` |
+| Link reutilizado, de outro tipo, vencido, ou de conta bloqueada/anonimizada | `EmailTokenService`: tudo recusado com a mesma mensagem; dois cliques simultâneos não valem os dois (`UPDATE` condicional) | ✅ `EmailTokenServiceTest.consume`, `invalidLinksAndResend` |
+| Senha fraca na redefinição queimar o link | A senha é conferida antes de gastar o link | ✅ `passwordReset` |
+| Redefinição por e-mail tirar o MFA | O MFA continua valendo depois da redefinição; recuperação de MFA por e-mail não existe de propósito | ADR-025 |
+| **Token no log de acesso do nginx** (achado na revisão do próprio PR) | O token vai no **fragmento** do link (`#token=…`), que o navegador não manda ao servidor; com `?token=`, quem lesse o log usaria um link de nova senha ainda válido. As páginas não aceitam mais token na query | ✅ `MailMessagesTest.tokenInFragment`, `email.test.tsx`; log do nginx sem nenhum token na pilha `prod-like` |
+| Token do link no histórico do navegador | As páginas tiram o fragmento da URL ao abrir | ✅ `email.test.tsx` |
+| **Link de nova senha pedido antes continuar valendo depois da troca de senha** (achado na revisão do próprio PR) | Trocar a senha logado aposenta os links de nova senha pendentes | ✅ `passwordChangeInvalidatesPendingReset` |
+| **Nome do cadastro virar texto de golpe no e-mail** (achado na revisão do próprio PR): quem se cadastra com o e-mail de outra pessoa e o nome `http://site-falso…` fazia a loja mandar "Olá http://site-falso…!" | Só um primeiro nome com letras entra no e-mail; senão, "Olá!" | ✅ `MailMessagesTest.nameIsSanitized`, `maliciousNameNotInEmail` |
+| Servidor SMTP falso no meio do caminho | A biblioteca confere o nome do certificado (Gmail: `smtp.gmail.com`); na pilha de teste, o certificado inclui `mailpit` em vez de desligar a checagem | ✅ pilha `prod-like` (antes: "No name matching mailpit found") |
+| Troca de senha ou de MFA passar despercebida (sessão roubada) | Aviso de segurança por e-mail (só para e-mail confirmado) | ✅ `securityNotice` |
+| E-mail com conteúdo do cliente virar HTML (injeção) | Texto puro; nenhum e-mail pede senha, código ou pagamento | ✅ `MailMessagesTest` |
+| Senha de app do Gmail e links em texto puro | STARTTLS obrigatório em produção (validador recusa subir sem) | ✅ `ProductionConfigValidatorTest.mail`; pilha `prod-like` com STARTTLS |
+| SMTP fora do ar derrubar a loja ou o cadastro | Envio depois do commit, numa thread própria; falha vira log; indicador de saúde de e-mail desligado | ✅ `MailOutboxTest`, `ActuatorSecurityIntegrationTest` |
+| Token ou e-mail completo no log | Log só com assunto e e-mail mascarado | ✅ `MailOutboxTest.failuresAndDisabled` |
+
+**Continua pendente:**
+- **"Email já em uso" no cadastro (B3):** resolver exige cadastro em duas etapas. É também por isso que a pequena
+  diferença de tempo do "esqueci a senha" (mediana 21,8 ms para conta existente × 16,7 ms para inexistente, medida
+  na pilha `prod-like`) não foi tratada: o cadastro revela quem tem conta de forma direta.
+- **Recuperação do MFA:** precisa de códigos de recuperação; por e-mail seria uma porta dos fundos.
+- **Token no `localStorage`.**
 

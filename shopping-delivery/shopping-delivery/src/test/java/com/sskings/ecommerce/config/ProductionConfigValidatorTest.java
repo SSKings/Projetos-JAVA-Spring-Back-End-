@@ -91,10 +91,32 @@ class ProductionConfigValidatorTest {
                 .asString().contains("not postgres");
         assertThat(ProductionConfigValidator.databaseUserProblems(null, null)).hasSize(2);
         assertThatThrownBy(() -> new ProductionConfigValidator(security(STRONG, KEY, true, true), pix("12345678000199", null),
-                CORS, "SenhaForte2026!", DB, "app", "app").afterPropertiesSet())
+                CORS, "SenhaForte2026!", DB, "app", "app", true, "smtp.gmail.com", "l@gmail.com", "pw", "l@gmail.com", true,
+                "https://loja.com.br").afterPropertiesSet())
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("DATABASE_MIGRATION_USERNAME");
 
         assertThat(ProductionConfigValidator.problems(security(STRONG, KEY, true, true), pix("k@loja.com.br", null),
                 CORS, "Administrador2026", DB)).singleElement().asString().contains("too predictable");
+    }
+
+    @Test
+    @DisplayName("ADR-025: e-mail em produção exige servidor, credenciais, remetente, STARTTLS e link https")
+    void mail() {
+        var ok = new ProductionConfigValidator.MailSettings(true, "smtp.gmail.com", "loja@gmail.com", "app-pass", "loja@gmail.com",
+                true, "https://loja.com.br");
+        assertThat(ProductionConfigValidator.mailProblems(ok)).isEmpty();
+        assertThat(ProductionConfigValidator.mailProblems(new ProductionConfigValidator.MailSettings(true, "", "", "", "", false,
+                "http://loja.com.br"))).hasSize(3).anySatisfy(p -> assertThat(p).contains("MAIL_HOST"))
+                .anySatisfy(p -> assertThat(p).contains("STARTTLS")).anySatisfy(p -> assertThat(p).contains("https"));
+        assertThat(ProductionConfigValidator.mailProblems(new ProductionConfigValidator.MailSettings(false, null, null, null, null,
+                false, null))).isEmpty();                                                   // e-mail desligado de propósito
+        for (var partial : new ProductionConfigValidator.MailSettings[]{
+                new ProductionConfigValidator.MailSettings(true, "smtp.gmail.com", "", "pw", "l@g.com", true, "https://l.com"),
+                new ProductionConfigValidator.MailSettings(true, "smtp.gmail.com", "u", null, "l@g.com", true, "https://l.com"),
+                new ProductionConfigValidator.MailSettings(true, "smtp.gmail.com", "u", "pw", " ", true, "https://l.com")}) {
+            assertThat(ProductionConfigValidator.mailProblems(partial)).singleElement().asString().contains("MAIL_PASSWORD");
+        }
+        assertThat(ProductionConfigValidator.mailProblems(new ProductionConfigValidator.MailSettings(true, "smtp.gmail.com", "u",
+                "pw", "l@g.com", true, null))).singleElement().asString().contains("APP_PUBLIC_URL");
     }
 }

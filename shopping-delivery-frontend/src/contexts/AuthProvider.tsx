@@ -5,7 +5,7 @@ import { AuthContext, type AuthUser } from './AuthContext';
 
 const toUser = (resp: AuthResponse): AuthUser => ({
   name: resp.name, email: resp.email, role: resp.role,
-  mfaEnabled: !!resp.mfaEnabled, mfaSetupRequired: !!resp.mfaSetupRequired,
+  mfaEnabled: !!resp.mfaEnabled, mfaSetupRequired: !!resp.mfaSetupRequired, emailVerified: resp.emailVerified !== false,
 });
 
 function readPersistedUser(): AuthUser | null {
@@ -14,7 +14,7 @@ function readPersistedUser(): AuthUser | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     // Sessões salvas antes da existência de papéis/MFA são tratadas como cliente sem MFA.
-    return { mfaEnabled: false, mfaSetupRequired: false, ...parsed, role: parsed.role ?? 'CUSTOMER' };
+    return { mfaEnabled: false, mfaSetupRequired: false, emailVerified: true, ...parsed, role: parsed.role ?? 'CUSTOMER' };
   } catch {
     return null;
   }
@@ -63,9 +63,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) saveUser({ ...user, name });
   };
 
+  const markEmailVerified = () => {
+    if (user && !user.emailVerified) saveUser({ ...user, emailVerified: true });
+  };
+
   return (
     <AuthContext.Provider value={{
-      user, token, login, register, logout, clearSession, updateSession, updateName,
+      user, token, login, register, logout, clearSession, updateSession, updateName, markEmailVerified,
       isAuthenticated: !!token, isAdmin: !!token && user?.role === 'ADMIN',
     }}>
       {children}

@@ -72,7 +72,8 @@ public class SecurityConfig {
                         .authenticationEntryPoint((req, res, ex) -> writeError(res, 401, "Authentication required"))
                         .accessDeniedHandler((req, res, ex) -> writeError(res, 403, "Access denied")))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register",
+                                "/api/auth/verify-email", "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         // PSP não envia JWT; o webhook é autenticado pela assinatura HMAC (PaymentService)
                         .requestMatchers(HttpMethod.POST, "/api/payments/pix/webhook").permitAll()

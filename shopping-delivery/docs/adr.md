@@ -660,3 +660,55 @@ o computador. Já havia um bot do Telegram, mas só para os alertas técnicos do
   `TelegramClientTest`, `TelegramBotPollerTest`, `TelegramOrderNotifierTest`, `TelegramBotPropertiesTest`,
   `TelegramBotIntegrationTest` (checkout real → aviso; cancelamento pelo bot → auditoria com o admin) e
   `scripts/test_telegram_admin_bot_setup.py` (assistente contra um Telegram falso).
+
+## ADR-025 — E-mail transacional por SMTP (Mailpit em dev, Gmail em produção)
+
+**Status:** Aceito
+
+**Contexto**
+Sem e-mail, várias pendências de segurança não tinham solução: o cliente não confirmava o próprio endereço (contas
+falsas em massa seguravam estoque — revisão 4, R4-4), quem esquecia a senha perdia a conta e ninguém era avisado de
+troca de senha ou de MFA. O cliente também não recebia o Pix nem o andamento do pedido fora do site.
+
+**Decisão**
+- **SMTP padrão** (`spring-boot-starter-mail`, `JavaMailSender`). Trocar de servidor é só mudar `MAIL_*`; nenhum SDK
+  de provedor.
+  - **Dev:** Mailpit em Docker (`mailpit/`), portas só em `127.0.0.1`. Os e-mails aparecem em http://localhost:8025 e
+    nada sai para a internet.
+  - **Produção:** Gmail com **senha de app** (`smtp.gmail.com:587`, STARTTLS obrigatório). O `ProductionConfigValidator`
+    recusa subir sem servidor, credenciais, remetente, STARTTLS e `APP_PUBLIC_URL` em https.
+  - Servidor de e-mail próprio foi descartado: a porta 25 costuma ser bloqueada, IP novo cai no spam e SPF/DKIM/DMARC
+    e o combate a abuso viram trabalho de operação.
+- **`MailOutbox`:** envia **depois do commit** (rollback não manda e-mail de algo que não aconteceu), numa **thread
+  própria** (SMTP lento ou fora do ar não segura nem derruba a requisição; falha vira log) e em **texto puro** (nada do
+  que o cliente digita vira HTML; do nome do cadastro, só um primeiro nome com letras entra no e-mail). O log nunca leva o corpo (links com token) nem o endereço completo. O indicador de
+  saúde de e-mail do Actuator foi desligado: ele abria uma conexão SMTP a cada checagem e um SMTP fora do ar marcava
+  a loja inteira como DOWN.
+- **Links de uso único** (`EmailTokenService`): 256 bits aleatórios no **fragmento** do link (`#token=…` — o navegador
+  não o manda ao servidor, então não cai no log do nginx); no banco, só o SHA-256 (tabela
+  `email_tokens`, V9). Valem uma vez (`UPDATE ... WHERE used_at IS NULL`), para um propósito, até expirar, e só para
+  conta ativa e não anonimizada. Um link novo aposenta os pendentes do mesmo tipo.
+- **Confirmação de e-mail:** link no cadastro (48 h; reenviar no máximo a cada 2 min). Sem confirmar, o cliente navega
+  e monta o carrinho, mas **não fecha pedido** (`REQUIRE_VERIFIED_EMAIL`) nem recebe avisos — o endereço pode ser de
+  outra pessoa. O admin semeado nasce confirmado.
+- **Recuperação de senha:** a resposta é sempre igual, exista a conta ou não. Link de 30 min, no máximo um a cada
+  5 min por conta. Senha fraca **não gasta o link**. Trocar a senha logado aposenta os links pendentes. Redefinir derruba todas as sessões, confirma o e-mail (o link
+  provou o endereço) e avisa o titular. **O MFA continua valendo**: quem tem só o e-mail da vítima ainda precisa do
+  código para entrar.
+- **Avisos ao cliente** (só para e-mail confirmado): pedido recebido (com o Pix copia e cola e o prazo), Pix confirmado,
+  enviado, entregue (com o prazo de arrependimento), cancelado (pelo cliente, pela loja ou por Pix vencido),
+  devolução solicitada e estorno feito. **Avisos de segurança:** senha alterada ou redefinida, MFA ligado ou desligado.
+- Os novos tipos de `OrderEvent` causados pelo admin (`PAID_MANUALLY`, `SHIPPED`, `DELIVERED`, `CANCELLED_BY_STORE`,
+  `REFUNDED`) **não** geram aviso no bot do Telegram (quem fez já sabe).
+
+**Consequências**
+- Para colocar no ar, a loja precisa de uma conta Gmail com verificação em duas etapas e uma senha de app; o limite é de
+  cerca de 500 envios por dia, e o remetente é a própria conta. Com volume maior ou e-mail no domínio da loja, troca-se
+  só o `MAIL_*` (Brevo, Resend, Amazon SES…).
+- O cadastro continua entrando direto (o token de sessão sai no cadastro). O "email já em uso" ainda revela quem tem
+  conta; resolver isso exigiria cadastro em duas etapas (fica registrado em `security-review.md`).
+- Recuperação de MFA por e-mail **não** foi feita de propósito: quem invadisse o e-mail tiraria o segundo fator. Para
+  isso, o caminho são códigos de recuperação (pendente).
+- Testes: `EmailFlowsIntegrationTest` (ponta a ponta, lendo o link de dentro do e-mail), `MailOutboxTest`,
+  `MailMessagesTest`, `EmailTokenServiceTest`, `CustomerOrderMailerTest`, validador de produção; no front, as páginas
+  `/verificar-email`, `/esqueci-senha`, `/redefinir-senha` e o aviso de e-mail não confirmado.

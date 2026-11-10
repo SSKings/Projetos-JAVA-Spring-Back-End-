@@ -60,6 +60,13 @@ public class AdminOrderService {
         order.setStatus(newStatus);
         auditService.record(null, com.sskings.ecommerce.service.AuditService.ORDER_STATUS_CHANGED, "ORDER", id,
                 current + " -> " + newStatus);
+        // o cliente é avisado por e-mail (ADR-025); CONFIRMED sozinho não muda nada para ele
+        switch (newStatus) {
+            case SHIPPED -> events.publishEvent(new com.sskings.ecommerce.event.OrderEvent(id, com.sskings.ecommerce.event.OrderEvent.Type.SHIPPED));
+            case DELIVERED -> events.publishEvent(new com.sskings.ecommerce.event.OrderEvent(id, com.sskings.ecommerce.event.OrderEvent.Type.DELIVERED));
+            case CANCELLED -> events.publishEvent(new com.sskings.ecommerce.event.OrderEvent(id, com.sskings.ecommerce.event.OrderEvent.Type.CANCELLED_BY_STORE));
+            default -> { }
+        }
         return AdminOrderResponse.from(orderRepository.save(order));
     }
 

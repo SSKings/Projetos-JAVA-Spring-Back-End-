@@ -7,6 +7,17 @@ spring:
     password: ${DATABASE_PASSWORD}
     hikari:
       maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+  # E-mail (ADR-025): Gmail com senha de app — smtp.gmail.com:587 com STARTTLS obrigatório (sem TLS, a senha iria
+  # em texto puro). ProductionConfigValidator recusa subir sem host/usuário/senha/remetente e sem STARTTLS.
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: ${MAIL_STARTTLS_REQUIRED:true}
   # Migrações com o DONO das tabelas; a aplicação usa um usuário só de leitura/escrita de dados (revisão 5, R5-4).
   # ProductionConfigValidator recusa subir se os dois forem o mesmo usuário.
   flyway:
@@ -35,3 +46,8 @@ server:
 logging:
   level:
     root: INFO
+
+app:
+  mail:
+    from: ${MAIL_FROM}
+    public-url: ${APP_PUBLIC_URL}

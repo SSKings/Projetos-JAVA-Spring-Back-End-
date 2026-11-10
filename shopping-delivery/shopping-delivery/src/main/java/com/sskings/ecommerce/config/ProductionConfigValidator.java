@@ -38,13 +38,25 @@ public class ProductionConfigValidator implements InitializingBean {
     private final String datasourceUrl;
     private final String databaseUser;
     private final String migrationUser;
+    private final MailSettings mail;
+
+    /** spring.mail.* e app.mail.* que precisam estar certos em produção (ADR-025). */
+    record MailSettings(boolean enabled, String host, String username, String password, String from,
+                        boolean starttlsRequired, String publicUrl) {}
 
     @org.springframework.beans.factory.annotation.Autowired
     public ProductionConfigValidator(SecurityProperties security, PixProperties pix, CorsProperties cors,
                                      @Value("${app.admin.password}") String adminPassword,
                                      @Value("${spring.datasource.url}") String datasourceUrl,
                                      @Value("${spring.datasource.username:}") String databaseUser,
-                                     @Value("${spring.flyway.user:}") String migrationUser) {
+                                     @Value("${spring.flyway.user:}") String migrationUser,
+                                     @Value("${app.mail.enabled:true}") boolean mailEnabled,
+                                     @Value("${spring.mail.host:}") String mailHost,
+                                     @Value("${spring.mail.username:}") String mailUsername,
+                                     @Value("${spring.mail.password:}") String mailPassword,
+                                     @Value("${app.mail.from:}") String mailFrom,
+                                     @Value("${spring.mail.properties.mail.smtp.starttls.required:false}") boolean starttlsRequired,
+                                     @Value("${app.mail.public-url:}") String publicUrl) {
         this.security = security;
         this.pix = pix;
         this.cors = cors;
@@ -52,17 +64,40 @@ public class ProductionConfigValidator implements InitializingBean {
         this.datasourceUrl = datasourceUrl;
         this.databaseUser = databaseUser;
         this.migrationUser = migrationUser;
+        this.mail = new MailSettings(mailEnabled, mailHost, mailUsername, mailPassword, mailFrom, starttlsRequired, publicUrl);
     }
 
     ProductionConfigValidator(SecurityProperties security, PixProperties pix, CorsProperties cors,
                               String adminPassword, String datasourceUrl) {
-        this(security, pix, cors, adminPassword, datasourceUrl, "shopeasy_app", "shopeasy_owner");
+        this(security, pix, cors, adminPassword, datasourceUrl, "shopeasy_app", "shopeasy_owner",
+                true, "smtp.gmail.com", "loja@gmail.com", "app-password", "loja@gmail.com", true, "https://loja.com.br");
     }
 
     /**
      * Revisão 5, R5-4: a API não pode usar o superusuário nem o dono das tabelas. Com um usuário só de DML, uma falha
      * de SQL não altera o schema nem executa comandos no servidor do banco.
      */
+    /**
+     * E-mail (ADR-025): sem ele não há confirmação de e-mail nem recuperação de senha. STARTTLS obrigatório: sem TLS a
+     * senha de app do Gmail e os links de redefinição iriam em texto puro. Links só para https.
+     */
+    static List<String> mailProblems(MailSettings m) {
+        List<String> p = new ArrayList<>();
+        if (!m.enabled()) return p;
+        if (blank(m.host()) || blank(m.username()) || blank(m.password()) || blank(m.from())) {
+            p.add("MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD and MAIL_FROM must be set (Gmail: smtp.gmail.com + app password)");
+        }
+        if (!m.starttlsRequired()) p.add("MAIL_STARTTLS_REQUIRED must be true (SMTP password and links must not travel in clear text)");
+        if (blank(m.publicUrl()) || !m.publicUrl().startsWith("https://")) {
+            p.add("APP_PUBLIC_URL must be the https:// address of the store (used in e-mail links)");
+        }
+        return p;
+    }
+
+    private static boolean blank(String s) {
+        return s == null || s.isBlank();
+    }
+
     static List<String> databaseUserProblems(String databaseUser, String migrationUser) {
         List<String> p = new ArrayList<>();
         if (migrationUser == null || migrationUser.isBlank() || migrationUser.equals(databaseUser)) {
@@ -78,6 +113,7 @@ public class ProductionConfigValidator implements InitializingBean {
     public void afterPropertiesSet() {
         List<String> problems = new ArrayList<>(problems(security, pix, cors, adminPassword, datasourceUrl));
         problems.addAll(databaseUserProblems(databaseUser, migrationUser));
+        problems.addAll(mailProblems(mail));
         if (!problems.isEmpty()) {
             throw new IllegalStateException("Insecure production configuration:\n - " + String.join("\n - ", problems));
         }

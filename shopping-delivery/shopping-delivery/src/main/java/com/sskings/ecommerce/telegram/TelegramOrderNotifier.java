@@ -42,6 +42,7 @@ public class TelegramOrderNotifier {
 
     @TransactionalEventListener
     public void onOrderEvent(OrderEvent event) {
+        if (event.byAdmin()) return;   // o admin que fez já sabe (o cliente é avisado por e-mail)
         executor.execute(() -> notifyAdmins(event));
     }
 
@@ -92,6 +93,8 @@ public class TelegramOrderNotifier {
                        ? "\n⚠️ O Pix já tinha sido pago: devolva o valor e registre o estorno." : "");
             case RETURN_REQUESTED -> "↩️ <b>Devolução solicitada — pedido #%d</b> (arrependimento, CDC art. 49)".formatted(o.id());
             case PAYMENT_EXPIRED -> "⌛ <b>Pix do pedido #%d expirou</b>: pedido cancelado e estoque devolvido.".formatted(o.id());
+            case PAID_MANUALLY, SHIPPED, DELIVERED, CANCELLED_BY_STORE, REFUNDED ->
+                    "Pedido #%d atualizado".formatted(o.id());   // não chega aqui: onOrderEvent ignora (byAdmin)
         };
         return header + "\n\n" + order(o);
     }

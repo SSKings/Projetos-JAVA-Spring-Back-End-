@@ -46,6 +46,13 @@ public class OrderService {
      */
     public static final int MAX_ABANDONED_PER_DAY = 3;
 
+    /**
+     * Fechar pedido exige e-mail confirmado (ADR-025): contas falsas em massa seguravam estoque (revisão 4, R4-4) e o
+     * cliente precisa receber o Pix e os avisos. app.require-verified-email (desligado nos testes e no teste de carga).
+     */
+    @org.springframework.beans.factory.annotation.Value("${app.require-verified-email:true}")
+    private boolean requireVerifiedEmail = true;
+
     @Transactional
     public OrderResponse checkout(CheckoutRequest request, Long userId) {
         // Trava o usuário: dois checkouts simultâneos não passam juntos pelo limite de pedidos pendentes
@@ -54,6 +61,9 @@ public class OrderService {
         if (orderRepository.countByUserIdAndStatus(userId, OrderStatus.PENDING) >= MAX_PENDING_ORDERS) {
             throw new BusinessException("You already have " + MAX_PENDING_ORDERS
                     + " orders awaiting payment. Pay or cancel one before placing a new order");
+        }
+        if (requireVerifiedEmail && !user.isEmailVerified()) {
+            throw new BusinessException("Confirm your email before placing an order");
         }
         if (orderRepository.countAbandonedPaymentsSince(userId, java.time.LocalDateTime.now(clock).minusHours(24))
                 >= MAX_ABANDONED_PER_DAY) {

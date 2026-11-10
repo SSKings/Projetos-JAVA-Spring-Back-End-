@@ -138,6 +138,7 @@ public class PaymentService {
         }
         markPaid(payment, null, "ADMIN");
         auditService.record(null, AuditService.PAYMENT_CONFIRMED, "ORDER", orderId, "manual, txid " + payment.getTxid());
+        events.publishEvent(new OrderEvent(orderId, OrderEvent.Type.PAID_MANUALLY));
     }
 
     /**
@@ -156,6 +157,7 @@ public class PaymentService {
         payment.setStatus(PaymentStatus.REFUNDED);
         payment.setRefundedAt(now());
         auditService.record(null, AuditService.PAYMENT_REFUNDED, "ORDER", orderId, "txid " + payment.getTxid());
+        events.publishEvent(new OrderEvent(orderId, OrderEvent.Type.REFUNDED));
     }
 
     /** Chamado quando o admin cancela o pedido. */

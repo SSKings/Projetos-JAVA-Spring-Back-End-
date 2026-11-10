@@ -76,7 +76,7 @@ histórico de compras e endereços) para clientes, e uma **área administrativa*
 - Produção com Docker: PostgreSQL, API sem root e nginx com TLS ([`shopping-delivery/deploy/`](shopping-delivery/deploy/))
 - Observabilidade com **OpenTelemetry**: um clique no front vira um trace até o SQL no Grafana (Tempo), com logs (Loki) e métricas (Prometheus) correlacionados, dashboards prontos de saúde da API e de negócio/segurança e 12 alertas com notificação no **Telegram** ([`observability-stack/`](shopping-delivery/observability-stack/README.md))
 - **Bot de administração no Telegram**: avisa novos pedidos, Pix confirmados, cancelamentos e devoluções, e deixa o admin mudar status, confirmar Pix, registrar estorno e bloquear/promover usuários pelo chat, com confirmação e auditoria ([ADR-024](shopping-delivery/docs/adr.md))
-- **725 testes** com cobertura exigida no build: backend 98,3% de linhas (JaCoCo) e frontend 99,1% (Vitest). O CI também roda:
+- **770 testes** com cobertura exigida no build: backend 98,3% de linhas (JaCoCo) e frontend 99,1% (Vitest). O CI também roda:
   - o build de produção do front;
   - a verificação de CVEs (OSV + `npm audit`);
   - 59 testes dos scripts (Python e shell);
