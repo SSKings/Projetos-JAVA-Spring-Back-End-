@@ -256,7 +256,7 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 402    | 98,3%  | 94,1%    |
+| Backend   | `./mvnw verify`         | 404    | 98,3%  | 94,1%    |
 | Frontend  | `npm run coverage`      | 321    | 99,1%  | 95,9%    |
 | Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 49 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |

@@ -135,6 +135,10 @@ dele com `bash -eo pipefail` e encerra o que um passo deixar rodando (a API do s
 Docker e PyYAML. Rodar só `./mvnw verify` não basta: no PR da revisão 5 os 402 testes passavam e o passo "k6 inspect"
 quebrou no CI.
 
+**Provar que um teste pega o problema** (rodar sem a correção e ver falhar): faça com build limpo
+(`./mvnw clean test …`). O Maven não apaga de `target/classes` arquivos que saíram de `src` — uma migração removida
+continua lá e o teste passa de mentira (aconteceu ao validar os índices da V8).
+
 ## Segurança: checklist de PR
 
 Antes de abrir um PR que toque autenticação, conta, carrinho/pedidos, configuração, Docker ou CI, confira as
