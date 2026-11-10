@@ -298,6 +298,42 @@ Os records `RegisterRequest` e `AddressRequest` têm `@Size` iguais às colunas 
 mesmas regras (e algumas de UX, como CEP `00000-000`, UF válida e confirmação de senha) em
 `src/utils/validation.ts` antes de chamar a API — ver ADR-012.
 
+### Índices do banco (V8)
+
+O PostgreSQL **não cria índice para chave estrangeira**: até a V7 só a auditoria tinha índice, e as consultas por
+cliente, status ou data varriam a tabela inteira. A V8 cria um índice para cada consulta frequente, escolhido a partir
+do **SQL real do Hibernate** (capturado com `logging.level.org.hibernate.SQL=DEBUG` nos testes de integração) e medido
+num PostgreSQL 16 (mesma imagem da produção) com 100 mil clientes, 1 milhão de pedidos, 2,5 milhões de itens e
+2 milhões de eventos de auditoria — mediana de 5 execuções de `EXPLAIN ANALYZE`:
+
+| Consulta | Quando roda | Antes | Depois | Índice |
+|---|---|---|---|---|
+| Histórico de pedidos do cliente (com itens) | Minha conta → Pedidos | 2.807 ms | 0,97 ms | `idx_orders_user_status`, `idx_order_items_order` |
+| Pedidos pendentes do cliente | todo checkout | 39 ms | 0,21 ms | `idx_orders_user_status` |
+| Unidades pendentes do produto | todo checkout, por item | 81 ms | 0,17 ms | `idx_orders_user_status`, `idx_order_items_order` |
+| Pix abandonados em 24 h | todo checkout | 39 ms | 0,65 ms | `idx_orders_user_status` |
+| Pedidos em andamento | excluir conta | 39 ms | 0,27 ms | `idx_orders_user_status` |
+| Painel: pedidos por status (página) | admin | 178 ms | 0,26 ms | `idx_orders_status_created` |
+| Painel: todos os pedidos (página) | admin | 1.123 ms | 0,28 ms | `idx_orders_created` |
+| Pix vencidos (com o job em dia) | **a cada minuto** | 72 ms | 0,22 ms | `idx_payments_status_expires` |
+| Endereços do cliente | checkout, Minha conta | 12 ms | 0,38 ms | `idx_addresses_user` |
+| Endereço já usado em pedido (pior caso) | excluir endereço/conta | 66 ms | 0,15 ms | `idx_orders_address` |
+| Eventos do titular (exportação LGPD) | exportar dados | 77 ms | 0,68 ms | `idx_audit_logs_actor_created` |
+| Anonimizar a auditoria | excluir conta | 166 ms | 1,8 ms | `idx_audit_logs_actor_created` |
+
+**Custo:** inserir pedidos ficou ~9% mais lento (50 mil inserções: 4,1 s → 4,5 s, ~0,008 ms por pedido); os índices
+ocupam ~215 MB sobre ~1,1 GB de dados nesse volume; criar todos na V8 levou ~5 s.
+
+**Sem índice, de propósito (medido):** busca de produto por nome (7 ms com 5 mil produtos — `LIKE '%x%'` só usa índice
+com `pg_trgm`, que vale a pena acima de ~50 mil produtos); retenção das origens confiáveis (29 ms, uma vez por dia — um
+índice pesaria em todo login); carrinho (já usa o índice do `UNIQUE (user_id, product_id)`).
+
+**Banco grande já em produção:** `CREATE INDEX` bloqueia escritas na tabela enquanto cria. Com milhões de linhas, crie
+antes, fora do horário, com `CREATE INDEX CONCURRENTLY` e os mesmos nomes da V8 — ela usa `IF NOT EXISTS` e só confirma.
+
+**Consulta nova?** Rode-a com `EXPLAIN ANALYZE` num banco com volume (o roteiro está no PR da V8) antes de decidir
+se precisa de índice. `DatabaseIndexesIntegrationTest` garante que os índices existem, nas colunas e na ordem certas.
+
 ### H2 em desenvolvimento
 Elimina a necessidade de Docker ou instância de banco para rodar o projeto localmente. Flyway executa as mesmas migrações que rodariam em produção, mantendo paridade.
 
