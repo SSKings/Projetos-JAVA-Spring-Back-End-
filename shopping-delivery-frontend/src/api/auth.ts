@@ -10,3 +10,12 @@ export const login = (data: { email: string; password: string; mfaCode?: string 
 
 /** Revoga no servidor este token e todos os outros do usuário. */
 export const logout = () => api.post('/api/auth/logout');
+
+/** Confirma o e-mail com o token do link (ADR-025). */
+export const verifyEmail = (token: string) => api.post('/api/auth/verify-email', { token });
+
+/** Sempre 202, exista a conta ou não: a tela mostra a mesma mensagem nos dois casos. */
+export const forgotPassword = (email: string) => api.post('/api/auth/forgot-password', { email });
+
+export const resetPassword = (token: string, newPassword: string) =>
+  api.post('/api/auth/reset-password', { token, newPassword });

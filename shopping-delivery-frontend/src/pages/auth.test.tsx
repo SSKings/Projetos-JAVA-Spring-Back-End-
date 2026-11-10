@@ -73,6 +73,11 @@ describe('LoginPage', () => {
     expect(await screen.findByText(/Aguarde um minuto/)).toBeInTheDocument();
   });
 
+  it('tem o link "Esqueci minha senha" (ADR-025)', () => {
+    renderAt('/login');
+    expect(screen.getByRole('link', { name: 'Esqueci minha senha' })).toHaveAttribute('href', '/esqueci-senha');
+  });
+
   it('mostra mensagem de conta bloqueada', async () => {
     vi.mocked(authApi.login).mockRejectedValue(httpError('Account is blocked'));
     renderAt('/login');

@@ -68,6 +68,9 @@ describe('mensagens da revisão 4', () => {
     ['Password is too common. Choose a less predictable one', 'Essa senha é muito comum e fácil de adivinhar. Escolha outra (evite palavras como "senha" ou "admin" com números).'],
     ['Password must not contain your name, your email or the store name', 'A senha não pode conter seu nome, seu email ou o nome da loja.'],
     ['The last active admin cannot delete the account. Promote another admin first', 'Você é o último administrador ativo: promova outro admin antes de excluir sua conta.'],
+    ['Confirm your email before placing an order', 'Confirme seu e-mail antes de fechar o pedido: abra o link que enviamos (ou peça outro no aviso no topo da página).'],
+    ['Invalid or expired link', 'Este link é inválido, já foi usado ou expirou. Peça um novo.'],
+    ['Email already verified', 'Seu e-mail já está confirmado.'],
     ['Mensagem desconhecida', 'Mensagem desconhecida'],
   ])('%s', (message, expected) => {
     expect(getErrorMessage(err(message))).toBe(expected);

@@ -11,7 +11,8 @@ vi.mock('../../api/account');
 
 const profile = (over: Partial<Profile> = {}): Profile => ({
   id: 2, name: 'Ana Souza', email: 'ana@a.com', phone: '(11) 98765-4321', role: 'CUSTOMER',
-  createdAt: '2026-01-10T10:00:00', mfaEnabled: false, termsVersion: '2026-11-05', termsAcceptedAt: '2026-01-10T10:00:00', ...over,
+  createdAt: '2026-01-10T10:00:00', mfaEnabled: false, termsVersion: '2026-11-05', termsAcceptedAt: '2026-01-10T10:00:00',
+  emailVerified: true, ...over,
 });
 const auth = (over: Partial<AuthResponse> = {}): AuthResponse => ({
   token: 'new-token', name: 'Ana Souza', email: 'ana@a.com', role: 'CUSTOMER', mfaEnabled: true, mfaSetupRequired: false, ...over,

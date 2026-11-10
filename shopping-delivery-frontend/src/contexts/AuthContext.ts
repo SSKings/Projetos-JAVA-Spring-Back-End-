@@ -11,6 +11,8 @@ export interface AuthUser {
   mfaEnabled: boolean;
   /** Admin precisa ativar o MFA antes de entrar na área administrativa. */
   mfaSetupRequired: boolean;
+  /** E-mail confirmado (ADR-025). Sessões salvas antes disso contam como confirmadas (o back-end decide de novo). */
+  emailVerified: boolean;
 }
 
 export interface AuthContextType {
@@ -24,6 +26,8 @@ export interface AuthContextType {
   /** Troca a sessão por uma nova (ex.: o back-end revogou a anterior ao ativar o MFA). */
   updateSession: (resp: AuthResponse) => void;
   updateName: (name: string) => void;
+  /** O link de confirmação foi aberto (talvez em outra aba): some o aviso sem precisar entrar de novo. */
+  markEmailVerified: () => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
 }

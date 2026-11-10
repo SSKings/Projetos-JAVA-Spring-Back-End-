@@ -8,6 +8,8 @@ export interface AuthResponse {
   mfaEnabled: boolean;
   /** Admin que precisa ativar o MFA antes de usar /api/admin/** (403 até lá). */
   mfaSetupRequired: boolean;
+  /** E-mail confirmado pelo link (ADR-025): sem isso não fecha pedido. */
+  emailVerified?: boolean;
 }
 
 export interface Profile {
@@ -20,6 +22,7 @@ export interface Profile {
   mfaEnabled: boolean;
   termsVersion: string | null;
   termsAcceptedAt: string | null;
+  emailVerified: boolean;
 }
 
 export interface MfaSetup {

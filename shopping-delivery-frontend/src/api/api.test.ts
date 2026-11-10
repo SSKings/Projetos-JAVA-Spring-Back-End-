@@ -71,6 +71,10 @@ describe('módulos de API chamam as rotas corretas', () => {
   it.each([
     ['auth.register',      () => auth.register({ name: 'A', email: 'a@a', password: 'senha123', acceptTerms: true }), 'post', '/api/auth/register'],
     ['auth.logout',        () => auth.logout(),                                                  'post', '/api/auth/logout'],
+    ['auth.verifyEmail',   () => auth.verifyEmail('t'),                                          'post', '/api/auth/verify-email'],
+    ['auth.forgot',        () => auth.forgotPassword('a@a.com'),                                 'post', '/api/auth/forgot-password'],
+    ['auth.reset',         () => auth.resetPassword('t', 'Nova12345x'),                          'post', '/api/auth/reset-password'],
+    ['account.resendVerification', () => account.resendVerification(),                          'post', '/api/account/verification-email'],
     ['account.get',        () => account.getProfile(),                                           'get',  '/api/account'],
     ['account.update',     () => account.updateProfile({ name: 'A' }),                           'put',  '/api/account'],
     ['account.export',     () => account.exportData(),                                           'get',  '/api/account/data-export'],
@@ -138,6 +142,13 @@ describe('módulos de API chamam as rotas corretas', () => {
     expect(body()).toEqual({ password: 'pw' });          // código vazio não é enviado
     await account.deleteAccount('pw', '654321');
     expect(body()).toEqual({ password: 'pw', mfaCode: '654321' });
+
+    await auth.verifyEmail('tok');
+    expect(body()).toEqual({ token: 'tok' });
+    await auth.forgotPassword('a@a.com');
+    expect(body()).toEqual({ email: 'a@a.com' });
+    await auth.resetPassword('tok', 'Nova12345x');
+    expect(body()).toEqual({ token: 'tok', newPassword: 'Nova12345x' });
 
     await admin.confirmPayment(5, 'pw', '123456');
     expect(body()).toEqual({ password: 'pw', mfaCode: '123456' });   // revisão 5: step-up no corpo

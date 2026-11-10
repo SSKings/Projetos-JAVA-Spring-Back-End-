@@ -100,6 +100,10 @@ export default function LoginPage() {
             </button>
           </form>
 
+          <p className="text-center text-sm mt-4">
+            <Link to="/esqueci-senha" className="text-indigo-600 hover:underline">Esqueci minha senha</Link>
+          </p>
+
           <p className="text-center text-sm text-gray-500 mt-6">
             Não tem conta?{' '}
             <Link to="/register" className="text-indigo-600 font-medium hover:underline">

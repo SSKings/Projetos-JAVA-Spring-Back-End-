@@ -25,3 +25,6 @@ export const enableMfa = (code: string) => api.post<AuthResponse>('/api/account/
 
 export const disableMfa = (password: string, mfaCode: string) =>
   api.post<AuthResponse>('/api/account/mfa/disable', { password, mfaCode }).then(r => r.data);
+
+/** Reenvia o link de confirmação do e-mail (no máximo um a cada 2 min). */
+export const resendVerification = () => api.post('/api/account/verification-email');
