@@ -52,7 +52,7 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        user = User.builder().id(1L).email("u@u.com").build();
+        user = User.builder().id(1L).email("u@u.com").emailVerifiedAt(java.time.LocalDateTime.of(2026, 1, 1, 0, 0)).build();
         product = Product.builder().id(10L).name("Widget").price(BigDecimal.TEN).stockQuantity(5).build();
         address = Address.builder().id(1L).user(user).street("Main St").number("1")
                 .neighborhood("Downtown").city("SP").state("SP").zipCode("01000-000").build();

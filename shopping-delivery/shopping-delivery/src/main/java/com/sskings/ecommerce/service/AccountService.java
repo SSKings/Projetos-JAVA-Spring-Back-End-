@@ -46,6 +46,8 @@ public class AccountService {
     private final TotpService totpService;
     private final CryptoService cryptoService;
     private final TrustedLoginSources trustedSources;
+    private final com.sskings.ecommerce.repository.EmailTokenRepository emailTokens;
+    private final org.springframework.context.ApplicationEventPublisher events;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -108,9 +110,11 @@ public class AccountService {
         user.setMfaEnabled(false);
         user.setMfaSecret(null);
         user.setAnonymizedAt(LocalDateTime.now(clock));
+        user.setEmailVerifiedAt(null);
         user.revokeTokens();
         userRepository.save(user);
         trustedSources.forget(userId);   // IPs de onde a pessoa entrava também são dados pessoais
+        emailTokens.deleteAllByUserId(userId);
         auditLogRepository.replaceActorEmail(userId, anonymousEmail);
         auditService.record(user, AuditService.ACCOUNT_DELETED, "USER", userId, "anonymized");
     }
@@ -130,8 +134,12 @@ public class AccountService {
         }
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         user.revokeTokens();
+        // um link de nova senha pedido antes (talvez por quem tinha acesso ao e-mail) não pode valer depois da troca
+        emailTokens.invalidatePending(user.getId(), com.sskings.ecommerce.model.EmailToken.Purpose.RESET_PASSWORD,
+                LocalDateTime.now(clock));
         userRepository.save(user);
         auditService.record(user, AuditService.PASSWORD_CHANGED, "USER", user.getId(), null);
+        notifySecurity(user, "Sua senha foi alterada");
         return authService.response(user);
     }
 
@@ -167,6 +175,7 @@ public class AccountService {
         user.revokeTokens();
         userRepository.save(user);
         auditService.record(user, AuditService.MFA_ENABLED, "USER", user.getId(), null);
+        notifySecurity(user, "A verificação em duas etapas foi ativada");
         return authService.response(user);
     }
 
@@ -181,6 +190,7 @@ public class AccountService {
         user.revokeTokens();
         userRepository.save(user);
         auditService.record(user, AuditService.MFA_DISABLED, "USER", user.getId(), null);
+        notifySecurity(user, "A verificação em duas etapas foi desativada");
         return authService.response(user);
     }
 
@@ -229,6 +239,11 @@ public class AccountService {
             throw new BusinessException("Invalid MFA code");
         }
         authService.clearReauthFailures(user);
+    }
+
+    /** Aviso por e-mail ao titular (ADR-025): se não foi ele, sabe na hora (revisão 3 já pedia isso para o MFA). */
+    private void notifySecurity(User user, String what) {
+        events.publishEvent(new com.sskings.ecommerce.event.AccountEvent.SecurityChange(user.getId(), what));
     }
 
     private User load(Long userId) {

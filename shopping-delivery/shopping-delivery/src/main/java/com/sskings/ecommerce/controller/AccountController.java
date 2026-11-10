@@ -20,6 +20,14 @@ import org.springframework.web.bind.annotation.*;
 public class AccountController {
 
     private final AccountService accountService;
+    private final com.sskings.ecommerce.service.EmailVerificationService emailVerification;
+
+    /** Reenvia o link de confirmação do e-mail (no máximo um a cada 2 min). */
+    @PostMapping("/verification-email")
+    public ResponseEntity<Void> resendVerification(@AuthenticationPrincipal User user) {
+        emailVerification.resend(user.getId());
+        return ResponseEntity.accepted().build();
+    }
 
     @GetMapping
     public ResponseEntity<ProfileResponse> profile(@AuthenticationPrincipal User user) {

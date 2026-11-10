@@ -93,4 +93,16 @@ class TelegramOrderNotifierTest {
         willThrow(new TelegramException("fora do ar")).given(client).sendMessage(eq(111L), anyString(), any());
         notifier.onSecurityAlert(new com.sskings.ecommerce.event.SecurityAlertEvent("x"));   // só log, sem exceção
     }
+
+    @Test
+    @DisplayName("ADR-025: ação do próprio admin (enviado, entregue, Pix manual...) não gera aviso no Telegram")
+    void adminActionsAreNotNotified() {
+        for (OrderEvent.Type type : new OrderEvent.Type[]{OrderEvent.Type.PAID_MANUALLY, OrderEvent.Type.SHIPPED,
+                OrderEvent.Type.DELIVERED, OrderEvent.Type.CANCELLED_BY_STORE, OrderEvent.Type.REFUNDED}) {
+            notifier.onOrderEvent(new OrderEvent(12L, type));
+        }
+        verifyNoInteractions(client, orders);
+        assertThat(TelegramOrderNotifier.text(OrderEvent.Type.SHIPPED, order(OrderStatus.SHIPPED, payment(PaymentStatus.PAID), null)))
+                .contains("Pedido #12");
+    }
 }

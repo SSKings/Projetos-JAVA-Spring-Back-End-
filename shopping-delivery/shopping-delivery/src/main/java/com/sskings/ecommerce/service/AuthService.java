@@ -88,6 +88,7 @@ public class AuthService {
                 .termsAcceptedAt(now())
                 .build());
         auditService.record(user, AuditService.REGISTER, "USER", user.getId(), "terms " + termsVersion);
+        events.publishEvent(new com.sskings.ecommerce.event.AccountEvent.Registered(user.getId()));   // link de confirmação
         return response(user);
     }
 

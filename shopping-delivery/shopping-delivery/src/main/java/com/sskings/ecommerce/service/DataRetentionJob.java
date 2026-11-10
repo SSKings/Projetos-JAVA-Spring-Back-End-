@@ -28,10 +28,12 @@ public class DataRetentionJob {
 
     private final AuditLogRepository auditLogs;
     private final TrustedLoginSourceRepository trustedSources;
+    private final com.sskings.ecommerce.repository.EmailTokenRepository emailTokens;
     private final Clock clock;
     private final int auditDays;
 
-    public DataRetentionJob(AuditLogRepository auditLogs, TrustedLoginSourceRepository trustedSources, Clock clock,
+    public DataRetentionJob(AuditLogRepository auditLogs, TrustedLoginSourceRepository trustedSources,
+                            com.sskings.ecommerce.repository.EmailTokenRepository emailTokens, Clock clock,
                             @Value("${app.retention.audit-days:365}") int auditDays) {
         if (auditDays < MIN_AUDIT_DAYS) {
             throw new IllegalStateException("app.retention.audit-days must be at least " + MIN_AUDIT_DAYS
@@ -39,6 +41,7 @@ public class DataRetentionJob {
         }
         this.auditLogs = auditLogs;
         this.trustedSources = trustedSources;
+        this.emailTokens = emailTokens;
         this.clock = clock;
         this.auditDays = auditDays;
     }
@@ -49,6 +52,7 @@ public class DataRetentionJob {
         LocalDateTime now = LocalDateTime.now(clock);
         int audit = auditLogs.deleteOlderThan(now.minusDays(auditDays));
         int sources = trustedSources.deleteOlderThan(now.minusDays(TrustedLoginSources.TTL_DAYS));
+        emailTokens.deleteExpiredBefore(now.minusDays(1));   // links vencidos não servem para nada
         if (audit + sources > 0) {
             log.info("Retenção: {} evento(s) de auditoria com mais de {} dias e {} origem(ns) confiável(is) vencida(s) apagados",
                     audit, auditDays, sources);

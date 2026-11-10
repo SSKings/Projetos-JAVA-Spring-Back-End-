@@ -3,3 +3,9 @@
 app:
   admin:
     password: admin123
+  # testes não dependem de SMTP: nada sai (só log); os testes de e-mail ligam e capturam o JavaMailSender
+  mail:
+    enabled: false
+    async: false
+  # os testes de checkout não confirmam e-mail; o teste do e-mail liga esta regra explicitamente
+  require-verified-email: false

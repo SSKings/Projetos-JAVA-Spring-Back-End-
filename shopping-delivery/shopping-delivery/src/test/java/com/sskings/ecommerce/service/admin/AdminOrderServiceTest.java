@@ -85,6 +85,7 @@ class AdminOrderServiceTest {
         assertThat(resp.status()).isEqualTo(OrderStatus.CONFIRMED);
         assertThat(resp.nextStatuses()).containsExactly(OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.CANCELLED);
         assertThat(resp.customerEmail()).isEqualTo("ana@a.com");
+        verify(events, never()).publishEvent(any());   // CONFIRMED sozinho não muda nada para o cliente
     }
 
     @Test
@@ -97,6 +98,7 @@ class AdminOrderServiceTest {
         verify(productRepository).incrementStock(1L, 2);   // UPDATE atômico, não read-modify-write
         verify(paymentService).onOrderCancelled(order);
         verify(auditService).record(null, com.sskings.ecommerce.service.AuditService.ORDER_STATUS_CHANGED, "ORDER", 1L, "PENDING -> CANCELLED");
+        verify(events).publishEvent(new com.sskings.ecommerce.event.OrderEvent(1L, com.sskings.ecommerce.event.OrderEvent.Type.CANCELLED_BY_STORE));
     }
 
     @Test
@@ -118,6 +120,9 @@ class AdminOrderServiceTest {
         given(orderRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
 
         assertThat(service.updateStatus(1L, OrderStatus.SHIPPED).status()).isEqualTo(OrderStatus.SHIPPED);
+        verify(events).publishEvent(new com.sskings.ecommerce.event.OrderEvent(1L, com.sskings.ecommerce.event.OrderEvent.Type.SHIPPED));
+        assertThat(service.updateStatus(1L, OrderStatus.DELIVERED).status()).isEqualTo(OrderStatus.DELIVERED);
+        verify(events).publishEvent(new com.sskings.ecommerce.event.OrderEvent(1L, com.sskings.ecommerce.event.OrderEvent.Type.DELIVERED));
     }
 
     @Test

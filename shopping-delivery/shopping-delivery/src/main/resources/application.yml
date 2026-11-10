@@ -13,8 +13,20 @@ spring:
       pageable:
         # Revisão 3, B5: /api/products é público; size=2000 numa página só era um jeito barato de pesar no banco
         max-page-size: 100
+  # SMTP (ADR-025): Mailpit em dev (localhost:1025, sem autenticação); em produção, Gmail com senha de app
+  # (application-prod.yml). Timeouts curtos: um SMTP travado não prende a thread de envio.
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
   flyway:
     enabled: true
+
     locations: classpath:db/migration
   h2:
     console:
@@ -37,6 +49,11 @@ management:
     health:
       show-details: when-authorized
       roles: ADMIN
+  health:
+    # Sem o indicador do servidor de e-mail (ADR-025): ele abria uma conexão SMTP a cada checagem (o Gmail limita) e
+    # um SMTP fora do ar marcava a loja inteira como DOWN. Falha de e-mail vira log no envio (MailOutbox).
+    mail:
+      enabled: false
 
 logging:
   pattern:
@@ -76,6 +93,14 @@ app:
   # Hosts permitidos para imagens de produto (separados por vírgula). Ao mudar, atualize o img-src em
   # deploy/security-headers.inc (revisão 4, R4-8).
   product-image-hosts: ${PRODUCT_IMAGE_HOSTS:images.unsplash.com}
+  # Fechar pedido exige e-mail confirmado (ADR-025)
+  require-verified-email: ${REQUIRE_VERIFIED_EMAIL:true}
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+    from: ${MAIL_FROM:nao-responda@shopeasy.local}
+    # endereço do front-end nos links dos e-mails (confirmar e-mail, redefinir senha, pedido)
+    public-url: ${APP_PUBLIC_URL:http://localhost:5173}
+    store-name: ${STORE_NAME:ShopEasy}
   retention:
     # Dias que a auditoria (com IP e e-mail) é guardada; mínimo 180 (Marco Civil). Revisão 5, R5-5 — combine o prazo
     # final com o advogado/DPO.

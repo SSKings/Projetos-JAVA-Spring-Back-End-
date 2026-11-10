@@ -34,6 +34,8 @@ class AuthControllerTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @MockBean AuthService authService;
+    @MockBean com.sskings.ecommerce.service.EmailVerificationService emailVerification;
+    @MockBean com.sskings.ecommerce.service.PasswordResetService passwordReset;
     @MockBean UserRepository userRepository;
     @MockBean JwtService jwtService;
 

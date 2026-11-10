@@ -1,5 +1,7 @@
 package com.sskings.ecommerce.service;
 
+import com.sskings.ecommerce.event.OrderEvent;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.exception.BusinessException;
 import com.sskings.ecommerce.exception.InvalidSignatureException;
@@ -267,7 +269,9 @@ class PaymentServiceTest {
         verify(auditService).record(isNull(), eq(AuditService.PAYMENT_CONFIRMED), eq("ORDER"), eq(42L), contains("manual"));
         assertThat(p.getEndToEndId()).isNull();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
-        verifyNoInteractions(events);   // quem confirmou foi o próprio admin: não precisa de aviso
+        // ADR-025: o cliente é avisado por e-mail; o bot ignora este tipo (quem confirmou foi o próprio admin)
+        verify(events).publishEvent(new OrderEvent(42L, OrderEvent.Type.PAID_MANUALLY));
+        assertThat(new OrderEvent(1L, OrderEvent.Type.PAID_MANUALLY).byAdmin()).isTrue();
     }
 
     @Test
@@ -333,6 +337,8 @@ class PaymentServiceTest {
         service.refundByAdmin(42L);
         assertThat(p.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
         assertThat(p.getRefundedAt()).isEqualTo(LOCAL_NOW);
+        verify(events).publishEvent(org.mockito.ArgumentMatchers.<Object>argThat(e ->
+                e instanceof OrderEvent oe && oe.type() == OrderEvent.Type.REFUNDED));   // cliente avisado por e-mail
 
         p.setStatus(PaymentStatus.PAID);
         order.setReturnRequestedAt(LOCAL_NOW);

@@ -42,12 +42,13 @@ class AccountControllerTest {
 
     @Autowired MockMvc mvc;
     @MockBean AccountService accountService;
+    @MockBean com.sskings.ecommerce.service.EmailVerificationService emailVerification;
     @MockBean UserRepository userRepository;
     @MockBean JwtService jwtService;
 
     private static final User ANA = User.builder().id(2L).name("Ana").email("ana@a.com").password("h").build();
     private static final ProfileResponse PROFILE =
-            new ProfileResponse(2L, "Ana", "ana@a.com", null, Role.CUSTOMER, LocalDateTime.now(), false, "v1", LocalDateTime.now());
+            new ProfileResponse(2L, "Ana", "ana@a.com", null, Role.CUSTOMER, LocalDateTime.now(), false, "v1", LocalDateTime.now(), true);
 
     @Test
     @DisplayName("Todas as rotas de conta exigem login")
