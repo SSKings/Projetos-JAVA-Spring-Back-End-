@@ -85,7 +85,8 @@ jobs:
       # Teste funcional da API rodando de verdade (load-tests/smoke.js, k6): o fluxo de compra completo, de ponta a ponta
       - name: API smoke test (k6)
         run: |
-          java -jar target/ecommerce-*.jar > /tmp/api.log 2>&1 &
+          # o smoke fecha pedido sem caixa de e-mail: sem envio e sem exigir e-mail confirmado (ADR-025)
+          MAIL_ENABLED=false REQUIRE_VERIFIED_EMAIL=false java -jar target/ecommerce-*.jar > /tmp/api.log 2>&1 &
           for i in $(seq 1 60); do curl -fsS localhost:8080/actuator/health >/dev/null 2>&1 && break; sleep 2; done
           ../load-tests/run.sh smoke --quiet || { echo "--- log da API ---"; tail -80 /tmp/api.log; exit 1; }
       - name: Validate load test scripts (k6 inspect)

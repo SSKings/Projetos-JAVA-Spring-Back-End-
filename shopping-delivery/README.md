@@ -64,6 +64,16 @@ npm run dev     # antes de subir, avisa se a branch não tem commits da main
 
 Acesse `http://localhost:5173` — a API estará em `http://localhost:8080`.
 
+**E-mails em dev (ADR-025):** suba o Mailpit e veja os e-mails (confirmação de cadastro, nova senha, avisos de pedido)
+em http://localhost:8025 — nada sai para a internet. Sem ele a API funciona, mas os e-mails só aparecem no log.
+
+```bash
+cd shopping-delivery/mailpit && docker compose up -d
+```
+
+Para fechar pedido, a conta precisa ter o e-mail confirmado: abra o link do e-mail no Mailpit. Para pular isso em
+dev, rode a API com `REQUIRE_VERIFIED_EMAIL=false`.
+
 ## Observabilidade (traces, métricas e logs)
 
 Opcional, para desenvolvimento. Mostra cada clique do front até o SQL no Grafana:
@@ -215,7 +225,13 @@ read-only, sem root) e nginx (também read-only, sem capabilities) com TLS, HSTS
 memória (`API_MEM_LIMIT`, padrão 1536m) e pool de conexões configurável (`DATABASE_POOL_SIZE`). A API **não inicia** com segredos ausentes, fracos ou
 de desenvolvimento, CORS aberto ou banco H2 (`ProductionConfigValidator`). Detalhes: ADR-017 a ADR-019 e
 [`docs/security-review.md`](docs/security-review.md) (status de cada correção e o que ainda depende da empresa:
-CNPJ e textos legais revisados, PSP para Pix dinâmico, NF-e, email transacional).
+CNPJ e textos legais revisados, PSP para Pix dinâmico, NF-e).
+
+**E-mail** (confirmação de cadastro, nova senha, avisos de pedido e de segurança — ADR-025): com uma conta Gmail da
+loja, ative a verificação em duas etapas, crie uma **senha de app** em https://myaccount.google.com/apppasswords e
+preencha `MAIL_USERNAME`, `MAIL_PASSWORD` (a senha de app, sem espaços), `MAIL_FROM` e `APP_PUBLIC_URL` no `.env.prod`.
+O Gmail aceita cerca de 500 envios por dia; para mais volume ou e-mail no domínio da loja, troque só os `MAIL_*`
+(qualquer SMTP serve). A API não sobe sem STARTTLS.
 
 **Backup** (obrigatório antes de abrir a loja): preencha `BACKUP_PASSPHRASE` no `.env.prod`, guarde-a fora do
 servidor e agende o backup cifrado no cron:
@@ -256,8 +272,8 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 404    | 98,3%  | 94,1%    |
-| Frontend  | `npm run coverage`      | 321    | 99,1%  | 95,9%    |
+| Backend   | `./mvnw verify`         | 433    | 98,3%  | 94,3%    |
+| Frontend  | `npm run coverage`      | 337    | 99,1%  | 95,9%    |
 | Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 49 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
 | API rodando (k6) | `./load-tests/run.sh smoke` | 23 verificações | — | — |

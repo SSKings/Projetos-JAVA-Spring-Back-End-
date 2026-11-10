@@ -27,8 +27,9 @@ generate() {
   mkdir -p "$GEN/certs"; chmod 700 "$GEN"
   # .env de antes da revisão 5 (sem os três usuários do banco): gere de novo (rode "down" antes, para o volume do
   # banco ser recriado com os papéis novos)
-  if [[ -f "$GEN/.env.loadtest" ]] && ! grep -q '^DATABASE_MIGRATION_USERNAME=' "$GEN/.env.loadtest"; then
-    echo "generated/.env.loadtest é anterior à revisão 5: rode '$0 down' e depois '$0 up'" >&2
+  if [[ -f "$GEN/.env.loadtest" ]] && { ! grep -q '^DATABASE_MIGRATION_USERNAME=' "$GEN/.env.loadtest" \
+       || ! grep -q '^MAIL_HOST=' "$GEN/.env.loadtest"; }; then
+    echo "generated/.env.loadtest é antigo (sem usuários do banco ou sem e-mail): rode '$0 down' e depois '$0 up'" >&2
     exit 1
   fi
   if [[ ! -f "$GEN/.env.loadtest" ]]; then
@@ -59,11 +60,27 @@ PIX_WEBHOOK_SECRET=$(secret 48)
 PIX_WEBHOOK_ALLOWED_IPS=127.0.0.1/32,172.16.0.0/12
 TERMS_VERSION=2026-11-05
 DATABASE_POOL_SIZE=${DATABASE_POOL_SIZE:-10}
+# E-mail (ADR-025): Mailpit no lugar do Gmail, com STARTTLS obrigatório como em produção (certificado deste teste)
+MAIL_HOST=mailpit
+MAIL_PORT=1025
+MAIL_USERNAME=loja@loadtest.local
+MAIL_PASSWORD=$(secret 18)
+MAIL_FROM=loja@loadtest.local
+APP_PUBLIC_URL=https://localhost:$PORT
+# o teste de carga fecha pedidos com contas recém-criadas (sem abrir o e-mail)
+REQUIRE_VERIFIED_EMAIL=false
 ENV
     umask 022
   fi
+  # certificado de antes do e-mail (sem o nome "mailpit"): é descartável, gera de novo
+  if [[ -f "$GEN/certs/fullchain.pem" ]] && ! openssl x509 -in "$GEN/certs/fullchain.pem" -noout -ext subjectAltName 2>/dev/null | grep -q mailpit; then
+    rm -f "$GEN/certs/"*.pem
+  fi
   if [[ ! -f "$GEN/certs/fullchain.pem" ]]; then
+    # localhost: o nginx; mailpit: o SMTP do teste. A biblioteca de e-mail confere se o certificado é do host (como
+    # com o Gmail em produção), então o nome "mailpit" precisa estar no certificado (ADR-025).
     openssl req -x509 -newkey rsa:2048 -nodes -days 7 -subj "/CN=localhost" \
+      -addext "subjectAltName=DNS:localhost,DNS:mailpit" \
       -keyout "$GEN/certs/privkey.pem" -out "$GEN/certs/fullchain.pem" 2>/dev/null
     chmod 644 "$GEN/certs/"*.pem   # o nginx do container roda sem root
   fi

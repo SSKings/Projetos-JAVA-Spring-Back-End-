@@ -56,6 +56,12 @@ fi
 
 APP_JAR="$(ls target/*.jar | grep -v -- '-plain\.jar$' | head -n 1)"
 
+# E-mail em dev (ADR-025): os e-mails vão para o Mailpit (localhost:1025) e aparecem em http://localhost:8025
+if ! (exec 3<>/dev/tcp/127.0.0.1/1025) 2>/dev/null; then
+  echo "==> Mailpit não está rodando: os e-mails (confirmação, nova senha, pedidos) não vão aparecer."
+  echo "    Suba com: (cd \"$(dirname "${BASH_SOURCE[0]}")/../mailpit\" && docker compose up -d)"
+fi
+
 export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-backend-spring}"
 export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}"
 export OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}"
