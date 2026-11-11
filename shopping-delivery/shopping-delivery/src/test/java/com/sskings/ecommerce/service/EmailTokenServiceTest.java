@@ -82,4 +82,13 @@ class EmailTokenServiceTest {
         assertThat(service.issuedRecently(user, EmailToken.Purpose.RESET_PASSWORD, Duration.ofMinutes(3))).isFalse();
         assertThat(service.issuedRecently(user, EmailToken.Purpose.VERIFY_EMAIL, Duration.ofMinutes(5))).isFalse();
     }
+
+    @Test
+    @DisplayName("Revisão 6 (R6-1): teto diário conta os links das últimas 24 h, por tipo")
+    void dailyLimitReached() {
+        given(repository.countByUserIdAndPurposeAndCreatedAtAfter(7L, EmailToken.Purpose.RESET_PASSWORD, LOCAL.minusHours(24))).willReturn(5L);
+        given(repository.countByUserIdAndPurposeAndCreatedAtAfter(7L, EmailToken.Purpose.VERIFY_EMAIL, LOCAL.minusHours(24))).willReturn(4L);
+        assertThat(service.dailyLimitReached(user, EmailToken.Purpose.RESET_PASSWORD, 5)).isTrue();
+        assertThat(service.dailyLimitReached(user, EmailToken.Purpose.VERIFY_EMAIL, 5)).isFalse();
+    }
 }

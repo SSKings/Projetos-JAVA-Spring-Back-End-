@@ -59,6 +59,16 @@ public class EmailTokenService {
         return last.isPresent() && last.get().getCreatedAt().plus(cooldown).isAfter(now());
     }
 
+    /**
+     * Já saíram {@code dailyLimit} links deste tipo para a conta nas últimas 24 h? Só o intervalo mínimo não basta:
+     * uma conta reenviando a cada 2 min manda ~720 e-mails/dia — acima da cota do Gmail (~500/dia), o que pararia
+     * todos os e-mails da loja, e uma forma de lotar a caixa de outra pessoa (revisão 6, R6-1).
+     */
+    @Transactional(readOnly = true)
+    public boolean dailyLimitReached(User user, EmailToken.Purpose purpose, int dailyLimit) {
+        return repository.countByUserIdAndPurposeAndCreatedAtAfter(user.getId(), purpose, now().minusHours(24)) >= dailyLimit;
+    }
+
     /** Valida e gasta o link. Qualquer problema → a mesma mensagem (não diz se existe, expirou ou já foi usado). */
     @Transactional(noRollbackFor = BusinessException.class)
     public User consume(String token, EmailToken.Purpose purpose) {

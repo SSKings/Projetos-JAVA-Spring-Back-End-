@@ -152,7 +152,7 @@ Revoga **todos** os tokens do usuário (este e os de outros dispositivos). **204
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | POST | `/api/auth/verify-email` | `{ "token": "..." }` (do link `/verificar-email#token=…`; o token vai no fragmento para não cair em logs de servidor) → **204**. Link inválido, vencido, de outro tipo ou já usado → `400 Invalid or expired link` (a mesma mensagem para todos os casos) |
-| POST | `/api/auth/forgot-password` | `{ "email": "..." }` → **sempre 202**, exista a conta ou não. Se existir (ativa), manda um link de 30 min; no máximo um a cada 5 min por conta |
+| POST | `/api/auth/forgot-password` | `{ "email": "..." }` → **sempre 202**, exista a conta ou não. Se existir (ativa), manda um link de 30 min; no máximo um a cada 5 min e 5 por dia por conta (acima disso, 202 sem e-mail) |
 | POST | `/api/auth/reset-password` | `{ "token": "...", "newPassword": "..." }` → **204**. Mesma política de senha do cadastro; senha fraca → 400 **sem gastar o link**. Derruba todas as sessões, confirma o e-mail e avisa o titular. O MFA continua valendo |
 
 As três rotas são públicas e ficam no mesmo limite do login (20/min por origem na API, 10/min no nginx). O
@@ -167,7 +167,7 @@ As três rotas são públicas e ficam no mesmo limite do login (20/min por orige
 | PUT    | `/api/account` | Correção (art. 18, III): `{ "name": "...", "phone": "..." }` |
 | GET    | `/api/account/data-export` | Acesso/portabilidade (art. 18, II e V): JSON com perfil, endereços, pedidos e eventos de segurança (`Content-Disposition: attachment`) |
 | POST   | `/api/account/delete` | Eliminação (art. 18, VI): `{ "password": "...", "mfaCode": "..." }` → **204**. Anonimiza a conta; pedidos ficam sem vínculo pessoal. `400 Account has orders in progress` / `Invalid password` / `Invalid MFA code` / `The last active admin cannot delete the account. Promote another admin first` (R5-6) · `429` após 5 falhas (bloqueio de reautenticação) |
-| POST   | `/api/account/verification-email` | Reenvia o link de confirmação do e-mail → **202**. `400 Email already verified` / `Wait a few minutes before requesting another email` (no máximo um a cada 2 min) |
+| POST   | `/api/account/verification-email` | Reenvia o link de confirmação do e-mail → **202**. `400 Email already verified` / `Wait a few minutes before requesting another email` (no máximo um a cada 2 min) / `Daily limit of confirmation emails reached. Try again tomorrow` (5 por dia, contando o do cadastro) |
 | POST   | `/api/account/password` | `{ "currentPassword": "...", "newPassword": "...", "mfaCode": "123456" }` (código só com MFA ativo) → troca a senha, **revoga todas as sessões** e devolve um novo `AuthResponse`. Mesma política do cadastro. `400 Invalid password` / `Invalid MFA code` / `New password must be different from the current one` · `429` (bloqueio) |
 | POST   | `/api/account/mfa/setup` | `{ "password": "..." }` (revisão 3: só o token não basta) → gera o segredo TOTP: `{ "secret": "BASE32", "otpauthUri": "otpauth://totp/ShopEasy:..." }` (QR Code). `400 Invalid password` · `429` |
 | POST   | `/api/account/mfa/enable` | `{ "code": "123456" }` → ativa, revoga sessões antigas e devolve um **novo** `AuthResponse` |

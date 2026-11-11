@@ -29,6 +29,8 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage(axiosError({ message: 'Request body too large' }))).toBe('Os dados enviados são grandes demais.');
     expect(getErrorMessage(axiosError({ message: 'Resource not found' }))).toBe('Recurso não encontrado.');
     expect(getErrorMessage(axiosError({ message: 'Invalid sort property' }))).toBe('Ordenação inválida.');
+    // teto diário de e-mails de confirmação (revisão 6, R6-1)
+    expect(getErrorMessage(axiosError({ message: 'Daily limit of confirmation emails reached. Try again tomorrow' }))).toMatch(/amanhã/);
   });
 
   it('traduz transição de status recusada pelo back-end', () => {

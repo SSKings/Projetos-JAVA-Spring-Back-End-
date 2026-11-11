@@ -55,7 +55,7 @@ class EmailVerificationServiceTest {
     @Test
     @DisplayName("Reenviar: recusa se já confirmado ou se o último link é recente; senão manda outro")
     void resend() {
-        given(users.findById(1L)).willReturn(Optional.of(user));
+        given(users.findByIdForUpdate(1L)).willReturn(Optional.of(user));   // trava a linha da conta (R6-2)
         given(tokens.issuedRecently(user, EmailToken.Purpose.VERIFY_EMAIL, EmailVerificationService.RESEND_COOLDOWN)).willReturn(true);
         assertThatThrownBy(() -> service.resend(1L)).hasMessage("Wait a few minutes before requesting another email");
         given(tokens.issuedRecently(any(), any(), any())).willReturn(false);
@@ -64,8 +64,21 @@ class EmailVerificationServiceTest {
         then(mail).should().send(eq("ana@teste.com"), any(), any());
         user.setEmailVerifiedAt(LocalDateTime.now());
         assertThatThrownBy(() -> service.resend(1L)).isInstanceOf(BusinessException.class).hasMessage("Email already verified");
-        given(users.findById(9L)).willReturn(Optional.empty());
+        given(users.findByIdForUpdate(9L)).willReturn(Optional.empty());
         assertThatThrownBy(() -> service.resend(9L)).hasMessage("User not found");
+    }
+
+    @Test
+    @DisplayName("Revisão 6 (R6-1): teto de 5 e-mails de confirmação por dia, mesmo respeitando o intervalo")
+    void resendDailyLimit() {
+        given(users.findByIdForUpdate(1L)).willReturn(Optional.of(user));
+        given(tokens.issuedRecently(any(), any(), any())).willReturn(false);
+        given(tokens.dailyLimitReached(user, EmailToken.Purpose.VERIFY_EMAIL, EmailVerificationService.DAILY_LIMIT)).willReturn(true);
+        assertThatThrownBy(() -> service.resend(1L)).isInstanceOf(BusinessException.class)
+                .hasMessage("Daily limit of confirmation emails reached. Try again tomorrow");
+        then(tokens).should(never()).issue(any(), any(), any());
+        then(mail).shouldHaveNoInteractions();
+        org.assertj.core.api.Assertions.assertThat(EmailVerificationService.DAILY_LIMIT).isEqualTo(5);
     }
 
     @Test

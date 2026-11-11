@@ -39,7 +39,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !enabled || !"POST".equals(request.getMethod()) || bucketOf(request.getRequestURI()) == null;
+        return !enabled || !"POST".equals(request.getMethod()) || bucketOf(RequestPaths.of(request)) == null;
     }
 
     static String bucketOf(String uri) {
@@ -52,7 +52,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String bucket = bucketOf(request.getRequestURI());
+        String bucket = bucketOf(RequestPaths.of(request));
         int limit = bucket.equals("auth") ? authPerMinute : webhookPerMinute;
         long nowSeconds = clock.instant().getEpochSecond();
         long minute = nowSeconds / 60;

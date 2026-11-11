@@ -29,6 +29,8 @@ public class EmailVerificationService {
 
     static final Duration TTL = Duration.ofHours(48);
     static final Duration RESEND_COOLDOWN = Duration.ofMinutes(2);
+    /** Inclui o e-mail do cadastro (revisão 6, R6-1). */
+    static final int DAILY_LIMIT = 5;
 
     private final EmailTokenService tokens;
     private final UserRepository users;
@@ -51,13 +53,20 @@ public class EmailVerificationService {
         }
     }
 
-    /** "Reenviar e-mail de confirmação" (logado). Intervalo mínimo entre envios: não serve para lotar caixa de alguém. */
+    /**
+     * "Reenviar e-mail de confirmação" (logado). Intervalo mínimo e teto diário: quem se cadastra com o e-mail de outra
+     * pessoa não consegue lotar a caixa dela nem gastar a cota diária do provedor (revisão 6, R6-1). A linha da conta
+     * fica travada: cliques simultâneos não passam juntos pelo intervalo (R6-2).
+     */
     @Transactional
     public void resend(Long userId) {
-        User user = users.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User user = users.findByIdForUpdate(userId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
         if (user.isEmailVerified()) throw new BusinessException("Email already verified");
         if (tokens.issuedRecently(user, EmailToken.Purpose.VERIFY_EMAIL, RESEND_COOLDOWN)) {
             throw new BusinessException("Wait a few minutes before requesting another email");
+        }
+        if (tokens.dailyLimitReached(user, EmailToken.Purpose.VERIFY_EMAIL, DAILY_LIMIT)) {
+            throw new BusinessException("Daily limit of confirmation emails reached. Try again tomorrow");
         }
         send(user);
     }

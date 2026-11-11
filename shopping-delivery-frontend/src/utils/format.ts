@@ -49,6 +49,7 @@ const backendMessages: Record<string, string> = {
   'Invalid or expired link': 'Este link é inválido, já foi usado ou expirou. Peça um novo.',
   'Email already verified': 'Seu e-mail já está confirmado.',
   'Wait a few minutes before requesting another email': 'Já enviamos um e-mail há pouco. Aguarde alguns minutos para pedir outro.',
+  'Daily limit of confirmation emails reached. Try again tomorrow': 'Você já pediu vários e-mails de confirmação hoje. Tente de novo amanhã.',
   'Password is too common. Choose a less predictable one':
     'Essa senha é muito comum e fácil de adivinhar. Escolha outra (evite palavras como "senha" ou "admin" com números).',
   'Password must not contain your name, your email or the store name':
