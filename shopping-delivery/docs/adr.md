@@ -719,3 +719,39 @@ troca de senha ou de MFA. O cliente também não recebia o Pix nem o andamento d
   (5 confirmações e 5 links de nova senha em 24 h) e a linha da conta é travada durante a checagem (pedidos
   simultâneos não passam juntos). A fila de envio tem tamanho máximo (1.000); cheia, descarta com aviso no log.
   Volume acima disso pede um provedor transacional (troca só os `MAIL_*`).
+
+---
+
+## ADR-026 — Cobertura de logs: segredos fora da telemetria, logs de produção e eventos de segurança
+
+**Status:** Aceito
+
+**Contexto:** a análise de logs de 2026-11-15 encontrou, no shopping-delivery:
+1. o **token do bot do Telegram no Tempo**: o agente OpenTelemetry grava a URL inteira das chamadas de saída
+   (`url.full`) e a API do Telegram leva o token no caminho (`/bot<TOKEN>/getUpdates`), a cada long polling. Os logs
+   já tiravam o token das mensagens; os traces não;
+2. **logs de produção sem limite e em texto**: o driver `json-file` do Docker guarda tudo para sempre (disco cheio
+   para o PostgreSQL), e em produção não há agente nem Loki — só o `docker logs`;
+3. **eventos de segurança só no banco**: login recusado, bloqueio, ataque suspeito e webhook rejeitado não geravam
+   nenhuma linha de log (nem no Loki, nem no `docker logs`) e se perdiam com o banco fora do ar.
+
+**Decisão:**
+1. Processador `transform/redact-secrets` no collector, nos três sinais, antes dos exporters: `bot<dígitos>:<segredo>`
+   vira `bot<token>`. Regras de span e de evento de span em **grupos separados**: numa lista só, o contexto inferido
+   vira o do evento e as regras nunca rodam em spans sem eventos (o caso do Telegram) — o primeiro teste com o
+   collector de verdade mostrou o token passando.
+2. Compose de produção com `x-logging` (`json-file`, 5 × 20 MB) em todo serviço, e perfil `prod` com
+   `logging.structured.format.console: ecs` (Spring Boot 3.5): uma linha JSON por evento, exceção num campo só.
+3. `AuditService` também escreve no logger `security.audit`: falhas e ataques em **WARN, antes** de gravar no banco;
+   mudanças sensíveis que deram certo (login, senha, MFA, usuários, exclusão, exportação, Pix) em **INFO, depois do
+   commit**. E-mail mascarado; ação, usuário, IP e alvo também como pares chave-valor (campos no JSON). Pedidos,
+   produtos e perfil continuam só no banco.
+
+**Consequências:**
+- Traces e logs de dev sem o token; os antigos foram apagados recriando o container do Tempo.
+- No máximo ~100 MB de log por container em produção; para guardar mais, mandar para fora.
+- O IP de quem falhou no login vai para o log (dado pessoal): fica só enquanto o arquivo não roda (~100 MB).
+- `docker logs` em produção fica em JSON — use `jq` (exemplo no README).
+- Testes: `RedactionTest` (inclusive o erro dos grupos), `test_production_logging.py` (passo próprio no CI),
+  `AuditServiceTest` e `SecurityAuditLogIntegrationTest`; todos falham na configuração anterior.
+

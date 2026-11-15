@@ -18,6 +18,9 @@ Alertas:
 - link para dashboard/painel inexistente; rota inexistente; pasta com o mesmo nome da dos dashboards (o
   provisionamento de alertas roda antes e cria uma segunda pasta "ShopEasy").
 
+Collector (otel-config.yaml):
+- segredo em URL (token do bot do Telegram em url.full) trocado antes de qualquer exporter, nos três sinais.
+
 Telegram (alerting-telegram/, docker-compose.telegram.yml):
 - segredo versionado por engano (token com cara de real fora do .env);
 - texto variável da mensagem sem o filtro html: um & solto (o link do painel tem vários) faz o Telegram recusar a
@@ -345,6 +348,52 @@ class TelegramTest(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0, (token, chat))
             self.assertIn("inválido", proc.stderr, (token, chat))
             self.assertFalse(os.path.exists(os.path.join(target, "alerting", "telegram.json")), (token, chat))
+
+
+class RedactionTest(unittest.TestCase):
+    """Collector (otel-config.yaml): segredo dentro de URL não pode chegar ao Tempo/Loki/Prometheus.
+
+    O agente Java grava a URL inteira das chamadas de saída (url.full); a do Telegram leva o token do bot no caminho
+    — achado na análise de logs de 2026-11-15, com o token real no Tempo a cada long polling.
+    """
+
+    PROCESSOR = "transform/redact-secrets"
+    FAKE = "https://api.telegram.org/bot1234567890:AAFakeFakeFakeFakeFakeFakeFakeFake12/getUpdates"
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(STACK, "otel-config.yaml"), encoding="utf-8") as f:
+            cls.config = f.read()
+
+    def _block(self, name):
+        m = re.search(r"^  " + re.escape(name) + r":\n((?:    .*\n|\s*\n)+)", self.config, re.M)
+        self.assertIsNotNone(m, f"{name} não encontrado")
+        return m.group(1)
+
+    def test_every_pipeline_uses_the_processor_before_export(self):
+        pipelines = re.findall(r"^      processors: \[([^\]]*)\]", self.config, re.M)
+        self.assertEqual(len(pipelines), 3, "traces, metrics e logs")
+        for procs in pipelines:
+            self.assertIn(self.PROCESSOR, [p.strip() for p in procs.split(",")])
+
+    def test_patterns_redact_a_telegram_token(self):
+        block = self._block(self.PROCESSOR)
+        patterns = set(re.findall(r'"(bot\[[^"]+)", "bot<token>"', block))
+        self.assertEqual(len(patterns), 1, "um padrão só, igual em todos os sinais")
+        redacted = re.sub(patterns.pop(), "bot<token>", self.FAKE)
+        self.assertEqual(redacted, "https://api.telegram.org/bot<token>/getUpdates")
+        for signal in ("trace_statements", "log_statements", "metric_statements"):
+            self.assertIn(signal, block)
+
+    def test_trace_groups_do_not_mix_span_and_spanevent(self):
+        # numa lista só, o contexto inferido vira spanevent e as regras de span só rodam em spans COM eventos:
+        # o span do Telegram (sem eventos) passava com o token (conferido com o coletor de verdade)
+        block = self._block(self.PROCESSOR)
+        traces = block.split("trace_statements:")[1].split("log_statements:")[0]
+        groups = re.split(r"^      - statements:", traces, flags=re.M)[1:]
+        self.assertTrue(groups, "trace_statements em grupos (- statements:)")
+        for g in groups:
+            self.assertFalse("span." in g.replace("spanevent.", "") and "spanevent." in g, g)
 
 
 class RouteParserTest(unittest.TestCase):

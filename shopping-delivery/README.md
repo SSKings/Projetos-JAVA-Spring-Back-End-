@@ -243,6 +243,16 @@ servidor e agende o backup cifrado no cron:
 Copie `BACKUP_DIR` para fora do servidor e teste a restauração (`deploy/restore-db.sh <arquivo>`) em homologação
 uma vez por mês.
 
+**Logs:** a API escreve uma linha JSON por evento (ECS: nível, logger, mensagem, exceção e campos) e cada container
+guarda no máximo 5 arquivos de 20 MB (`x-logging` no compose) — sem isso, os logs enchiam o disco. Eventos de
+segurança saem no logger `security.audit`, com o e-mail mascarado:
+
+```bash
+docker compose -f docker-compose.prod.yml logs api --no-log-prefix | grep '^{' | jq -c 'select(.log.logger=="security.audit") | {t:."@timestamp", acao:.event.action, ip:.source.ip, msg:.message}'
+```
+
+Para guardar mais que ~100 MB por container, mande os logs para fora (Loki, CloudWatch, Datadog…).
+
 ## Fluxo principal
 
 ```
@@ -272,13 +282,14 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 443    | 98,4%  | 94,4%    |
+| Backend   | `./mvnw verify`         | 448    | 98,4%  | 94,4%    |
 | Frontend  | `npm run coverage`      | 337    | 99,1%  | 95,9%    |
-| Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 49 | — | — |
+| Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 56 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
 | API rodando (k6) | `./load-tests/run.sh smoke` | 23 verificações | — | — |
 
-Os 49 testes Python cobrem o verificador de CVEs (4), a validação de dashboards, alertas e Telegram (25), o
+Os 56 testes Python cobrem o verificador de CVEs (4), a validação de dashboards, alertas, Telegram e da redação de
+segredos no collector (28), os logs de produção (4: rotação em todo serviço e JSON no perfil `prod`), o
 assistente do bot de administração (6, contra um Telegram falso), o backup cifrado do banco (5) e o verificador de
 imagens/actions fixadas por hash (5, inclusive a leitura da imagem do k6 pelo CI) e o executor local dos jobs do CI
 (4, `scripts/run-ci-job.py`).

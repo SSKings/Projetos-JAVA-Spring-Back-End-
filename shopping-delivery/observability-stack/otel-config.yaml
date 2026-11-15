@@ -19,6 +19,26 @@ processors:
     spike_limit_mib: 100
   batch:
 
+  # Segredos que vêm DENTRO de URLs não podem chegar ao Tempo/Loki/Prometheus. O caso real: a API do Telegram leva o
+  # token do bot no caminho (https://api.telegram.org/bot<TOKEN>/getUpdates) e o agente Java grava a URL inteira no
+  # span (url.full) — a cada long polling. Troca por "bot<token>" em todos os sinais, antes de qualquer exporter.
+  # O padrão é o mesmo de scripts/test_grafana_provisioning.py (RedactionTest), que confere que ele pega um token.
+  transform/redact-secrets:
+    error_mode: ignore
+    # Um grupo por contexto: numa lista só, "spanevent" faria TODAS as regras rodarem por evento do span — e o span do
+    # Telegram não tem eventos, então nada era trocado (conferido com o coletor de verdade).
+    trace_statements:
+      - statements:
+          - replace_all_patterns(span.attributes, "value", "bot[0-9]{6,}:[A-Za-z0-9_-]{30,}", "bot<token>")
+          - replace_pattern(span.name, "bot[0-9]{6,}:[A-Za-z0-9_-]{30,}", "bot<token>")
+      - statements:
+          - replace_all_patterns(spanevent.attributes, "value", "bot[0-9]{6,}:[A-Za-z0-9_-]{30,}", "bot<token>")
+    log_statements:
+      - replace_pattern(log.body, "bot[0-9]{6,}:[A-Za-z0-9_-]{30,}", "bot<token>")
+      - replace_all_patterns(log.attributes, "value", "bot[0-9]{6,}:[A-Za-z0-9_-]{30,}", "bot<token>")
+    metric_statements:
+      - replace_all_patterns(datapoint.attributes, "value", "bot[0-9]{6,}:[A-Za-z0-9_-]{30,}", "bot<token>")
+
 exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
@@ -44,13 +64,13 @@ service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, transform/redact-secrets, batch]
       exporters: [prometheus]
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, transform/redact-secrets, batch]
       exporters: [otlp/tempo]
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, transform/redact-secrets, batch]
       exporters: [otlphttp/loki]

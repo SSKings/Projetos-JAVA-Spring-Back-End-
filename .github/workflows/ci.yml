@@ -78,6 +78,10 @@ jobs:
           python3 -m unittest discover -s ../scripts -p 'test_check_pinning.py'
           python3 ../scripts/check-pinning.py
 
+      # Logs de produção: rotação em todo serviço do compose e JSON (ECS) no perfil prod (análise de logs, 2026-11-15)
+      - name: Check production logging (rotation, JSON)
+        run: python3 -m unittest discover -s ../scripts -p 'test_production_logging.py'
+
       # Dashboards e alertas do Grafana (observability-stack/): JSON, datasources, grade, templates e rotas citadas
       - name: Validate Grafana dashboards and alerts
         run: python3 -m unittest discover -s ../scripts -p 'test_grafana_provisioning.py'

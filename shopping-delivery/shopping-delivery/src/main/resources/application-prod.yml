@@ -46,6 +46,11 @@ server:
 logging:
   level:
     root: INFO
+  # Uma linha JSON por evento (Elastic Common Schema): nível, logger, mensagem, exceção e o MDC como campos — dá para
+  # filtrar com jq/Loki/CloudWatch sem regex, e uma stack trace não vira 40 "linhas" soltas. Rotação: compose (x-logging).
+  structured:
+    format:
+      console: ecs
 
 app:
   mail:

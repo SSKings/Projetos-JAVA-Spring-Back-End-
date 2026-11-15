@@ -88,4 +88,84 @@ class AuditServiceTest {
         assertThat(AuditService.maskEmail("semarroba")).isEqualTo("***");
         assertThat(AuditService.maskEmail(null)).isNull();
     }
+
+    // ---------- log dos eventos de segurança (análise de logs, 2026-11-15) ----------
+
+    private ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> captureSecurityLog() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger("security.audit");
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        return appender;
+    }
+
+    @AfterEach
+    void detachAppenders() {
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger("security.audit")).detachAndStopAllAppenders();
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    private static java.util.Map<String, Object> keyValues(ch.qos.logback.classic.spi.ILoggingEvent e) {
+        java.util.Map<String, Object> kv = new java.util.HashMap<>();
+        if (e.getKeyValuePairs() != null) e.getKeyValuePairs().forEach(p -> kv.put(p.key, p.value));
+        return kv;
+    }
+
+    @Test
+    @DisplayName("Falha de login: WARN em security.audit com ação, IP e e-mail mascarado — mesmo se o banco falhar")
+    void securityFailureIsLoggedEvenIfDatabaseFails() {
+        var log = captureSecurityLog();
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setRemoteAddr("203.0.113.9");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(req));
+        when(repo.save(any())).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("banco fora"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.recordIndependent(null, AuditService.LOGIN_FAILED, "USER", null,
+                "unknown email " + AuditService.maskEmail("ana.souza@teste.com"))).isInstanceOf(RuntimeException.class);
+
+        assertThat(log.list).hasSize(1);
+        var e = log.list.get(0);
+        assertThat(e.getLevel()).isEqualTo(ch.qos.logback.classic.Level.WARN);
+        assertThat(e.getFormattedMessage()).contains("LOGIN_FAILED", "ip=203.0.113.9", "a***@teste.com").doesNotContain("ana.souza");
+        assertThat(keyValues(e)).containsEntry("event.action", "LOGIN_FAILED").containsEntry("source.ip", "203.0.113.9");
+    }
+
+    @Test
+    @DisplayName("Mudança sensível (senha alterada): INFO só depois do commit; com rollback, nenhum log")
+    void sensitiveChangeIsLoggedOnlyAfterCommit() {
+        var log = captureSecurityLog();
+        User ana = User.builder().id(7L).email("ana.souza@teste.com").build();
+
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        service.record(ana, AuditService.PASSWORD_CHANGED, "USER", 7L, null);
+        assertThat(log.list).as("antes do commit").isEmpty();
+        org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCommit());
+        org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        assertThat(log.list).hasSize(1);
+        assertThat(log.list.get(0).getLevel()).isEqualTo(ch.qos.logback.classic.Level.INFO);
+        assertThat(log.list.get(0).getFormattedMessage()).contains("PASSWORD_CHANGED", "ator=#7 a***@teste.com", "alvo=USER#7")
+                .doesNotContain("ana.souza");
+        assertThat(keyValues(log.list.get(0))).containsEntry("user.id", 7L).containsEntry("event.target", "USER#7");
+
+        log.list.clear();
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        service.record(ana, AuditService.MFA_DISABLED, "USER", 7L, null);
+        org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations()
+                .forEach(s -> s.afterCompletion(org.springframework.transaction.support.TransactionSynchronization.STATUS_ROLLED_BACK));
+        org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        assertThat(log.list).as("rollback").isEmpty();
+    }
+
+    @Test
+    @DisplayName("Eventos que não são de segurança (produto, pedido, perfil) ficam só no banco")
+    void otherEventsAreNotLogged() {
+        var log = captureSecurityLog();
+        service.record(null, AuditService.PRODUCT_CHANGED, "PRODUCT", 3L, "created");
+        service.record(null, AuditService.ORDER_STATUS_CHANGED, "ORDER", 4L, "PENDING -> CONFIRMED");
+        assertThat(log.list).isEmpty();
+        verify(repo, times(2)).save(any());
+        assertThat(AuditService.WARN_EVENTS).doesNotContainAnyElementsOf(AuditService.INFO_EVENTS);
+    }
 }
