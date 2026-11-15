@@ -3,8 +3,18 @@
 #       docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 name: shopeasy
 
+# Logs dos containers com tamanho máximo: sem isto o driver json-file do Docker guarda tudo para sempre e um dia de
+# ataque (ou de log de erro em loop) enche o disco do servidor — e com o disco cheio o PostgreSQL para.
+# 5 arquivos de 20 MB por container (~100 MB cada). Para guardar mais tempo, mande para fora (Loki, CloudWatch...).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
   db:
+    logging: *logging
     # fixada por digest (revisão 3, M4); o Dependabot (docker-compose) propõe as atualizações
     image: postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
     restart: unless-stopped
@@ -33,6 +43,7 @@ services:
     # sem "ports": o banco não fica exposto fora da rede interna
 
   api:
+    logging: *logging
     build: ../shopping-delivery
     restart: unless-stopped
     depends_on:
@@ -58,6 +69,7 @@ services:
     cap_drop: [ALL]
 
   web:
+    logging: *logging
     build:
       context: ../../shopping-delivery-frontend
       args:
