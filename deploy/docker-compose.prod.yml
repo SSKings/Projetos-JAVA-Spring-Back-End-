@@ -1,0 +1,111 @@
+# Pilha de produção: PostgreSQL + API (perfil prod) + nginx (TLS, front-end e proxy de /api).
+# Uso:  cp .env.prod.example .env.prod  → preencha  →  coloque fullchain.pem e privkey.pem em ./certs
+#       docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+name: shopeasy
+
+# Logs dos containers com tamanho máximo: sem isto o driver json-file do Docker guarda tudo para sempre e um dia de
+# ataque (ou de log de erro em loop) enche o disco do servidor — e com o disco cheio o PostgreSQL para.
+# 5 arquivos de 20 MB por container (~100 MB cada). Para guardar mais tempo, mande para fora (Loki, CloudWatch...).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  db:
+    logging: *logging
+    # fixada por digest (revisão 3, M4); o Dependabot (docker-compose) propõe as atualizações
+    image: postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-shopeasy}
+      # Superusuário: só para criar o banco e os papéis (db-init/01-roles.sh); a API nunca o usa (revisão 5, R5-4)
+      POSTGRES_USER: ${DATABASE_ADMIN_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_ADMIN_PASSWORD}
+      DATABASE_MIGRATION_USERNAME: ${DATABASE_MIGRATION_USERNAME}
+      DATABASE_MIGRATION_PASSWORD: ${DATABASE_MIGRATION_PASSWORD}
+      DATABASE_USERNAME: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    # Só na rede "data" (internal: true): o nginx, exposto à internet, não alcança o banco, e o banco não tem
+    # saída para a internet (revisão 3, M5). Backup: deploy/backup-db.sh (revisão 3, M6).
+    networks: [data]
+    mem_limit: ${DB_MEM_LIMIT:-1g}
+    security_opt: ["no-new-privileges:true"]
+    shm_size: 128m
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DATABASE_ADMIN_USERNAME:-postgres}", "-d", "${DATABASE_NAME:-shopeasy}"]
+      interval: 10s
+      retries: 10
+    # sem "ports": o banco não fica exposto fora da rede interna
+
+  api:
+    logging: *logging
+    build: ../backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env.prod
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DATABASE_URL: jdbc:postgresql://db:5432/${DATABASE_NAME:-shopeasy}
+      # o env_file traz o .env.prod inteiro: a senha do superusuário do banco não entra na API (revisão 5, R5-4)
+      DATABASE_ADMIN_PASSWORD: ""
+      ACCESS_LOG_DIR: /var/log/shopeasy
+    volumes:
+      - access-logs:/var/log/shopeasy   # Marco Civil art. 15: guardar por 6 meses (max-days: 190)
+    # edge: recebe do nginx e sai para a internet (PSP, Telegram); data: fala com o banco
+    networks: [edge, data]
+    # Sem limite, a JVM (MaxRAMPercentage=75 no Dockerfile) dimensiona o heap pela RAM da máquina inteira.
+    # 1536m: no teste de carga (load-tests/prod-like) o pico foi ~555 MiB. Ajuste API_MEM_LIMIT ao servidor.
+    mem_limit: ${API_MEM_LIMIT:-1536m}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  web:
+    logging: *logging
+    build:
+      context: ../frontend
+      args:
+        VITE_API_BASE_URL: /
+        VITE_COMPANY_LEGAL_NAME: ${VITE_COMPANY_LEGAL_NAME:-}
+        VITE_COMPANY_TRADE_NAME: ${VITE_COMPANY_TRADE_NAME:-}
+        VITE_COMPANY_CNPJ: ${VITE_COMPANY_CNPJ:-}
+        VITE_COMPANY_ADDRESS: ${VITE_COMPANY_ADDRESS:-}
+        VITE_COMPANY_EMAIL: ${VITE_COMPANY_EMAIL:-}
+        VITE_COMPANY_PHONE: ${VITE_COMPANY_PHONE:-}
+        VITE_COMPANY_DPO_EMAIL: ${VITE_COMPANY_DPO_EMAIL:-}
+        VITE_TERMS_VERSION: ${TERMS_VERSION:-}
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "${HTTP_PORT:-80}:8080"
+      - "${HTTPS_PORT:-443}:8443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./proxy-api.inc:/etc/nginx/conf.d/proxy-api.inc:ro
+      - ./security-headers.inc:/etc/nginx/conf.d/security-headers.inc:ro
+      - ./certs:/etc/nginx/certs:ro
+    networks: [edge]
+    # Mesmo endurecimento da API (revisão 3, B8): nginx-unprivileged roda sem root, escuta em portas altas
+    # e só escreve em /tmp (pid e cache temporário).
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: ${WEB_MEM_LIMIT:-256m}
+
+networks:
+  edge: {}
+  data:
+    internal: true
+
+volumes:
+  db-data: {}
+  access-logs: {}
