@@ -111,6 +111,9 @@ outros em 3 a 4 minutos. As resoluções (✅) chegam alguns minutos depois do f
   `backend-spring` (`GET /api/products` → repositório → SQL), tudo no mesmo trace.
 - **Explore → Loki**: `{service_name="backend-spring"}`. Cada linha tem `trace_id`; o link *TraceID* abre o trace.
   Também no console da API: `INFO [trace_id=… span_id=…]`.
+- **Eventos de segurança** (login recusado, conta bloqueada, ataque suspeito, webhook rejeitado — WARN; senha, MFA,
+  usuários, exportação e Pix — INFO): `{service_name="backend-spring"} | scope_name="security.audit"`. O e-mail
+  vem mascarado; o registro completo continua na auditoria do banco (painel admin).
 - **Explore → Prometheus**: por exemplo `http_server_request_duration_seconds_count{service_name="backend-spring"}`.
 - Sem o agente (`./mvnw spring-boot:run`) a API funciona normalmente e só não envia telemetria.
 
@@ -143,6 +146,12 @@ risco. Cada um foi verificado com a stack rodando.
 - **Os logs vão para o Loki.** Em dev isso inclui a senha do admin gerada no start (ADR-021). Não use esta stack
   com dados reais de clientes sem rever o que é logado (LGPD). Os spans HTTP levam URL, método e status, não o
   corpo nem o cabeçalho `Authorization`.
+- **Segredo dentro de URL é trocado no collector** (`transform/redact-secrets` em `otel-config.yaml`). O agente grava a
+  URL inteira das chamadas de saída (`url.full`), e a API do Telegram leva o token do bot no caminho
+  (`/bot<TOKEN>/getUpdates`): o token real ia para o Tempo a cada long polling (achado na análise de logs de
+  2026-11-15). Agora vira `bot<token>` nos três sinais, antes de qualquer exporter. Ao integrar outra API com
+  segredo na URL, acrescente o padrão lá — `test_grafana_provisioning.RedactionTest` confere a regra. Os dados do
+  Tempo ficam dentro do container: `docker compose rm -sf tempo && docker compose up -d tempo` apaga traces antigos.
 - **Proxy `/otlp`.** Como o Vite escuta na rede (ADR-015), outras máquinas da rede também podem enviar spans para
   o collector por ele. Em dev é aceitável; é só telemetria.
 - **Produção.** A stack não faz parte do `deploy/`. O nginx só repassa `/api/`, então `/actuator` não é exposto e
