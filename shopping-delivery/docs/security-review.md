@@ -520,6 +520,9 @@ Cada falha desta revisão virou uma regra. Na dúvida, o PR não entra. O CI já
     nunca `getRequestURI()` cru: `/api/auth/%66orgot-password` chega ao controller de `/forgot-password` sem ser igual
     a ele como texto (R6-3, R6-4). Limite de envio (e-mail, SMS) tem **intervalo E teto diário**, e a checagem trava
     a linha da conta (regra 23 — R6-1, R6-2).
+29. **A telemetria grava URLs inteiras:** segredo no caminho ou na query (token de bot, chave de API) vai para o
+    Tempo. Regra no collector (`transform/redact-secrets`) e teste; confira com o collector de verdade, não só a
+    sintaxe (a primeira versão passava no `validate` e não trocava nada).
 
 ---
 
@@ -677,3 +680,16 @@ teste e não era). Cada correção tem teste que **falha no código anterior**: 
 - **Clientes cadastrados antes do e-mail** (V9) precisam confirmar antes da próxima compra: o aviso no topo tem o
   botão de reenvio.
 - **Continuam:** "Email já em uso" no cadastro (B3), recuperação do MFA, token no `localStorage`.
+
+## 14. Análise de logs — 2026-11-15 (ADR-026)
+
+| # | Severidade | Achado | Evidência | Correção | Teste |
+|---|------------|--------|-----------|----------|-------|
+| L-1 | Média (dev) | **Token do bot do Telegram nos traces** (`url.full=https://api.telegram.org/bot<TOKEN>/getUpdates`), a cada long polling | Exportador de console: token completo no span; no Tempo, o mesmo | `transform/redact-secrets` no collector (traces, logs e métricas); traces antigos apagados | `RedactionTest`; Tempo com a API real: só `bot<token>`; Loki: 0 linhas com token |
+| L-2 | Média | **Logs de produção sem limite** (`json-file` sem `max-size`): ataque ou erro em loop enche o disco e para o PostgreSQL | `docker-compose.prod.yml` sem `logging` | `x-logging` 5 × 20 MB em `db`, `api` e `web`; JSON (ECS) no perfil `prod` | `test_production_logging.py`; `prod-like`: `LogConfig` dos 3 containers e linhas JSON |
+| L-3 | Baixa | **Eventos de segurança só no banco**: nada no Loki/`docker logs`; com o banco fora, o registro se perdia | Nenhum `log.` em `AuditService` | Logger `security.audit` (WARN antes de gravar; INFO depois do commit), e-mail mascarado | `AuditServiceTest`, `SecurityAuditLogIntegrationTest`; Loki: `scope_name="security.audit"` |
+
+**Pendente (próximo PR):** `voice-transcription` engole a exceção e devolve `e.getMessage()` ao cliente; `web-api` com
+`org.springframework.web=DEBUG` e `show-sql` na configuração principal e `System.out`; demais aplicações sem log de
+login recusado nem de chamadas externas; INFO do ciclo do pedido no shopping-delivery.
+
