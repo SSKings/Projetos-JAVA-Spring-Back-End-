@@ -157,12 +157,12 @@
 										<limit>
 											<counter>LINE</counter>
 											<value>COVEREDRATIO</value>
-											<minimum>0.85</minimum>
+											<minimum>0.97</minimum>
 										</limit>
 										<limit>
 											<counter>BRANCH</counter>
 											<value>COVEREDRATIO</value>
-											<minimum>0.80</minimum>
+											<minimum>0.93</minimum>
 										</limit>
 									</limits>
 								</rule>
@@ -170,6 +170,44 @@
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+			<plugin>
+				<!-- Teste de mutação (PIT) das regras de segurança e de dinheiro: ./mvnw test-compile pitest:mutationCoverage.
+				     Injeta defeitos (troca < por <=, apaga condições, inverte retornos) e exige que os testes peguem a maioria.
+				     Fora do verify (é mais lento); o CI roda em todo PR. -->
+				<groupId>org.pitest</groupId>
+				<artifactId>pitest-maven</artifactId>
+				<version>1.30.2</version>
+				<dependencies>
+					<dependency>
+						<groupId>org.pitest</groupId>
+						<artifactId>pitest-junit5-plugin</artifactId>
+						<version>1.2.3</version>
+					</dependency>
+				</dependencies>
+				<configuration>
+					<targetClasses>
+						<param>com.sskings.ecommerce.payment.PixBrCode*</param>
+						<param>com.sskings.ecommerce.security.TotpService*</param>
+						<param>com.sskings.ecommerce.security.PasswordStrength*</param>
+						<param>com.sskings.ecommerce.security.RateLimitFilter*</param>
+						<param>com.sskings.ecommerce.config.ProductionConfigValidator*</param>
+						<param>com.sskings.ecommerce.service.LoginAttemptService*</param>
+					</targetClasses>
+					<targetTests>
+						<param>com.sskings.ecommerce.**.PixBrCodeTest</param>
+						<param>com.sskings.ecommerce.**.TotpServiceTest</param>
+						<param>com.sskings.ecommerce.**.PasswordStrengthTest</param>
+						<param>com.sskings.ecommerce.**.RateLimitFilterTest</param>
+						<param>com.sskings.ecommerce.**.ProductionConfigValidatorTest</param>
+						<param>com.sskings.ecommerce.**.LoginAttemptServiceTest</param>
+					</targetTests>
+					<mutators><mutator>STRONGER</mutator></mutators>
+					<outputFormats><param>HTML</param><param>XML</param></outputFormats>
+					<timestampedReports>false</timestampedReports>
+					<threads>4</threads>
+					<mutationThreshold>90</mutationThreshold>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
