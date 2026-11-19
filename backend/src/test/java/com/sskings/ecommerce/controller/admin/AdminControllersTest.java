@@ -16,8 +16,8 @@ import com.sskings.ecommerce.service.admin.AdminUserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -42,12 +42,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminControllersTest {
 
     @Autowired MockMvc mockMvc;
-    @MockBean AdminOrderService orderService;
-    @MockBean AdminUserService userService;
-    @MockBean AdminDashboardService dashboardService;
-    @MockBean com.sskings.ecommerce.service.AuditService auditService;
-    @MockBean UserRepository userRepository;
-    @MockBean JwtService jwtService;
+    @MockitoBean AdminOrderService orderService;
+    @MockitoBean AdminUserService userService;
+    @MockitoBean AdminDashboardService dashboardService;
+    @MockitoBean com.sskings.ecommerce.service.AuditService auditService;
+    @MockitoBean UserRepository userRepository;
+    @MockitoBean JwtService jwtService;
 
     private static final User ADMIN =
             User.builder().id(1L).name("Admin").email("admin@x.com").password("h").role(Role.ADMIN).build();

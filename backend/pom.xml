@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.16</version>
+		<version>4.1.2</version>
 		<relativePath/>
 	</parent>
 	<groupId>com.sskings</groupId>
@@ -15,19 +15,18 @@
 	<description>Simple e-commerce REST API</description>
 	<properties>
 		<java.version>17</java.version>
-		<springdoc.version>2.10.0</springdoc.version>
+		<!-- vazio por padrão: o JaCoCo preenche no verify; sem isso, quem roda sem ele (PIT) recebe "@{argLine}" literal -->
+		<argLine></argLine>
+		<springdoc.version>3.2.0</springdoc.version>
 		<!-- agente Java do OpenTelemetry usado por run-backend.sh (não entra no jar da aplicação) -->
 		<otel-javaagent.version>2.33.0</otel-javaagent.version>
 		<!--
-			Versões acima das que o Spring Boot 3.5.16 gerencia, para corrigir CVEs (docs/security-review.md, revisão 2).
+			Versões acima das que o Spring Boot gerencia, para corrigir CVEs (docs/security-review.md, revisão 2).
 			O Dependabot só atualiza o parent; o CI roda scripts/check-dependency-cves.py para pegar o resto.
 			Remova cada linha quando o Spring Boot passar a trazer uma versão igual ou maior.
+			Jackson 2: só o swagger-core (springdoc) ainda usa; o app usa o Jackson 3.
 		-->
-		<tomcat.version>10.1.61</tomcat.version>           <!-- 10.1.55: CVE-2026-55276, -65182 e outras -->
-		<jackson-bom.version>2.21.8</jackson-bom.version>  <!-- 2.21.4: CVE-2026-89407 (ReDoS), -91777 (DoS) e outras -->
-		<postgresql.version>42.7.14</postgresql.version>   <!-- 42.7.11: CVE-2026-54291 -->
-		<log4j2.version>2.25.5</log4j2.version>            <!-- 2.24.3: CVE-2026-49844 -->
-		<commons-lang3.version>3.18.0</commons-lang3.version> <!-- 3.17.0: CVE-2025-48924 -->
+		<jackson-2-bom.version>2.21.8</jackson-2-bom.version>  <!-- 2.21.4: CVE-2026-89407 (ReDoS), -91777 (DoS) e outras -->
 	</properties>
 	<dependencies>
 		<dependency>
@@ -49,20 +48,30 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
 		<!-- Observabilidade: health/metrics/prometheus (ADR-022). Traces e logs vêm do agente OpenTelemetry (run-backend.sh) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+		<!-- Boot 4: métricas são um módulo à parte (o /actuator/prometheus depende dele) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-micrometer-metrics</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.flywaydb</groupId>
-			<artifactId>flyway-core</artifactId>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-flyway</artifactId>
+		</dependency>
+		<!-- Cliente HTTP do bot do Telegram (RestClient) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-restclient</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>com.auth0</groupId>
@@ -90,19 +99,47 @@
 			<artifactId>h2</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+		<!-- Boot 4: o console do H2 (só em dev, restrito à própria máquina) é um módulo à parte -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-h2console</artifactId>
+			<scope>runtime</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
 			<version>${springdoc.version}</version>
 		</dependency>
+		<!-- Boot 4: um starter de teste por tecnologia (cada um traz o spring-boot-starter-test) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-test</artifactId>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-flyway-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- @AutoConfigureMetrics: liga os exportadores (o /actuator/prometheus) nos testes de segurança do Actuator -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-micrometer-metrics-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -123,6 +160,15 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
+				</configuration>
+			</plugin>
+			<plugin>
+				<!-- Testes sempre com a JVM em UTC, como no CI e no servidor: no fuso de São Paulo, um teste que confunde o
+				     "hoje" do sistema com o do app passa na máquina e só quebra no CI (lição do Bolso, 2026-11-19). -->
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<argLine>@{argLine} -Duser.timezone=UTC</argLine>
 				</configuration>
 			</plugin>
 			<plugin>

@@ -102,11 +102,11 @@ public class GlobalExceptionHandler {
     }
 
     /** ?sort= com campo que não existe na entidade (às vezes chega embrulhado pelo Spring Data). */
-    @ExceptionHandler({org.springframework.data.mapping.PropertyReferenceException.class,
+    @ExceptionHandler({org.springframework.data.core.PropertyReferenceException.class,
             org.springframework.dao.InvalidDataAccessApiUsageException.class})
     public ResponseEntity<ErrorResponse> handleInvalidSort(Exception ex) {
         for (Throwable t = ex; t != null; t = t.getCause()) {
-            if (t instanceof org.springframework.data.mapping.PropertyReferenceException) {
+            if (t instanceof org.springframework.data.core.PropertyReferenceException) {
                 return ResponseEntity.badRequest().body(new ErrorResponse(400, "Invalid sort property"));
             }
         }
@@ -117,7 +117,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleBadRequest(Exception ex) {
         for (Throwable t = ex; t != null; t = t.getCause()) {
             if (t instanceof com.sskings.ecommerce.security.RequestSizeLimitFilter.PayloadTooLargeException) {
-                return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(new ErrorResponse(413, "Request body too large"));
+                return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(new ErrorResponse(413, "Request body too large"));
             }
         }
         return ResponseEntity.badRequest()

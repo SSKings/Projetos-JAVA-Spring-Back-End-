@@ -1,11 +1,11 @@
 package com.sskings.ecommerce.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -57,7 +57,7 @@ class SecurityAuditLogIntegrationTest {
     void passwordChangeIsLogged(CapturedOutput output) throws Exception {
         String email = "logcheck-" + UUID.randomUUID().toString().substring(0, 8) + "@teste.com";
         String token = json.readTree(send("/api/auth/register", "10.40.1.1", null,
-                Map.of("name", "Ana", "email", email, "password", PASSWORD, "acceptTerms", true))).get("token").asText();
+                Map.of("name", "Ana", "email", email, "password", PASSWORD, "acceptTerms", true))).get("token").asString();
         send("/api/account/password", "10.40.1.2", token, Map.of("currentPassword", PASSWORD, "newPassword", "Pirilampo7390"));
 
         assertThat(output.getOut()).containsPattern("INFO .*security\\.audit\\s*: PASSWORD_CHANGED ator=#\\d+ l\\*\\*\\*@teste\\.com alvo=USER#\\d+ ip=10\\.40\\.1\\.2");

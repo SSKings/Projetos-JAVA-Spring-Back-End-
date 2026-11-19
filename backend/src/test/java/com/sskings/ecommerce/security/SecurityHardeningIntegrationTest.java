@@ -1,7 +1,7 @@
 package com.sskings.ecommerce.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.dto.request.CheckoutRequest;
 import com.sskings.ecommerce.exception.BusinessException;
 import com.sskings.ecommerce.model.*;
@@ -10,7 +10,7 @@ import com.sskings.ecommerce.service.OrderService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -57,7 +57,7 @@ class SecurityHardeningIntegrationTest {
 
     private String register(String email) throws Exception {
         return call(post("/api/auth/register"), null, Map.of("name", "Cliente Teste", "email", email,
-                "password", "Vagalume4821", "acceptTerms", true), 201).get("token").asText();
+                "password", "Vagalume4821", "acceptTerms", true), 201).get("token").asString();
     }
 
     private static String email() {
@@ -112,14 +112,14 @@ class SecurityHardeningIntegrationTest {
     void logoutRevokesTokens() throws Exception {
         String mail = email();
         String token = register(mail);
-        String second = call(post("/api/auth/login"), null, Map.of("email", mail, "password", "Vagalume4821"), 200).get("token").asText();
+        String second = call(post("/api/auth/login"), null, Map.of("email", mail, "password", "Vagalume4821"), 200).get("token").asString();
         call(get("/api/cart"), token, null, 200);
 
         call(post("/api/auth/logout"), token, null, 204);
 
         call(get("/api/cart"), token, null, 401);
         call(get("/api/cart"), second, null, 401);
-        String fresh = call(post("/api/auth/login"), null, Map.of("email", mail, "password", "Vagalume4821"), 200).get("token").asText();
+        String fresh = call(post("/api/auth/login"), null, Map.of("email", mail, "password", "Vagalume4821"), 200).get("token").asString();
         call(get("/api/cart"), fresh, null, 200);
     }
 
@@ -147,12 +147,12 @@ class SecurityHardeningIntegrationTest {
 
         JsonNode login = call(post("/api/auth/login"), null, Map.of("email", "admin@shopeasy.com", "password", "admin123"), 200);
         assertThat(login.get("mfaSetupRequired").asBoolean()).isTrue();
-        String token = login.get("token").asText();
+        String token = login.get("token").asString();
         call(get("/api/admin/dashboard"), token, null, 403);
 
         call(post("/api/account/mfa/setup"), token, Map.of("password", "errada1"), 400);   // revisão 3, A1
-        String secret = call(post("/api/account/mfa/setup"), token, Map.of("password", "admin123"), 200).get("secret").asText();
-        String withMfa = call(post("/api/account/mfa/enable"), token, Map.of("code", totp.currentCode(secret)), 200).get("token").asText();
+        String secret = call(post("/api/account/mfa/setup"), token, Map.of("password", "admin123"), 200).get("secret").asString();
+        String withMfa = call(post("/api/account/mfa/enable"), token, Map.of("code", totp.currentCode(secret)), 200).get("token").asString();
         call(get("/api/admin/dashboard"), token, null, 401);          // sessão anterior ao MFA foi revogada
         call(get("/api/admin/dashboard"), withMfa, null, 200);
 
@@ -165,7 +165,7 @@ class SecurityHardeningIntegrationTest {
 
         // a trilha registrou o MFA e as tentativas
         JsonNode audit = call(get("/api/admin/audit?action=MFA_ENABLED"), withMfa, null, 200);
-        assertThat(audit.get("content").get(0).get("actorEmail").asText()).isEqualTo("admin@shopeasy.com");
+        assertThat(audit.get("content").get(0).get("actorEmail").asString()).isEqualTo("admin@shopeasy.com");
     }
 
     @Test
@@ -175,8 +175,8 @@ class SecurityHardeningIntegrationTest {
         String token = register(mail);
         call(put("/api/account"), token, Map.of("name", "Nome Corrigido", "phone", "11999990000"), 200);
         JsonNode export = call(get("/api/account/data-export"), token, null, 200);
-        assertThat(export.get("profile").get("name").asText()).isEqualTo("Nome Corrigido");
-        assertThat(export.get("profile").get("termsVersion").asText()).isNotBlank();
+        assertThat(export.get("profile").get("name").asString()).isEqualTo("Nome Corrigido");
+        assertThat(export.get("profile").get("termsVersion").asString()).isNotBlank();
 
         call(post("/api/account/delete"), token, Map.of("password", "errada"), 400);
         call(post("/api/account/delete"), token, Map.of("password", "Vagalume4821"), 204);

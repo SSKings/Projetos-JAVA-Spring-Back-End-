@@ -16,8 +16,8 @@ import com.sskings.ecommerce.service.OrderService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,10 +40,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AddressAndOrderControllerTest {
 
     @Autowired MockMvc mockMvc;
-    @MockBean AddressService addressService;
-    @MockBean OrderService orderService;
-    @MockBean UserRepository userRepository;
-    @MockBean JwtService jwtService;
+    @MockitoBean AddressService addressService;
+    @MockitoBean OrderService orderService;
+    @MockitoBean UserRepository userRepository;
+    @MockitoBean JwtService jwtService;
 
     private static final User ANA = User.builder().id(2L).name("Ana").email("ana@a.com").password("h").build();
     private static final AddressResponse ADDRESS =

@@ -1,7 +1,7 @@
 package com.sskings.ecommerce.telegram;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.dto.response.AddressResponse;
 import com.sskings.ecommerce.dto.response.AdminOrderResponse;
 import com.sskings.ecommerce.dto.response.OrderItemResponse;

@@ -1,6 +1,6 @@
 package com.sskings.ecommerce.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.config.SecurityConfig;
 import com.sskings.ecommerce.dto.request.AddCartItemRequest;
 import com.sskings.ecommerce.dto.request.UpdateCartItemRequest;
@@ -13,8 +13,8 @@ import com.sskings.ecommerce.service.CartService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -35,9 +35,9 @@ class CartControllerTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
-    @MockBean CartService cartService;
-    @MockBean UserRepository userRepository;
-    @MockBean JwtService jwtService;
+    @MockitoBean CartService cartService;
+    @MockitoBean UserRepository userRepository;
+    @MockitoBean JwtService jwtService;
 
     private User mockUser() {
         return User.builder().id(1L).name("Alice").email("a@a.com").password("hashed").build();

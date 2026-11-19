@@ -99,7 +99,7 @@ class TelegramAdminBotTest {
     @DisplayName("Grupo (chat diferente de quem enviou) nunca é atendido, mesmo com o ID de um admin")
     void groupIgnored() {
         var update = message(ADMIN_CHAT, "/pedidos");
-        ((com.fasterxml.jackson.databind.node.ObjectNode) update.get("message").get("from")).put("id", 777);
+        ((tools.jackson.databind.node.ObjectNode) update.get("message").get("from")).put("id", 777);
         bot.handle(update);
         verifyNoInteractions(orders, userRepository);
     }
@@ -451,7 +451,7 @@ class TelegramAdminBotTest {
     @Test
     @DisplayName("Update sem chat (ex.: tipo não suportado) é ignorado")
     void noChat() {
-        bot.handle(new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode().put("update_id", 1));
+        bot.handle(new tools.jackson.databind.ObjectMapper().createObjectNode().put("update_id", 1));
         verifyNoInteractions(client, userRepository);
     }
 

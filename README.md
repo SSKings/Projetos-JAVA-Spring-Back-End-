@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://github.com/SSKings/shopeasy/actions/workflows/ci.yml/badge.svg" alt="CI"/>
   <img src="https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white" alt="Java 17"/>
-  <img src="https://img.shields.io/badge/Spring%20Boot-3.5-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot 3.5"/>
+  <img src="https://img.shields.io/badge/Spring%20Boot-4.1-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot 4.1"/>
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19"/>
   <img src="https://img.shields.io/badge/testes-806-brightgreen" alt="806 testes"/>
 </p>
@@ -33,7 +33,7 @@ segurança revisada, observabilidade e pilha de produção prontas.
   API rodando**
 - **Capacidade medida com k6**: ~400 ações/s dentro do SLO na pilha de produção; duas corridas e um deadlock achados
   pelo teste já corrigidos ([`load-tests/`](load-tests/README.md))
-- Decisões documentadas em [27 ADRs](docs/adr.md), referência da API em [`docs/api-reference.md`](docs/api-reference.md)
+- Decisões documentadas em [28 ADRs](docs/adr.md), referência da API em [`docs/api-reference.md`](docs/api-reference.md)
 
 ## Estrutura do repositório
 
@@ -58,7 +58,7 @@ shopeasy/
 
 | Camada       | Tecnologia                                          |
 |--------------|-----------------------------------------------------|
-| API          | Spring Boot 3.5.16, Java 17, Spring Security + JWT, MFA TOTP |
+| API          | Spring Boot 4.1 (Spring 7, Security 7, Jackson 3, Hibernate 7), Java 17, JWT, MFA TOTP |
 | Persistência | Spring Data JPA, H2 (dev), PostgreSQL (prod), Flyway |
 | Frontend     | React 19, TypeScript, Tailwind CSS, React Router v7 |
 | HTTP client  | Axios (com interceptors de auth e 401 redirect)     |
@@ -70,7 +70,7 @@ shopeasy/
 ## Pré-requisitos
 
 - Java 17+
-- Maven: não é preciso instalar, o projeto usa o wrapper `./mvnw` (Maven 3.10.0)
+- Maven: não é preciso instalar, o projeto usa o wrapper `./mvnw` (Maven 3.10.1)
 - Node.js 22.22+ (recomendado 24 — exigido pelo Vitest/jsdom)
 - Docker: só para a pilha de produção (`deploy/`) e para a observabilidade (`observability-stack/`)
 

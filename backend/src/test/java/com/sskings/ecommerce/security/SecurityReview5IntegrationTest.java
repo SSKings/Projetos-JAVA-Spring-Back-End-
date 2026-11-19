@@ -1,12 +1,12 @@
 package com.sskings.ecommerce.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.event.SecurityAlertEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -71,7 +71,7 @@ class SecurityReview5IntegrationTest {
         for (String weak : new String[]{"password1", "senha123", "12345678a", "qwerty123", "admin123", "shopeasy1", "Mudar123"}) {
             var r = register(email(), weak);
             assertThat(r.getStatus()).as(weak).isEqualTo(400);
-            assertThat(body(r).get("message").asText()).as(weak).startsWith("Password");
+            assertThat(body(r).get("message").asString()).as(weak).startsWith("Password");
         }
         assertThat(register(email(), PASSWORD).getStatus()).isEqualTo(201);
     }
@@ -80,13 +80,13 @@ class SecurityReview5IntegrationTest {
     @DisplayName("R5-2: token de admin roubado não confirma o Pix do pedido do atacante sem a senha do admin")
     void stolenAdminTokenCannotConfirmPix() throws Exception {
         String attacker = email();
-        String token = body(register(attacker, PASSWORD)).get("token").asText();
+        String token = body(register(attacker, PASSWORD)).get("token").asString();
         long address = body(call(post("/api/addresses"), token, Map.of("zipCode", "01000-000", "street", "Rua R5",
                 "number", "1", "neighborhood", "Centro", "city", "São Paulo", "state", "SP"))).get("id").asLong();
         call(post("/api/cart/items"), token, Map.of("productId", 1, "quantity", 1));
         long order = body(call(post("/api/orders/checkout"), token, Map.of("addressId", address))).get("id").asLong();
         String admin = body(call(post("/api/auth/login"), null, Map.of("email", "admin@shopeasy.com", "password", "admin123")))
-                .get("token").asText();
+                .get("token").asString();
 
         assertThat(call(post("/api/admin/orders/" + order + "/payment/confirm"), admin, null).getStatus()).isEqualTo(400);
         assertThat(call(post("/api/admin/orders/" + order + "/payment/confirm"), admin, Map.of("password", "chute1234"))
@@ -94,8 +94,8 @@ class SecurityReview5IntegrationTest {
         assertThat(call(patch("/api/admin/orders/" + order + "/status"), admin, Map.of("status", "SHIPPED")).getStatus())
                 .isEqualTo(400);                                                         // Pix pendente não envia
         JsonNode stillPending = body(call(get("/api/orders/" + order), token, null));
-        assertThat(stillPending.get("status").asText()).isEqualTo("PENDING");
-        assertThat(stillPending.at("/payment/status").asText()).isEqualTo("PENDING");
+        assertThat(stillPending.get("status").asString()).isEqualTo("PENDING");
+        assertThat(stillPending.at("/payment/status").asString()).isEqualTo("PENDING");
 
         long before = events.stream(SecurityAlertEvent.class).count();
         assertThat(call(post("/api/admin/orders/" + order + "/payment/confirm"), admin, Map.of("password", "admin123"))
@@ -117,10 +117,10 @@ class SecurityReview5IntegrationTest {
     @DisplayName("R5-6: o último admin ativo não exclui a própria conta")
     void lastAdminCannotDeleteAccount() throws Exception {
         String admin = body(call(post("/api/auth/login"), null, Map.of("email", "admin@shopeasy.com", "password", "admin123")))
-                .get("token").asText();
+                .get("token").asString();
         var r = call(post("/api/account/delete"), admin, Map.of("password", "admin123"));
         assertThat(r.getStatus()).isEqualTo(400);
-        assertThat(body(r).get("message").asText()).startsWith("The last active admin");
+        assertThat(body(r).get("message").asString()).startsWith("The last active admin");
         assertThat(users.findByEmail("admin@shopeasy.com")).get().extracting(u -> u.getAnonymizedAt()).isNull();
     }
 }

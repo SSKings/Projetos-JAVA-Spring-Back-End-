@@ -715,8 +715,9 @@ só era exercitada à mão, no `prod-like.sh`. E nada barrava vulnerabilidade na
 | P-4 | Baixa | **Regras do validador de produção testadas só em conjunto**: a chave de 32 bytes, CORS com uma origem http, senha do admin, e-mail — cada uma podia sumir sem teste falhar | — | Um teste por regra em `ProductionConfigValidatorTest` |
 | P-5 | Baixa | **Rotas do limite por IP**: "esqueci a senha", redefinição e webhook podiam sair do limite sem teste falhar; o teste da limpeza passava mesmo sem limpeza | — | `RateLimitFilterTest.authBucketRoutes`, `tooManyResponse`, `cleanup` (com o tamanho antes e depois) |
 
-**Aceito / pendente:** Spring Boot 3.5 / Spring 6.2 fora do suporte gratuito, com duas falhas críticas sem correção
-na linha 6.2 (CVE-2026-47884, CVE-2026-47890). Não exploráveis aqui (exigem `XsltView` ou SSE com fragmentos de view;
-a API é só JSON e o Pix é acompanhado por polling): exceção no scan até **28/02/2027**. Próximo passo: migrar para o
-Spring Boot 4. Os testes do backend ainda rodam com H2; o job de produção cobre o PostgreSQL de ponta a ponta.
-
+**Resolvido em seguida (ADR-028):** a migração para o Spring Boot 4.1 corrigiu as duas falhas críticas do Spring 6.2
+(CVE-2026-47884 e CVE-2026-47890), e o `.trivyignore.yaml` ficou sem exceções. A migração revelou duas mudanças de
+comportamento: o `/actuator/health` público passou a listar os grupos das sondas do Kubernetes (o teste só conferia
+`components`; agora exige a resposta exata `{"status":"UP"}`, e as sondas foram desligadas), e
+`server.error.include-message`/`include-stacktrace` deixaram de existir (movidos para `spring.web.error.*`). Os testes
+do backend ainda rodam com H2; o job de produção cobre o PostgreSQL de ponta a ponta.

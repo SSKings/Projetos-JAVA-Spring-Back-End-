@@ -1,14 +1,14 @@
 package com.sskings.ecommerce;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.controller.PaymentController;
 import com.sskings.ecommerce.payment.WebhookSignatureVerifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,7 +44,7 @@ class PixPaymentFlowIntegrationTest {
     private String register() throws Exception {
         String email = "pix-" + UUID.randomUUID() + "@teste.com";
         return call(post("/api/auth/register"), null,
-                java.util.Map.of("name", "Cliente Pix", "email", email, "password", "Vagalume4821", "acceptTerms", true), 201).get("token").asText();
+                java.util.Map.of("name", "Cliente Pix", "email", email, "password", "Vagalume4821", "acceptTerms", true), 201).get("token").asString();
     }
 
     private JsonNode checkout(String token) throws Exception {
@@ -60,7 +60,7 @@ class PixPaymentFlowIntegrationTest {
 
     private String admin() throws Exception {
         return call(post("/api/auth/login"), null, java.util.Map.of("email", adminEmail, "password", adminPassword), 200)
-                .get("token").asText();
+                .get("token").asString();
     }
 
     @Test
@@ -72,11 +72,11 @@ class PixPaymentFlowIntegrationTest {
         long orderId = order.get("id").asLong();
         JsonNode payment = order.get("payment");
 
-        assertThat(order.get("status").asText()).isEqualTo("PENDING");
-        assertThat(payment.get("status").asText()).isEqualTo("PENDING");
+        assertThat(order.get("status").asString()).isEqualTo("PENDING");
+        assertThat(payment.get("status").asString()).isEqualTo("PENDING");
         assertThat(payment.get("amount").decimalValue()).isEqualByComparingTo(order.get("total").decimalValue());
-        String copyPaste = payment.get("pixCopyPaste").asText();
-        assertThat(copyPaste).startsWith("000201").contains("br.gov.bcb.pix", payment.get("txid").asText());
+        String copyPaste = payment.get("pixCopyPaste").asString();
+        assertThat(copyPaste).startsWith("000201").contains("br.gov.bcb.pix", payment.get("txid").asString());
         assertThat(stockOfProduct1()).isEqualTo(stockBefore - 2);
         assertThat(payment.get("expiresInSeconds").asLong()).isBetween(1700L, 1800L);
 
@@ -85,10 +85,10 @@ class PixPaymentFlowIntegrationTest {
         JsonNode adminOrder = call(get("/api/admin/orders/" + orderId), admin, null, 200);
         assertThat(adminOrder.get("nextStatuses").toString()).isEqualTo("[\"CANCELLED\"]");
         assertThat(call(patch("/api/admin/orders/" + orderId + "/status"), admin, java.util.Map.of("status", "SHIPPED"), 400)
-                .get("message").asText()).isEqualTo("Order payment is pending");
+                .get("message").asString()).isEqualTo("Order payment is pending");
 
         // webhook sem assinatura → 401; com assinatura → 200
-        String body = json.writeValueAsString(java.util.Map.of("txid", payment.get("txid").asText(),
+        String body = json.writeValueAsString(java.util.Map.of("txid", payment.get("txid").asString(),
                 "endToEndId", "E00000000202611051200abcdefghijk", "amount", payment.get("amount").decimalValue()));
         mvc.perform(post("/api/payments/pix/webhook").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnauthorized());
@@ -99,8 +99,8 @@ class PixPaymentFlowIntegrationTest {
                 .andExpect(status().isOk());
 
         JsonNode paid = call(get("/api/orders/" + orderId), customer, null, 200);
-        assertThat(paid.get("status").asText()).isEqualTo("CONFIRMED");
-        assertThat(paid.get("payment").get("status").asText()).isEqualTo("PAID");
+        assertThat(paid.get("status").asString()).isEqualTo("CONFIRMED");
+        assertThat(paid.get("payment").get("status").asString()).isEqualTo("PAID");
         assertThat(paid.get("payment").get("pixCopyPaste").isNull()).isTrue();
 
         // outro cliente não enxerga o pagamento
@@ -119,8 +119,8 @@ class PixPaymentFlowIntegrationTest {
         call(post("/api/admin/orders/" + first + "/payment/confirm"), admin, java.util.Map.of("password", "errada123"), 400);
         JsonNode confirmed = call(post("/api/admin/orders/" + first + "/payment/confirm"), admin,
                 java.util.Map.of("password", adminPassword), 200);
-        assertThat(confirmed.get("status").asText()).isEqualTo("CONFIRMED");
-        assertThat(confirmed.get("payment").get("status").asText()).isEqualTo("PAID");
+        assertThat(confirmed.get("status").asString()).isEqualTo("CONFIRMED");
+        assertThat(confirmed.get("payment").get("status").asString()).isEqualTo("PAID");
         assertThat(confirmed.get("nextStatuses").toString()).isEqualTo("[\"SHIPPED\",\"DELIVERED\",\"CANCELLED\"]");
         call(post("/api/admin/orders/" + first + "/payment/confirm"), admin, java.util.Map.of("password", adminPassword), 400); // já pago
 
@@ -128,7 +128,7 @@ class PixPaymentFlowIntegrationTest {
         long second = checkout(customer).get("id").asLong();
         assertThat(stockOfProduct1()).isEqualTo(stock - 2);
         JsonNode cancelled = call(patch("/api/admin/orders/" + second + "/status"), admin, java.util.Map.of("status", "CANCELLED"), 200);
-        assertThat(cancelled.get("payment").get("status").asText()).isEqualTo("CANCELLED");
+        assertThat(cancelled.get("payment").get("status").asString()).isEqualTo("CANCELLED");
         assertThat(stockOfProduct1()).isEqualTo(stock);
 
         // cliente não usa a rota de admin

@@ -2,7 +2,7 @@ package com.sskings.ecommerce.service;
 
 import com.sskings.ecommerce.event.OrderEvent;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.exception.BusinessException;
 import com.sskings.ecommerce.exception.InvalidSignatureException;
 import com.sskings.ecommerce.exception.ResourceNotFoundException;

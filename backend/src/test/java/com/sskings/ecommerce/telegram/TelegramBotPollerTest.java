@@ -1,6 +1,6 @@
 package com.sskings.ecommerce.telegram;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +21,7 @@ class TelegramBotPollerTest {
     private final TelegramBotPoller poller = new TelegramBotPoller(client, bot);
 
     private static JsonNode update(long id) {
-        var u = (com.fasterxml.jackson.databind.node.ObjectNode) message(ADMIN_CHAT, "/ajuda");
+        var u = (tools.jackson.databind.node.ObjectNode) message(ADMIN_CHAT, "/ajuda");
         return u.put("update_id", id);
     }
 

@@ -1,11 +1,11 @@
 package com.sskings.ecommerce.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -51,7 +51,7 @@ class SecurityReview3IntegrationTest {
         var r = call(post("/api/auth/register"), ip, null,
                 Map.of("name", "Cliente R3", "email", email, "password", PASSWORD, "acceptTerms", true));
         assertThat(r.getStatus()).isEqualTo(201);
-        return body(r).get("token").asText();
+        return body(r).get("token").asString();
     }
 
     private static String email() {
@@ -68,7 +68,7 @@ class SecurityReview3IntegrationTest {
         assertThat(call(post("/api/account/mfa/setup"), ip, stolen, Map.of()).getStatus()).isEqualTo(400);
         var wrong = call(post("/api/account/mfa/setup"), ip, stolen, Map.of("password", "chute1234"));
         assertThat(wrong.getStatus()).isEqualTo(400);
-        assertThat(body(wrong).get("message").asText()).isEqualTo("Invalid password");
+        assertThat(body(wrong).get("message").asString()).isEqualTo("Invalid password");
 
         var owner = call(post("/api/auth/login"), ip(), null, Map.of("email", victim, "password", PASSWORD));
         assertThat(owner.getStatus()).isEqualTo(200);
@@ -130,7 +130,7 @@ class SecurityReview3IntegrationTest {
         call(post("/api/cart/items"), ip, token, Map.of("productId", otherId, "quantity", 1));
         var third = call(post("/api/orders/checkout"), ip, token, Map.of("addressId", addressId, "paymentMethod", "PIX"));
         assertThat(third.getStatus()).isEqualTo(400);
-        assertThat(body(third).get("message").asText()).contains("awaiting payment");
+        assertThat(body(third).get("message").asString()).contains("awaiting payment");
     }
 
     @Test
@@ -143,7 +143,7 @@ class SecurityReview3IntegrationTest {
                 Map.of("currentPassword", "errada123", "newPassword", "novaSenha99")).getStatus()).isEqualTo(400);
         var ok = call(post("/api/account/password"), ip, token, Map.of("currentPassword", PASSWORD, "newPassword", "novaSenha99"));
         assertThat(ok.getStatus()).isEqualTo(200);
-        String fresh = body(ok).get("token").asText();
+        String fresh = body(ok).get("token").asString();
 
         assertThat(call(get("/api/account"), ip, token, null).getStatus()).isEqualTo(401);
         assertThat(call(get("/api/account"), ip, fresh, null).getStatus()).isEqualTo(200);

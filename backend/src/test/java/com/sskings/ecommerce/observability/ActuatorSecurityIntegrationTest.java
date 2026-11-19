@@ -1,13 +1,13 @@
 package com.sskings.ecommerce.observability;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:actuator-security;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000")
 @AutoConfigureMockMvc
 // @SpringBootTest desliga os exportadores de métricas por padrão; sem isto /actuator/prometheus nem existiria
-@AutoConfigureObservability
+@AutoConfigureMetrics
 class ActuatorSecurityIntegrationTest {
 
     @Autowired MockMvc mvc;
@@ -39,7 +39,7 @@ class ActuatorSecurityIntegrationTest {
         String resp = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)))
                 .andExpect(status().is2xxSuccessful())
                 .andReturn().getResponse().getContentAsString();
-        return "Bearer " + json.readTree(resp).get("token").asText();
+        return "Bearer " + json.readTree(resp).get("token").asString();
     }
 
     private String admin() throws Exception {
@@ -58,7 +58,9 @@ class ActuatorSecurityIntegrationTest {
         mvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
-                .andExpect(jsonPath("$.components").doesNotExist());
+                .andExpect(jsonPath("$.components").doesNotExist())
+                // só o status: o Boot 4 passou a listar os grupos das sondas (liveness/readiness) para qualquer um
+                .andExpect(content().json("{\"status\":\"UP\"}", org.springframework.test.json.JsonCompareMode.STRICT));
     }
 
     @Test
