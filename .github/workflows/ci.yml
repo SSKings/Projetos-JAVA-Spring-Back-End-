@@ -20,17 +20,28 @@ jobs:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up JDK 17
-        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
 
+      # O Maven Wrapper baixa o Maven a cada execução; uma falha de rede nesse download derrubava o CI.
+      - name: Cache Maven Wrapper
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/wrapper
+          key: maven-wrapper-${{ hashFiles('backend/.mvn/wrapper/maven-wrapper.properties') }}
+
       - name: Build, Test and Coverage check (JaCoCo)
         run: ./mvnw clean verify
+
+      # Teste de mutação das regras de segurança e de dinheiro (Pix, TOTP, senha, bloqueio, limite por IP, validador)
+      - name: Mutation testing (PIT)
+        run: ./mvnw -B pitest:mutationCoverage
 
       - name: Test Pix webhook simulation script
         run: ../scripts/simulate-pix-payment.test.sh
@@ -87,10 +98,10 @@ jobs:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node 24
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
           cache: npm
@@ -109,3 +120,73 @@ jobs:
       # quebras de estilo/empacotamento (ex.: Tailwind 3 -> 4, ver docs/dev-workflow.md)
       - name: Production build
         run: npm run build
+
+  migrations:
+    name: Migrações
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # Migração aplicada em produção não pode mudar (o Flyway recusaria subir): só se acrescentam arquivos novos.
+      - name: Migrações existentes não foram editadas
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          changed=$(git diff --name-status "origin/$BASE...HEAD" -- backend/src/main/resources/db/migration | grep -v '^A' || true)
+          if [ -n "$changed" ]; then
+            echo "::error::Migração existente alterada, renomeada ou removida. Crie uma nova (V<n+1>__...sql):"
+            echo "$changed"
+            exit 1
+          fi
+          echo "ok: só migrações novas"
+
+  production:
+    name: Produção (E2E, upgrade e scan)
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    env:
+      PL: ./load-tests/prod-like/prod-like.sh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # PR: sobe a versão da main (pilha de produção: PostgreSQL com 3 usuários, API perfil prod, nginx TLS), cria dados
+      # com o smoke, e só então sobe a do PR por cima, com os MESMOS segredos e o mesmo volume — as migrações novas
+      # rodam sobre um banco com dados, como num deploy de verdade.
+      - name: Upgrade — sobe a versão atual da main e cria dados
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          git worktree add -q ../base "origin/$BASE"
+          (cd ../base && $PL up && $PL smoke --quiet)
+          cp -r ../base/load-tests/prod-like/generated load-tests/prod-like/
+
+      - name: Sobe a versão do PR (migrações sobre os dados existentes)
+        run: $PL up
+
+      - name: Teste ponta a ponta (k6 através do nginx TLS)
+        run: $PL smoke --quiet
+
+      # Barra vulnerabilidade HIGH/CRITICAL que já tem correção. Exceções justificadas e com validade: .trivyignore.yaml
+      - name: Scan das imagens (Trivy)
+        run: |
+          for image in shopeasy-loadtest-api:latest shopeasy-loadtest-web:latest; do
+            docker image inspect "$image" >/dev/null   # falha se a imagem não existir (não pular o scan em silêncio)
+            echo "::group::$image"
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/.trivyignore.yaml:/ignore.yaml:ro" \
+              aquasec/trivy@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7 \
+              image --quiet --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --ignorefile /ignore.yaml --exit-code 1 "$image"
+            echo "::endgroup::"
+          done
+
+      - name: Logs (em caso de falha)
+        if: failure()
+        run: docker logs --tail 200 shopeasy-loadtest-api-1 || true
+
+      - name: Derruba a pilha
+        if: always()
+        run: $PL down || true
