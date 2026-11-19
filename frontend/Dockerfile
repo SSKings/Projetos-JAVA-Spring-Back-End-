@@ -20,5 +20,10 @@ RUN npm run build
 # ---------- runtime: nginx sem root ----------
 # 1.30 = linha estável atual do nginx (a 1.27 não recebe mais correções)
 FROM nginxinc/nginx-unprivileged:1.31-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
+# Correções de segurança do Alpine que a imagem oficial ainda não trouxe (o scan do CI barra HIGH/CRITICAL corrigíveis);
+# curl não é usado pelo nginx nem pelos healthchecks: sai da imagem (menos superfície). Depois, de volta ao usuário sem root.
+USER root
+RUN apk upgrade --no-cache && apk del --no-cache curl
+USER 101
 COPY --from=build /src/dist /usr/share/nginx/html
 EXPOSE 8080 8443

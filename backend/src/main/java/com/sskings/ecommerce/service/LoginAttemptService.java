@@ -204,6 +204,11 @@ public class LoginAttemptService {
         byReauth.entrySet().removeIf(e -> e.getValue().windowStart().isBefore(staleBefore));
     }
 
+    /** Registros em memória (testes da limpeza). */
+    int tracked() {
+        return byClient.size() + byAccount.size() + byReauth.size();
+    }
+
     private LocalDateTime now() {
         return LocalDateTime.now(clock);
     }

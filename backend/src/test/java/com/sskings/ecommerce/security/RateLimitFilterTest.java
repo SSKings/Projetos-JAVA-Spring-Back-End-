@@ -67,12 +67,20 @@ class RateLimitFilterTest {
     }
 
     @Test
-    @DisplayName("Muitos IPs distintos: janelas antigas são descartadas (memória limitada)")
+    @DisplayName("Muitos IPs distintos: janelas antigas são descartadas (memória limitada); com 10 mil exatas, ainda não")
     void cleanup() throws Exception {
         RateLimitFilter f = filter(true);
         for (int i = 0; i < 10_001; i++) call(f, "POST", "/api/auth/login", "10.0." + (i / 256) + "." + (i % 256));
+        assertThat(f.tracked()).isEqualTo(10_001);
         now.set(Instant.parse("2026-11-05T12:05:00Z"));
         assertThat(call(f, "POST", "/api/auth/login", "1.1.1.1")).isEqualTo(200);
+        assertThat(f.tracked()).as("as do minuto antigo foram descartadas").isEqualTo(1);
+
+        RateLimitFilter g = filter(true);
+        for (int i = 0; i < 9_999; i++) call(g, "POST", "/api/auth/login", "10.1." + (i / 256) + "." + (i % 256));
+        now.set(Instant.parse("2026-11-05T12:10:00Z"));
+        call(g, "POST", "/api/auth/login", "1.1.1.1");
+        assertThat(g.tracked()).isEqualTo(10_000);
     }
 
     @Test
@@ -95,5 +103,40 @@ class RateLimitFilterTest {
         assertThat(call(f, "POST", "/api/payments/pix/%77ebhook", "4.4.4.4")).isEqualTo(200);
         assertThat(call(f, "POST", "/api/payments/pix/%77ebhook", "4.4.4.4")).isEqualTo(200);
         assertThat(call(f, "POST", "/api/payments/pix/webhook", "4.4.4.4")).isEqualTo(429);
+    }
+
+    // ---- achados pelo teste de mutação ----
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"/api/auth/login", "/api/auth/register", "/api/auth/verify-email",
+            "/api/auth/forgot-password", "/api/auth/reset-password"})
+    @DisplayName("Toda rota sensível sem login cai no balde 'auth' (inclusive esqueci a senha e redefinição)")
+    void authBucketRoutes(String uri) {
+        assertThat(RateLimitFilter.bucketOf(uri)).isEqualTo("auth");
+        assertThat(RateLimitFilter.bucketOf("/api/payments/pix/webhook")).isEqualTo("webhook");
+        assertThat(RateLimitFilter.bucketOf("/api/products")).isNull();
+    }
+
+    @Test
+    @DisplayName("429: JSON padrão e Retry-After com os segundos que faltam; liberado segue adiante; janela vale o minuto todo")
+    void tooManyResponse() throws Exception {
+        now.set(Instant.parse("2026-11-10T15:00:15Z"));
+        RateLimitFilter f = filter(true);                                            // auth: 3 por minuto
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/auth/login");
+        req.setRemoteAddr("7.7.7.7");
+        for (int i = 0; i < 3; i++) {
+            MockFilterChain ok = new MockFilterChain();
+            f.doFilter(req, new MockHttpServletResponse(), ok);
+            assertThat(ok.getRequest()).as("liberado segue adiante").isNotNull();
+        }
+        now.set(Instant.parse("2026-11-10T15:00:45Z"));                              // mesmo minuto, outro segundo
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        MockFilterChain blocked = new MockFilterChain();
+        f.doFilter(req, res, blocked);
+        assertThat(res.getStatus()).isEqualTo(429);
+        assertThat(blocked.getRequest()).isNull();
+        assertThat(res.getHeader("Retry-After")).isEqualTo("15");
+        assertThat(res.getContentType()).startsWith("application/json");
+        assertThat(res.getContentAsString()).isEqualTo("{\"status\":429,\"message\":\"Too many requests\"}");
     }
 }

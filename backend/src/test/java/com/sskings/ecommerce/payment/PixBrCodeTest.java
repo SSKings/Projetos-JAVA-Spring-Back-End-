@@ -99,4 +99,13 @@ class PixBrCodeTest {
     void build_amountScale() {
         assertThat(parse(PixBrCode.build("k@k.com", "L", "SP", new BigDecimal("10.005"), "T", null)).get("54")).isEqualTo("10.01");
     }
+
+    @Test
+    @DisplayName("txid: 1 e 25 caracteres alfanuméricos passam (limites do BR Code)")
+    void txidBoundaries() {
+        assertThat(PixBrCode.build("k", "Loja", "SP", BigDecimal.ONE, "T", null)).contains("0501T");
+        assertThat(PixBrCode.build("k", "Loja", "SP", BigDecimal.ONE, "A".repeat(25), null)).contains("0525" + "A".repeat(25));
+        assertThat(PixBrCode.sanitize("Ação Ltda", 0)).isEmpty();
+        assertThat(PixBrCode.sanitize("abc", 3)).isEqualTo("abc");
+    }
 }

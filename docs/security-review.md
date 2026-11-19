@@ -693,3 +693,30 @@ teste e não era). Cada correção tem teste que **falha no código anterior**: 
 `org.springframework.web=DEBUG` e `show-sql` na configuração principal e `System.out`; demais aplicações sem log de
 login recusado nem de chamadas externas; INFO do ciclo do pedido.
 
+## 15. Rede de proteção contra regressões — 2026-11-19 (ADR-027)
+
+O CI só testava o código com H2: a pilha real (PostgreSQL com três usuários, nginx, imagens, migrações sobre dados)
+só era exercitada à mão, no `prod-like.sh`. E nada barrava vulnerabilidade nas imagens. Agora todo PR passa por:
+
+| Etapa | O que barra |
+|---|---|
+| Produção (CI) | Sobe a versão da `main` com o `prod-like.sh`, cria dados com o smoke do k6, sobe a do PR por cima (mesmos segredos e volume) e roda o smoke de novo através do nginx com TLS |
+| Scan das imagens | Trivy barra HIGH/CRITICAL corrigíveis na API e no nginx; exceções só em `.trivyignore.yaml`, com justificativa e validade |
+| CodeQL | Java e TypeScript (`security-extended`), em todo PR e toda semana |
+| Migrações | Migração que já está na `main` não pode ser editada, renomeada ou apagada |
+| Mutação (PIT) | Pix (BR Code), TOTP, senha, bloqueio de login, limite por IP e validador de produção: mínimo de 90% dos defeitos injetados pegos (hoje 92,9%; os que sobram são equivalentes) |
+| Cobertura | Mínimos perto do atual: backend 97% / 93% (era 85/80), frontend 97 / 94 (era 90/85) |
+
+| # | Severidade | Achado | Correção | Teste |
+|---|------------|--------|----------|-------|
+| P-1 | Média | **Senha disfarçada aceita**: `99s3nh499` passava — o "4" final do disfarce sumia junto com os dígitos | Também confere a senha inteira sem leet, aparada | `PasswordStrengthTest.weakWordVariants` (falha no código anterior) |
+| P-2 | Média | **Imagem do nginx com 13 vulnerabilidades do Alpine** (1 crítica, brotli), mesmo na 1.31: a imagem oficial ainda não tinha as correções | O build aplica `apk upgrade` e remove o `curl` (não usado) | Scan no CI: 0 HIGH/CRITICAL |
+| P-3 | Média | **Limpeza de memória do bloqueio de login sem teste**: dava para apagar o histórico de estouro da conta (e o bloqueio progressivo) enchendo a memória — nada pegaria | — (o código estava certo) | `LoginAttemptServiceTest.evictionKeepsStrikes` (falha se a limpeza apagar o estouro) e `evictionThresholdAndRate` |
+| P-4 | Baixa | **Regras do validador de produção testadas só em conjunto**: a chave de 32 bytes, CORS com uma origem http, senha do admin, e-mail — cada uma podia sumir sem teste falhar | — | Um teste por regra em `ProductionConfigValidatorTest` |
+| P-5 | Baixa | **Rotas do limite por IP**: "esqueci a senha", redefinição e webhook podiam sair do limite sem teste falhar; o teste da limpeza passava mesmo sem limpeza | — | `RateLimitFilterTest.authBucketRoutes`, `tooManyResponse`, `cleanup` (com o tamanho antes e depois) |
+
+**Aceito / pendente:** Spring Boot 3.5 / Spring 6.2 fora do suporte gratuito, com duas falhas críticas sem correção
+na linha 6.2 (CVE-2026-47884, CVE-2026-47890). Não exploráveis aqui (exigem `XsltView` ou SSE com fragmentos de view;
+a API é só JSON e o Pix é acompanhado por polling): exceção no scan até **28/02/2027**. Próximo passo: migrar para o
+Spring Boot 4. Os testes do backend ainda rodam com H2; o job de produção cobre o PostgreSQL de ponta a ponta.
+

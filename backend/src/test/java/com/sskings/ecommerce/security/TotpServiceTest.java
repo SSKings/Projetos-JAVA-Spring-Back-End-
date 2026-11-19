@@ -67,4 +67,25 @@ class TotpServiceTest {
         assertThat(totp.otpauthUri("ShopEasy", "ana@a.com", "ABC"))
                 .isEqualTo("otpauth://totp/ShopEasy%3Aana%40a.com?secret=ABC&issuer=ShopEasy&algorithm=SHA1&digits=6&period=30");
     }
+
+    @Test
+    @DisplayName("Depois de usar um passo, o código do passo SEGUINTE continua valendo (o reuso bloqueia só o mesmo ou anterior)")
+    void nextStepAfterUse() {
+        String secret = TotpService.base32(RFC_KEY);
+        long t = 1111111109L;
+        long used = at(t).verify(secret, at(t).currentCode(secret), null).orElseThrow();
+        String next = at(t + 30).currentCode(secret);
+        assertThat(at(t + 30).verify(secret, next, used)).hasValue(used + 1);
+        assertThat(at(t + 30).verify(secret, at(t).currentCode(secret), used)).as("o já usado continua recusado").isEmpty();
+    }
+
+    @Test
+    @DisplayName("Base32: vetores da RFC 4648, inclusive tamanhos que não fecham 5 bytes")
+    void base32Rfc4648() {
+        String[][] v = {{"f", "MY"}, {"fo", "MZXQ"}, {"foo", "MZXW6"}, {"foob", "MZXW6YQ"}, {"fooba", "MZXW6YTB"}, {"foobar", "MZXW6YTBOI"}};
+        for (String[] p : v) {
+            assertThat(TotpService.base32(p[0].getBytes(StandardCharsets.US_ASCII))).as(p[0]).isEqualTo(p[1]);
+            assertThat(new String(TotpService.decodeBase32(p[1]), StandardCharsets.US_ASCII)).isEqualTo(p[0]);
+        }
+    }
 }

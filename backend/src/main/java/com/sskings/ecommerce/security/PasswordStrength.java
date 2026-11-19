@@ -46,7 +46,10 @@ public final class PasswordStrength {
         String core = pw.replaceAll("^[^a-z]+|[^a-z]+$", "");
         // "S3nh@2026": tirar só dígitos e pontuação das pontas preserva o "@" do meio da palavra disfarçada
         String leetCore = unleet(pw.replaceAll("^[\\d\\p{Punct}&&[^@$!]]+|[\\d\\p{Punct}&&[^@$!]]+$", ""));
-        if (WEAK_WORDS.contains(core) || WEAK_WORDS.contains(unleet(core)) || WEAK_WORDS.contains(leetCore)) {
+        // "99s3nh499": o "4" final do disfarce some junto com os dígitos se aparar antes de desfazer o leet
+        String unleetedCore = unleet(pw).replaceAll("^[^a-z]+|[^a-z]+$", "");
+        if (WEAK_WORDS.contains(core) || WEAK_WORDS.contains(unleet(core)) || WEAK_WORDS.contains(leetCore)
+                || WEAK_WORDS.contains(unleetedCore)) {
             return Optional.of(TOO_COMMON);
         }
         if (pw.chars().filter(Character::isLetter).count() <= 2) return Optional.of(TOO_COMMON);
@@ -84,15 +87,20 @@ public final class PasswordStrength {
         Set<String> c = common;
         if (c == null) {
             try (var in = PasswordStrength.class.getResourceAsStream("/security/common-passwords.txt")) {
-                if (in == null) throw new IllegalStateException("security/common-passwords.txt not found");
-                c = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)).lines()
-                        .map(String::trim).filter(l -> !l.isEmpty() && !l.startsWith("#"))
-                        .map(PasswordStrength::fold).collect(Collectors.toUnmodifiableSet());
+                c = load(in);
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot read security/common-passwords.txt", e);
             }
             common = c;
         }
         return c;
+    }
+
+    /** Uma senha por linha; linhas vazias e comentários (#) ignorados; sem maiúsculas nem acentos. */
+    static Set<String> load(java.io.InputStream in) {
+        if (in == null) throw new IllegalStateException("security/common-passwords.txt not found");
+        return new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)).lines()
+                .map(String::trim).filter(l -> !l.isEmpty() && !l.startsWith("#"))
+                .map(PasswordStrength::fold).collect(Collectors.toUnmodifiableSet());
     }
 }
