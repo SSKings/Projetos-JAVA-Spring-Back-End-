@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white" alt="Java 17"/>
   <img src="https://img.shields.io/badge/Spring%20Boot-3.5-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot 3.5"/>
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19"/>
-  <img src="https://img.shields.io/badge/testes-785-brightgreen" alt="785 testes"/>
+  <img src="https://img.shields.io/badge/testes-806-brightgreen" alt="806 testes"/>
 </p>
 
 E-commerce full-stack com **API REST em Spring Boot** e **SPA em React + TypeScript**: catálogo, carrinho, checkout
@@ -28,12 +28,12 @@ segurança revisada, observabilidade e pilha de produção prontas.
 - **Bot de administração no Telegram**: avisos de pedidos e Pix e ações de admin pelo chat, com confirmação e auditoria
 - **Produção com Docker**: PostgreSQL com três usuários, API sem root e read-only, nginx com TLS, logs em JSON com
   rotação, backup cifrado
-- **785 testes** com cobertura exigida no build (backend 98,4% de linhas, frontend 99,1%); o CI também roda CVEs
+- **806 testes** com cobertura exigida no build (backend 98,4% de linhas, frontend 99,1%); o CI também roda CVEs
   (OSV + `npm audit`), imagens e actions fixadas por hash, validação dos dashboards e um **teste funcional k6 contra a
   API rodando**
 - **Capacidade medida com k6**: ~400 ações/s dentro do SLO na pilha de produção; duas corridas e um deadlock achados
   pelo teste já corrigidos ([`load-tests/`](load-tests/README.md))
-- Decisões documentadas em [26 ADRs](docs/adr.md), referência da API em [`docs/api-reference.md`](docs/api-reference.md)
+- Decisões documentadas em [27 ADRs](docs/adr.md), referência da API em [`docs/api-reference.md`](docs/api-reference.md)
 
 ## Estrutura do repositório
 
@@ -308,7 +308,7 @@ Administrador (/admin, MFA obrigatório em produção)
 
 | Projeto   | Comando                 | Testes | Linhas | Branches |
 |-----------|-------------------------|--------|--------|----------|
-| Backend   | `./mvnw verify`         | 448    | 98,4%  | 94,4%    |
+| Backend   | `./mvnw verify`         | 469    | 98,4%  | 94,8%    |
 | Frontend  | `npm run coverage`      | 337    | 99,1%  | 95,9%    |
 | Scripts (Python) | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 56 | — | — |
 | Script Pix | `./scripts/simulate-pix-payment.test.sh` | 10 | — | — |
@@ -320,8 +320,11 @@ assistente do bot de administração (6, contra um Telegram falso), o backup cif
 imagens/actions fixadas por hash (5, inclusive a leitura da imagem do k6 pelo CI) e o executor local dos jobs do CI
 (4, `scripts/run-ci-job.py`).
 
-Os dois comandos **falham se a cobertura cair** abaixo do mínimo (backend 85% linhas / 80% branches;
-frontend 90% linhas / 85% branches) e rodam no CI a cada push. No front, o CI também roda `tsc -b`, `lint` e
+Os dois comandos **falham se a cobertura cair** abaixo do mínimo (backend 97% linhas / 93% branches;
+frontend 97% linhas / 94% branches) e rodam no CI a cada push. O CI também roda o **teste de mutação** (PIT) nas
+regras de segurança e de dinheiro (mínimo de 90% dos defeitos injetados pegos), **sobe a pilha de produção** da
+`main` com dados e a do PR por cima (migrações sobre dados reais, smoke do k6 pelo nginx com TLS), **escaneia as
+imagens** (Trivy) e roda o **CodeQL** — ADR-027. No front, o CI também roda `tsc -b`, `lint` e
 **`npm run build`**: os testes não processam CSS, então só o build pega quebras de Tailwind/PostCSS (ADR-020).
 O CI também verifica vulnerabilidades conhecidas nas dependências: `scripts/check-dependency-cves.py` (backend, banco
 OSV, inclui o que vem do BOM do Spring Boot) e `npm audit --omit=dev --audit-level=high` (front) — ADR-021.
