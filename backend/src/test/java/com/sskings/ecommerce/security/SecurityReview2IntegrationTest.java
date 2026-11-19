@@ -1,12 +1,12 @@
 package com.sskings.ecommerce.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -50,7 +50,7 @@ class SecurityReview2IntegrationTest {
         String resp = mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(
                         Map.of("name", "Cliente Teste", "email", email, "password", "Vagalume4821", "acceptTerms", true))))
                 .andReturn().getResponse().getContentAsString();
-        return json.readTree(resp).get("token").asText();
+        return json.readTree(resp).get("token").asString();
     }
 
     private static String email() {
@@ -115,7 +115,7 @@ class SecurityReview2IntegrationTest {
         java.util.Arrays.fill(big, (byte) 'a');
         mvc.perform(post("/api/payments/pix/webhook").contentType(MediaType.APPLICATION_JSON).content(big)
                         .header("X-Pix-Timestamp", "1").header("X-Pix-Signature", "x"))
-                .andExpect(status().isPayloadTooLarge())
+                .andExpect(status().isContentTooLarge())
                 .andExpect(jsonPath("$.message").value("Request body too large"));
         assertThat(httpStatus(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(big), null)).isEqualTo(413);
         // corpo normal continua chegando ao controller (assinatura inválida → 401)

@@ -1,6 +1,6 @@
 package com.sskings.ecommerce.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.model.EmailToken;
 import com.sskings.ecommerce.model.User;
 import com.sskings.ecommerce.repository.EmailTokenRepository;
@@ -9,7 +9,7 @@ import com.sskings.ecommerce.service.PasswordResetService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -69,7 +69,7 @@ class SecurityReview6IntegrationTest {
         MockHttpServletResponse r = call(post("/api/auth/register"), ip(), null,
                 Map.of("name", "Ana Teste", "email", email, "password", PASSWORD, "acceptTerms", true));
         assertThat(r.getStatus()).isEqualTo(201);
-        return new String[]{email, json.readTree(r.getContentAsString()).get("token").asText()};
+        return new String[]{email, json.readTree(r.getContentAsString()).get("token").asString()};
     }
 
     private static String randomHash() {

@@ -1,7 +1,7 @@
 package com.sskings.ecommerce.mail;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.repository.EmailTokenRepository;
 import com.sskings.ecommerce.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,7 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mail.SimpleMailMessage;
@@ -93,7 +93,7 @@ class EmailFlowsIntegrationTest {
         var r = call(post("/api/auth/register"), null,
                 Map.of("name", "Cliente Email", "email", email, "password", PASSWORD, "acceptTerms", true));
         assertThat(r.getStatus()).isEqualTo(201);
-        return body(r).get("token").asText();
+        return body(r).get("token").asString();
     }
 
     private static String email() {
@@ -118,7 +118,7 @@ class EmailFlowsIntegrationTest {
         call(post("/api/cart/items"), jwt, Map.of("productId", 1, "quantity", 1));
         var blocked = call(post("/api/orders/checkout"), jwt, Map.of("addressId", address));
         assertThat(blocked.getStatus()).isEqualTo(400);
-        assertThat(body(blocked).get("message").asText()).isEqualTo("Confirm your email before placing an order");
+        assertThat(body(blocked).get("message").asString()).isEqualTo("Confirm your email before placing an order");
 
         assertThat(call(post("/api/auth/verify-email"), null, Map.of("token", token)).getStatus()).isEqualTo(204);
         assertThat(call(post("/api/auth/verify-email"), null, Map.of("token", token)).getStatus()).isEqualTo(400);   // uso único
@@ -129,7 +129,7 @@ class EmailFlowsIntegrationTest {
         long orderId = body(order).get("id").asLong();
         SimpleMailMessage orderMail = lastTo(email);
         assertThat(orderMail.getSubject()).startsWith("Pedido #" + orderId + " recebido");
-        assertThat(orderMail.getText()).contains(body(order).at("/payment/pixCopyPaste").asText(), "/orders/" + orderId);
+        assertThat(orderMail.getText()).contains(body(order).at("/payment/pixCopyPaste").asString(), "/orders/" + orderId);
     }
 
     @Test
@@ -144,11 +144,11 @@ class EmailFlowsIntegrationTest {
         }
         // token de confirmação não serve para redefinir senha
         var wrongPurpose = call(post("/api/auth/reset-password"), null, Map.of("token", verifyToken, "newPassword", "Outra98765x"));
-        assertThat(body(wrongPurpose).get("message").asText()).isEqualTo("Invalid or expired link");
+        assertThat(body(wrongPurpose).get("message").asString()).isEqualTo("Invalid or expired link");
 
         var tooSoon = call(post("/api/account/verification-email"), jwt, null);
         assertThat(tooSoon.getStatus()).isEqualTo(400);
-        assertThat(body(tooSoon).get("message").asText()).startsWith("Wait a few minutes");
+        assertThat(body(tooSoon).get("message").asString()).startsWith("Wait a few minutes");
     }
 
     @Test
@@ -172,7 +172,7 @@ class EmailFlowsIntegrationTest {
 
         var weak = call(post("/api/auth/reset-password"), null, Map.of("token", token, "newPassword", "senha123"));
         assertThat(weak.getStatus()).isEqualTo(400);
-        assertThat(body(weak).get("message").asText()).isEqualTo(com.sskings.ecommerce.security.PasswordStrength.TOO_COMMON);
+        assertThat(body(weak).get("message").asString()).isEqualTo(com.sskings.ecommerce.security.PasswordStrength.TOO_COMMON);
         // senha fraca não queima o link: o mesmo link funciona com uma senha boa
         assertThat(call(post("/api/auth/reset-password"), null, Map.of("token", token, "newPassword", "Libelula5732x"))
                 .getStatus()).isEqualTo(204);
@@ -212,7 +212,7 @@ class EmailFlowsIntegrationTest {
                 .getStatus()).isEqualTo(200);
         var r = call(post("/api/auth/reset-password"), null, Map.of("token", pending, "newPassword", "Outra98765x"));
         assertThat(r.getStatus()).isEqualTo(400);
-        assertThat(body(r).get("message").asText()).isEqualTo("Invalid or expired link");
+        assertThat(body(r).get("message").asString()).isEqualTo("Invalid or expired link");
         assertThat(call(post("/api/auth/login"), null, Map.of("email", email, "password", "Libelula5732x")).getStatus()).isEqualTo(200);
     }
 

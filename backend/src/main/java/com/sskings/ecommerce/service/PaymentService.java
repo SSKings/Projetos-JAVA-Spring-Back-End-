@@ -1,7 +1,7 @@
 package com.sskings.ecommerce.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.sskings.ecommerce.dto.request.PixWebhookRequest;
 import com.sskings.ecommerce.dto.response.PaymentResponse;
 import com.sskings.ecommerce.event.OrderEvent;
@@ -210,7 +210,7 @@ public class PaymentService {
                 throw new BusinessException("Invalid webhook payload");
             }
             return event;
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {         // Jackson 3: exceções não checadas; JSON quebrado é 400, não 500
             throw new BusinessException("Invalid webhook payload");
         }
     }

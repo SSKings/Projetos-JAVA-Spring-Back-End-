@@ -1,6 +1,6 @@
 package com.sskings.ecommerce.telegram;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -84,7 +84,7 @@ public class TelegramClient {
             throw new TelegramException(method + " failed: " + redact(e.getMessage()));
         }
         if (response == null || !response.path("ok").asBoolean(false)) {
-            String description = response == null ? "empty response" : response.path("description").asText("unknown error");
+            String description = response == null ? "empty response" : response.path("description").asString("unknown error");
             throw new TelegramException(method + " failed: " + redact(description));
         }
         return response.path("result");

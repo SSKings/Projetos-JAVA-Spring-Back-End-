@@ -1,6 +1,6 @@
 package com.sskings.ecommerce.telegram;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.sskings.ecommerce.dto.request.UpdateUserRequest;
 import com.sskings.ecommerce.dto.response.AdminOrderResponse;
 import com.sskings.ecommerce.dto.response.OrderResponse;
@@ -79,11 +79,11 @@ public class TelegramAdminBot {
         JsonNode message = callback.isMissingNode() ? update.path("message") : callback.path("message");
         long chatId = message.path("chat").path("id").asLong();
         long fromId = (callback.isMissingNode() ? message : callback).path("from").path("id").asLong();
-        String text = callback.isMissingNode() ? message.path("text").asText("").trim() : null;
+        String text = callback.isMissingNode() ? message.path("text").asString("").trim() : null;
         if (chatId == 0) return;
 
         if (!callback.isMissingNode()) {
-            client.answerCallback(callback.path("id").asText(), null);
+            client.answerCallback(callback.path("id").asString(), null);
         }
         // Só conversa privada: num grupo, chatId != fromId e qualquer membro poderia clicar nos botões.
         String email = chatId == fromId ? props.adminChats().get(chatId) : null;
@@ -122,7 +122,7 @@ public class TelegramAdminBot {
         SecurityContextHolder.getContext().setAuthentication(auth);
         try {
             if (callback.isMissingNode()) command(chatId, text, admin.get());
-            else button(chatId, callback.path("data").asText(""), admin.get());
+            else button(chatId, callback.path("data").asString(""), admin.get());
         } catch (BusinessException e) {
             client.sendMessage(chatId, "Password confirmation required".equals(e.getMessage()) ? PANEL_ONLY
                     : "⚠️ " + esc(e.getMessage()), null);

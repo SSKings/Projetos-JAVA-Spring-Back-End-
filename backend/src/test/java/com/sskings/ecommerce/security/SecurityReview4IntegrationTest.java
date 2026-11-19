@@ -1,11 +1,11 @@
 package com.sskings.ecommerce.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -60,7 +60,7 @@ class SecurityReview4IntegrationTest {
         var r = call(post("/api/auth/register"), ip(), null,
                 Map.of("name", "Cliente R4", "email", email, "password", PASSWORD, "acceptTerms", true));
         assertThat(r.getStatus()).isEqualTo(201);
-        return body(r).get("token").asText();
+        return body(r).get("token").asString();
     }
 
     private static String email() {
@@ -117,11 +117,11 @@ class SecurityReview4IntegrationTest {
         register(attacker);
         long attackerId = users.findByEmail(attacker).orElseThrow().getId();
         String admin = body(call(post("/api/auth/login"), ip(), null,
-                Map.of("email", "admin@shopeasy.com", "password", "admin123"))).get("token").asText();
+                Map.of("email", "admin@shopeasy.com", "password", "admin123"))).get("token").asString();
 
         var noPassword = call(patch("/api/admin/users/" + attackerId), ip(), admin, Map.of("role", "ADMIN"));
         assertThat(noPassword.getStatus()).isEqualTo(400);
-        assertThat(body(noPassword).get("message").asText()).isEqualTo("Password confirmation required");
+        assertThat(body(noPassword).get("message").asString()).isEqualTo("Password confirmation required");
         assertThat(call(patch("/api/admin/users/" + attackerId), ip(), admin,
                 Map.of("role", "ADMIN", "password", "chute123")).getStatus()).isEqualTo(400);
         assertThat(users.findByEmail(attacker).orElseThrow().getRole().name()).isEqualTo("CUSTOMER");
@@ -150,7 +150,7 @@ class SecurityReview4IntegrationTest {
         call(post("/api/cart/items"), ip, token, Map.of("productId", id, "quantity", 10));
         var all = call(post("/api/orders/checkout"), ip, token, Map.of("addressId", addressId, "paymentMethod", "PIX"));
         assertThat(all.getStatus()).isEqualTo(400);
-        assertThat(body(all).get("message").asText()).startsWith("Maximum quantity for this product right now: 5");
+        assertThat(body(all).get("message").asString()).startsWith("Maximum quantity for this product right now: 5");
 
         call(put("/api/cart/items/" + body(call(get("/api/cart"), ip, token, null)).at("/items/0/id").asLong()), ip, token,
                 Map.of("quantity", 5));
@@ -179,7 +179,7 @@ class SecurityReview4IntegrationTest {
     void mfaCodeRaceAcceptsOnlyOne() throws Exception {
         String user = email();
         String token = register(user);
-        String secret = body(call(post("/api/account/mfa/setup"), ip(), token, Map.of("password", PASSWORD))).get("secret").asText();
+        String secret = body(call(post("/api/account/mfa/setup"), ip(), token, Map.of("password", PASSWORD))).get("secret").asString();
         String code = totp.currentCode(secret);
         assertThat(call(post("/api/account/mfa/enable"), ip(), token, Map.of("code", code)).getStatus()).isEqualTo(200);
         // libera o código de novo (como se ainda não tivesse sido usado) para os dois logins disputarem

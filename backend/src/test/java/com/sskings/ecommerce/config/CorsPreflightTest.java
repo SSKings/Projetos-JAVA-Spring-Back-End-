@@ -16,8 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -39,12 +39,12 @@ class CorsPreflightTest {
     private static final String FRONT = "http://localhost:5173";
 
     @Autowired MockMvc mockMvc;
-    @MockBean AdminOrderService adminOrderService;
-    @MockBean AdminUserService adminUserService;
-    @MockBean CartService cartService;
-    @MockBean ProductService productService;
-    @MockBean UserRepository userRepository;
-    @MockBean JwtService jwtService;
+    @MockitoBean AdminOrderService adminOrderService;
+    @MockitoBean AdminUserService adminUserService;
+    @MockitoBean CartService cartService;
+    @MockitoBean ProductService productService;
+    @MockitoBean UserRepository userRepository;
+    @MockitoBean JwtService jwtService;
 
     @ParameterizedTest(name = "preflight {0} {1}")
     @CsvSource({

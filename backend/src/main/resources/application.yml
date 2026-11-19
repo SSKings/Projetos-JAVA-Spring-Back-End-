@@ -1,6 +1,10 @@
 # Configuração comum. Segredos NÃO têm valor padrão aqui: vêm de variáveis de ambiente (prod)
 # ou de application-dev.yml (desenvolvimento). Ver docs/security-review.md (C1).
 spring:
+  web:
+    error:                         # Boot 4: era server.error.* (as chaves antigas são ignoradas)
+      include-message: never
+      include-stacktrace: never
   profiles:
     default: dev
   jpa:
@@ -49,6 +53,8 @@ management:
     health:
       show-details: when-authorized
       roles: ADMIN
+      probes:
+        enabled: false             # Boot 4 liga as sondas do Kubernetes e lista os grupos no /health público; sem Kubernetes aqui
   health:
     # Sem o indicador do servidor de e-mail (ADR-025): ele abria uma conexão SMTP a cada checagem (o Gmail limita) e
     # um SMTP fora do ar marcava a loja inteira como DOWN. Falha de e-mail vira log no envio (MailOutbox).
@@ -62,9 +68,6 @@ logging:
 
 server:
   port: 8080
-  error:
-    include-message: never
-    include-stacktrace: never
 
 security:
   jwt:
