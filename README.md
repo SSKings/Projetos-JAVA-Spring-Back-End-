@@ -77,11 +77,11 @@ shopeasy/
 ## Rodando localmente
 
 ```bash
-# 1. Backend (porta 8080)
+# Terminal 1 — backend (porta 8080), a partir da raiz do repositório
 cd backend
 ./mvnw spring-boot:run
 
-# 2. Frontend (porta 5173) — a partir da raiz do repositório
+# Terminal 2 — frontend (porta 5173), a partir da raiz do repositório
 cd frontend
 npm ci          # instala exatamente o package-lock.json (rode de novo após cada git pull)
 npm run dev     # antes de subir, avisa se a branch não tem commits da main
@@ -104,9 +104,10 @@ dev, rode a API com `REQUIRE_VERIFIED_EMAIL=false`.
 Opcional, para desenvolvimento. Mostra cada clique do front até o SQL no Grafana:
 
 ```bash
-cd observability-stack && docker compose up -d   # Grafana em http://localhost:3000
-cd .. && ./scripts/run-backend.sh                                 # API com o agente OpenTelemetry
-cd ../frontend && VITE_OTEL_ENABLED=true npm run dev
+# a partir da raiz do repositório
+(cd observability-stack && docker compose up -d)   # Grafana em http://localhost:3000
+./scripts/run-backend.sh                           # terminal 1: API com o agente OpenTelemetry (fica em primeiro plano)
+cd frontend && VITE_OTEL_ENABLED=true npm run dev  # terminal 2
 ```
 
 Dashboards prontos na pasta **ShopEasy** do Grafana: "ShopEasy API — Visão geral" (home) e "ShopEasy — Negócio e segurança"; 12 alertas na pasta **ShopEasy — Alertas**.
