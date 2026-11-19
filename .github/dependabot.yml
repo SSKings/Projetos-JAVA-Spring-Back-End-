@@ -19,11 +19,24 @@ updates:
     directory: /frontend
     schedule: { interval: weekly }
     groups:
+      # OpenTelemetry do navegador num grupo próprio: os pacotes só funcionam todos na mesma linha. Misturados no grupo
+      # geral, um PR levava as instrumentações para a 0.30x (core 3.x) e deixava o resto na 2.x — o npm não instalava.
+      opentelemetry:
+        patterns: ["@opentelemetry/*"]
       npm-minor-patch:
         update-types: [minor, patch]
+        exclude-patterns: ["@opentelemetry/*"]
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # Linha 3.x do SDK (instrumentações 0.30x, API 1.10): o sdk-trace-web foi descontinuado sem substituto estável
+      # para navegador (o @opentelemetry/browser-sdk ainda é 0.x). Migrar junto, quando ele estabilizar.
+      - dependency-name: "@opentelemetry/api"
+        versions: [">=1.10.0"]
+      - dependency-name: "@opentelemetry/instrumentation*"
+        versions: [">=0.300.0"]
+      - dependency-name: "@opentelemetry/exporter-trace-otlp-http"
+        versions: [">=0.300.0"]
 
   - package-ecosystem: docker
     directories: [/backend, /frontend]
