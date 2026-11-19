@@ -15,7 +15,7 @@
 	<description>Simple e-commerce REST API</description>
 	<properties>
 		<java.version>17</java.version>
-		<springdoc.version>2.8.17</springdoc.version>
+		<springdoc.version>2.10.0</springdoc.version>
 		<!-- agente Java do OpenTelemetry usado por run-backend.sh (não entra no jar da aplicação) -->
 		<otel-javaagent.version>2.33.0</otel-javaagent.version>
 		<!--
