@@ -778,3 +778,30 @@ exercitado à mão (`prod-like.sh`). Vulnerabilidades nas imagens também não e
 - O nginx aplica as atualizações do Alpine no build: menos reprodutível byte a byte, mas sem esperar a imagem oficial.
 - As duas falhas do Spring 6.2 ficam como exceção até 28/02/2027 — prazo para migrar para o Spring Boot 4.
 
+## ADR-028 — Spring Boot 4.1 com Jackson 3, sem os atalhos de compatibilidade
+
+**Status:** Aceito
+
+**Contexto:** a linha Spring Boot 3.5 / Spring 6.2 saiu do suporte gratuito, com duas falhas críticas corrigidas só no
+Spring 7 (CVE-2026-47884, CVE-2026-47890 — não exploráveis aqui, mas sem saída na 6.2). Estavam como exceção no scan
+até 28/02/2027 (ADR-027). O Bolso já tinha feito a mesma migração.
+
+**Decisão:**
+1. Spring Boot 4.1.2 (Spring 7, Security 7, Jackson 3, Hibernate 7, Flyway 12, Tomcat 11) com os **starters
+   modulares** (webmvc, flyway, restclient, micrometer-metrics, h2console e um de teste por tecnologia), sem o
+   `spring-boot-starter-classic`.
+2. **Jackson 3** (`tools.jackson`) no app e nos testes, sem o módulo `spring-boot-jackson2`. O Jackson 2 continua no
+   classpath só por causa do swagger-core (springdoc), com a versão forçada por CVE.
+3. `@MockBean` (removido no Boot 4) → `@MockitoBean`; nenhum aviso de depreciação no build.
+4. Testes sempre com a JVM em UTC, como no CI.
+
+**Consequências / pegadinhas evitadas:**
+- O `PaymentService` injetava o `ObjectMapper` do Jackson 2: compilava (o Jackson 2 vem pelo swagger-core), mas o
+  Boot 4 não cria esse bean — a API nem subiria. E as exceções do Jackson 3 não são checadas: o `catch` do webhook do
+  Pix foi trocado para `JacksonException`, senão JSON quebrado viraria 500 em vez de 400 (`PaymentServiceTest`).
+- O bot do Telegram com `JsonNode` do Jackson 2 também compilava, mas o `RestClient` converte com o Jackson 3.
+- `PropertyReferenceException` mudou de pacote no Spring Data 4 (tratamento de `?sort=` inválido → 400).
+- O `/actuator/health` público passou a listar grupos e o `server.error.*` deixou de valer (ver seção 15 do
+  `security-review.md`).
+- O `.trivyignore.yaml` ficou vazio: a imagem da API saiu de 2 falhas críticas para 0.
+
