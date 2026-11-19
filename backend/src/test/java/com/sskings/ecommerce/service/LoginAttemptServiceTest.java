@@ -48,6 +48,7 @@ class LoginAttemptServiceTest {
         assertThat(LoginAttemptService.sourceKey("2001:db8:1:3::1")).isEqualTo("2001:db8:1:3::/64");
         assertThat(LoginAttemptService.sourceKey("fe80::1%eth0")).isEqualTo("fe80:0:0:0::/64");
         assertThat(LoginAttemptService.sourceKey("::1")).isEqualTo("0:0:0:0::/64");
+        assertThat(LoginAttemptService.sourceKey("2001:db8:abcd:ef01::1")).as("byte alto em todos os grupos").isEqualTo("2001:db8:abcd:ef01::/64");
         assertThat(LoginAttemptService.sourceKey("::ffff:198.51.100.4")).isEqualTo("198.51.100.4");
         for (String bad : new String[]{null, "", "localhost", "evil.example"}) {
             assertThat(LoginAttemptService.sourceKey(bad)).as(String.valueOf(bad)).isEqualTo("-");
@@ -209,5 +210,70 @@ class LoginAttemptServiceTest {
             now.set(now.get().plusSeconds(retry[0]));
         }
         assertThat(last).isEqualTo(LoginAttemptService.MAX_ACCOUNT_BLOCK.toSeconds() + 1);   // 15·2^8 min > 24 h
+    }
+
+    // ---- limpeza de memória (achada pelo teste de mutação: nenhuma regra dela tinha teste) ----
+
+    /** Uma falha de login para o e-mail, de um IP. */
+    private void fail(String email, String ip) {
+        fromIp(ip);
+        attempts.registerLoginFailure(email);
+    }
+
+    /** Estoura o teto da conta (20 falhas de IPs diferentes: nenhuma origem chega a ser bloqueada sozinha). */
+    private void overflowAccount(String email, int seed) {
+        for (int i = 0; i < LoginAttemptService.ACCOUNT_BUDGET; i++) fail(email, "198.18." + seed + "." + (i + 1));
+    }
+
+    private boolean blocked(String email) {
+        fromIp("192.0.2.200");
+        try {
+            attempts.ensureLoginAllowed(email, false);
+            return false;
+        } catch (com.sskings.ecommerce.exception.TooManyRequestsException e) {   // só o bloqueio; outro erro é bug
+            return true;
+        }
+    }
+
+    /** Enche a memória até o limite, com registros de e-mails descartáveis. */
+    private void flood(String tag) {
+        int i = 0;
+        while (attempts.tracked() < LoginAttemptService.MAX_TRACKED) fail(tag + (i++) + "@x.com", "203.0.113." + (i % 250 + 1));
+    }
+
+    @Test
+    @DisplayName("Limpeza não apaga o histórico de estouro da conta: atacar de novo depois de encher a memória dobra o bloqueio")
+    void evictionKeepsStrikes() {
+        overflowAccount("vitima@x.com", 1);
+        assertThat(blocked("vitima@x.com")).isTrue();
+        now.set(T0.plus(java.time.Duration.ofMinutes(16)));                   // bloqueio de 15 min acabou; o estouro fica 24 h
+        assertThat(blocked("vitima@x.com")).isFalse();
+        flood("lixo");
+        now.set(T0.plus(java.time.Duration.ofMinutes(32)));                   // tudo do flood ficou velho
+        fail("gatilho@x.com", "192.0.2.1");                                    // dispara a limpeza
+        assertThat(attempts.tracked()).as("os registros velhos saíram").isLessThan(1_000);
+
+        overflowAccount("vitima@x.com", 2);                                    // segundo estouro
+        now.set(T0.plus(java.time.Duration.ofMinutes(32 + 20)));
+        assertThat(blocked("vitima@x.com")).as("bloqueio dobrado (30 min): o estouro anterior não foi esquecido").isTrue();
+    }
+
+    @Test
+    @DisplayName("Limpeza: abaixo do limite não varre; acima, no máximo uma varredura por minuto")
+    void evictionThresholdAndRate() {
+        fail("antigo@x.com", "192.0.2.10");
+        now.set(T0.plus(java.time.Duration.ofMinutes(30)));
+        fail("novo@x.com", "192.0.2.11");
+        assertThat(attempts.tracked()).as("abaixo do limite: o antigo continua").isEqualTo(4);
+
+        flood("a");
+        now.set(T0.plus(java.time.Duration.ofMinutes(60)));
+        fail("b@x.com", "192.0.2.12");                                         // varre (1ª vez)
+        int afterFirst = attempts.tracked();
+        assertThat(afterFirst).isLessThan(1_000);
+        flood("c");
+        now.set(T0.plus(java.time.Duration.ofMinutes(60)).plusSeconds(30));
+        fail("d@x.com", "192.0.2.13");                                         // menos de 1 min depois: não varre
+        assertThat(attempts.tracked()).isGreaterThanOrEqualTo(LoginAttemptService.MAX_TRACKED);
     }
 }

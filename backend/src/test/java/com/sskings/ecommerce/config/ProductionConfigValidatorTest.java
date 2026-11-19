@@ -119,4 +119,68 @@ class ProductionConfigValidatorTest {
         assertThat(ProductionConfigValidator.mailProblems(new ProductionConfigValidator.MailSettings(true, "smtp.gmail.com", "u",
                 "pw", "l@g.com", true, null))).singleElement().asString().contains("APP_PUBLIC_URL");
     }
+
+    // ---- cada regra sozinha (achadas pelo teste de mutação: os testes acima juntavam vários problemas num caso só) ----
+
+    private static List<String> only(String jwt, String key, CorsProperties cors, String admin) {
+        return ProductionConfigValidator.problems(security(jwt, key, true, true), pix("12345678000199", ""), cors, admin, DB);
+    }
+
+    @Test
+    @DisplayName("Chave de criptografia: exatamente 32 bytes (31 ou 33 são recusados)")
+    void encryptionKeyLength() {
+        for (int n : new int[]{16, 31, 33, 64}) {
+            assertThat(only(STRONG, Base64.getEncoder().encodeToString(new byte[n]), CORS, "SenhaForte2026!"))
+                    .as(n + " bytes").singleElement().asString().startsWith("APP_ENCRYPTION_KEY");
+        }
+        assertThat(ProductionConfigValidator.isAes256Key(KEY)).isTrue();
+        assertThat(ProductionConfigValidator.isAes256Key("%%%")).isFalse();
+    }
+
+    @Test
+    @DisplayName("Segredo: 32 caracteres passam, 31 não")
+    void secretLengthBoundary() {
+        assertThat(only("y".repeat(32), KEY, CORS, "SenhaForte2026!")).isEmpty();
+        assertThat(only("y".repeat(31), KEY, CORS, "SenhaForte2026!")).singleElement().asString().startsWith("JWT_SECRET");
+    }
+
+    @Test
+    @DisplayName("CORS: uma origem http no meio das https já é recusada; curinga também")
+    void corsEachOrigin() {
+        assertThat(only(STRONG, KEY, new CorsProperties(List.of("https://loja.com.br", "http://loja.com.br")), "SenhaForte2026!"))
+                .singleElement().asString().startsWith("CORS_ALLOWED_ORIGINS");
+        assertThat(only(STRONG, KEY, new CorsProperties(List.of("*")), "SenhaForte2026!"))
+                .singleElement().asString().startsWith("CORS_ALLOWED_ORIGINS");
+    }
+
+    @Test
+    @DisplayName("Senha do admin: 12 caracteres com letra e número; sem letra, sem número ou com 11 é recusada")
+    void adminPasswordRules() {
+        assertThat(only(STRONG, KEY, CORS, "Xq7mLp2vRt9k")).isEmpty();
+        for (String bad : new String[]{"Xq7mLp2vRt9", "583920174652", "XqmLpvRtkWzN", null}) {
+            assertThat(only(STRONG, KEY, CORS, bad)).as(String.valueOf(bad)).singleElement().asString().startsWith("ADMIN_PASSWORD");
+        }
+    }
+
+    @Test
+    @DisplayName("Usuário do banco da API: nem vazio, nem postgres (em qualquer caixa)")
+    void databaseUserEachCase() {
+        for (String bad : new String[]{null, " ", "POSTGRES", "postgres"}) {
+            assertThat(ProductionConfigValidator.databaseUserProblems(bad, "shop_owner")).as(String.valueOf(bad))
+                    .singleElement().asString().startsWith("DATABASE_USERNAME");
+        }
+        assertThat(ProductionConfigValidator.databaseUserProblems("shop_app", "shop_owner")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("E-mail: desligado não exige nada; ligado exige host, usuário, senha e remetente, cada um")
+    void mailEachField() {
+        assertThat(ProductionConfigValidator.mailProblems(new ProductionConfigValidator.MailSettings(false, "", "", "", "", false, "")))
+                .isEmpty();
+        String[][] cases = {{"", "u", "p", "f"}, {"h", "", "p", "f"}, {"h", "u", "", "f"}, {"h", "u", "p", ""}};
+        for (String[] c : cases) {
+            assertThat(ProductionConfigValidator.mailProblems(new ProductionConfigValidator.MailSettings(true, c[0], c[1], c[2], c[3],
+                    true, "https://l.com"))).as(String.join(",", c)).anyMatch(p -> p.startsWith("MAIL_HOST"));
+        }
+    }
 }

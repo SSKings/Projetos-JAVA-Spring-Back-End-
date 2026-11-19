@@ -42,6 +42,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return !enabled || !"POST".equals(request.getMethod()) || bucketOf(RequestPaths.of(request)) == null;
     }
 
+    /** Janelas em memória (testes). */
+    int tracked() {
+        return windows.size();
+    }
+
     static String bucketOf(String uri) {
         if (uri.equals("/api/auth/login") || uri.equals("/api/auth/register") || uri.equals("/api/auth/verify-email")
                 || uri.equals("/api/auth/forgot-password") || uri.equals("/api/auth/reset-password")) return "auth";

@@ -755,3 +755,26 @@ troca de senha ou de MFA. O cliente também não recebia o Pix nem o andamento d
 - Testes: `RedactionTest` (inclusive o erro dos grupos), `test_production_logging.py` (passo próprio no CI),
   `AuditServiceTest` e `SecurityAuditLogIntegrationTest`; todos falham na configuração anterior.
 
+## ADR-027 — CI com a pilha de produção, upgrade e scan de imagens
+
+**Status:** Aceito
+
+**Contexto:** o CI testava o código (H2, `@WebMvcTest`, k6 contra a API em perfil dev), mas não a pilha que vai para
+produção: PostgreSQL com três usuários, nginx com TLS, imagens Docker, migrações sobre um banco com dados. Isso só era
+exercitado à mão (`prod-like.sh`). Vulnerabilidades nas imagens também não eram barradas — a do nginx tinha 13.
+
+**Decisão:**
+1. Job **Produção** em todo PR: o `prod-like.sh` sobe a versão da `main`, o smoke do k6 cria dados, e a versão do PR
+   sobe por cima com os mesmos segredos e o mesmo volume — as migrações novas rodam sobre dados, como num deploy.
+   Depois, o smoke de novo, através do nginx.
+2. **Trivy** nas imagens da API e do nginx, barrando HIGH/CRITICAL que já têm correção. Exceção só em
+   `.trivyignore.yaml`, com justificativa e `expired_at` (vencida, o CI volta a barrar).
+3. **CodeQL** (Java e TypeScript), **migrações imutáveis**, **PIT** nas regras de segurança e dinheiro e **mínimos de
+   cobertura** perto do atual.
+4. A `main` só aceita PR com todos esses checks verdes (proteção de branch, valendo para administradores).
+
+**Consequências:**
+- Dockerfile, nginx, permissões do banco e migrações quebram no PR, não no deploy. O job leva alguns minutos.
+- O nginx aplica as atualizações do Alpine no build: menos reprodutível byte a byte, mas sem esperar a imagem oficial.
+- As duas falhas do Spring 6.2 ficam como exceção até 28/02/2027 — prazo para migrar para o Spring Boot 4.
+

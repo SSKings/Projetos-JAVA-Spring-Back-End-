@@ -28,7 +28,7 @@ export default defineConfig({
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/main.tsx', 'src/types/**', 'src/test/**', 'src/**/*.test.{ts,tsx}'],
       // npm run coverage falha se a cobertura cair abaixo destes valores
-      thresholds: { lines: 90, branches: 85, functions: 85, statements: 90 },
+      thresholds: { lines: 97, branches: 94, functions: 95, statements: 97 },   // perto do atual (99,1 / 95,9 / 97,0 / 98,4)
     },
   },
 })

@@ -1,0 +1,12 @@
+# Exceções do scan de imagens (CI, job "Produção"). Toda exceção tem justificativa e validade: vencida, o CI volta a
+# barrar.
+vulnerabilities:
+  # Spring Framework 6.2.x (Spring Boot 3.5): correção só na linha 7 (Spring Boot 4); a 6.2 saiu do suporte gratuito.
+  # Não exploráveis no ShopEasy: exigem XsltView (RCE/SSRF) ou SSE com fragmentos de view — a API é REST/JSON, sem
+  # views, e o status do Pix é acompanhado por polling. Plano: migrar para Spring Boot 4 antes da validade.
+  - id: CVE-2026-47884
+    statement: "XsltView não é usado (API só JSON). Correção só no Spring 7 — migração para Boot 4 planejada."
+    expired_at: 2027-02-28
+  - id: CVE-2026-47890
+    statement: "Sem SSE nem view fragments (Pix por polling). Correção só no Spring 7 — migração para Boot 4 planejada."
+    expired_at: 2027-02-28
